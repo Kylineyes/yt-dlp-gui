@@ -78,6 +78,12 @@ fn apply_event(window: &MainWindow, event: WorkerEvent) {
             window.set_search_message_kind(2);
             window.set_search_message_argument("".into());
         }
+        WorkerEvent::SearchFailed { detail } => {
+            window.set_resource_name("".into());
+            window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
+            window.set_search_message_kind(8);
+            window.set_search_message_argument(detail.into());
+        }
         WorkerEvent::DownloadsLoaded(downloads) => {
             let rows = downloads
                 .into_iter()
@@ -182,6 +188,10 @@ fn install_callbacks(window: &MainWindow, commands: tokio::sync::mpsc::Unbounded
                 window.set_search_message_kind(1);
                 window.set_search_message_argument("".into());
             } else {
+                window.set_resource_name("".into());
+                window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
+                window.set_search_message_kind(6);
+                window.set_search_message_argument("".into());
                 let _ = sender.send(UiCommand::Search { url });
             }
         }
@@ -199,7 +209,7 @@ fn install_callbacks(window: &MainWindow, commands: tokio::sync::mpsc::Unbounded
                 model.set_row_data(index, row);
             }
         }
-        window.set_search_message_kind(3);
+        window.set_search_message_kind(0);
         window.set_search_message_argument("".into());
     });
 

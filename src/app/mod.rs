@@ -33,6 +33,7 @@ pub enum WorkerEvent {
     SettingsLoaded(AppSettings),
     SettingsSaved(AppSettings),
     SearchCompleted(SearchResult),
+    SearchFailed { detail: String },
     DownloadsLoaded(Vec<DownloadRecord>),
     DownloadStarted { id: i64 },
     LogLine { id: i64, line: String },
@@ -80,7 +81,65 @@ pub fn spawn_worker(
                         Err(error) => send_error(&events, error),
                     },
                     UiCommand::Search { url } => {
-                        let _ = events.send(WorkerEvent::SearchCompleted(mock_search(&url)));
+                        let settings = match storage.load_settings() {
+                            Ok(settings) => settings,
+                            Err(error) => {
+                                let _ = events.send(WorkerEvent::SearchFailed {
+                                    detail: error.to_string(),
+                                });
+                                continue;
+                            }
+                        };
+                        let result = ytdlp::inspect(ytdlp::InspectRequest {
+                            url,
+                            yt_dlp_path: optional_path(&settings.yt_dlp_path),
+                            proxy: optional_string(&settings.proxy),
+                        })
+                        .await;
+                        match result {
+                            Ok(resources) => {
+                                if resources.len() != 1 {
+                                    let detail = if resources.is_empty() {
+                                        "No media metadata was returned by yt-dlp".into()
+                                    } else {
+                                        "Playlist inspection is not supported; enter a single media URL".into()
+                                    };
+                                    let _ = events.send(WorkerEvent::SearchFailed { detail });
+                                    continue;
+                                }
+                                let resource = resources.into_iter().next().unwrap_or_else(|| unreachable!());
+                                if resource.formats.is_empty() {
+                                    let _ = events.send(WorkerEvent::SearchFailed {
+                                        detail: "yt-dlp returned no downloadable formats".into(),
+                                    });
+                                    continue;
+                                }
+                                let streams = resource
+                                    .formats
+                                    .into_iter()
+                                    .map(|format| {
+                                        let id = format.id;
+                                        MediaStream {
+                                            id: id.clone(),
+                                            label: format.label,
+                                            format_selector: id,
+                                            video_format: format.video_format,
+                                            audio_format: format.audio_format,
+                                            estimated_size: format.estimated_size,
+                                        }
+                                    })
+                                    .collect();
+                                let _ = events.send(WorkerEvent::SearchCompleted(SearchResult {
+                                    resource_name: resource.resource_name,
+                                    streams,
+                                }));
+                            }
+                            Err(error) => {
+                                let _ = events.send(WorkerEvent::SearchFailed {
+                                    detail: error.to_string(),
+                                });
+                            }
+                        }
                     }
                     UiCommand::CreateDownload(download) => {
                         let result = storage
@@ -132,43 +191,6 @@ fn send_error(events: &UnboundedSender<WorkerEvent>, error: impl std::fmt::Displ
         kind: ErrorKind::General,
         detail: error.to_string(),
     });
-}
-
-fn mock_search(url: &str) -> SearchResult {
-    let suffix = url
-        .split('/')
-        .next_back()
-        .filter(|value| !value.is_empty())
-        .unwrap_or("resource");
-    SearchResult {
-        resource_name: suffix.to_string(),
-        streams: vec![
-            MediaStream {
-                id: "best-mp4".into(),
-                label: "Audio/video · 1080p · MP4 · H.264 + AAC".into(),
-                format_selector: "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]".into(),
-                video_format: "1080p H.264 / MP4".into(),
-                audio_format: "AAC / M4A".into(),
-                estimated_size: "Size will be determined by yt-dlp".into(),
-            },
-            MediaStream {
-                id: "best-720p".into(),
-                label: "Audio/video · 720p · MP4".into(),
-                format_selector: "bestvideo[height<=720]+bestaudio/best[height<=720]".into(),
-                video_format: "Up to 720p / MP4".into(),
-                audio_format: "Best available audio".into(),
-                estimated_size: "Size will be determined by yt-dlp".into(),
-            },
-            MediaStream {
-                id: "audio".into(),
-                label: "Audio only · Best quality".into(),
-                format_selector: "bestaudio/best".into(),
-                video_format: "No video".into(),
-                audio_format: "Best available audio".into(),
-                estimated_size: "Size will be determined by yt-dlp".into(),
-            },
-        ],
-    }
 }
 
 async fn run_download(id: i64, storage: &Storage, events: &UnboundedSender<WorkerEvent>) {
