@@ -30,6 +30,7 @@ pub enum ErrorKind {
 #[derive(Debug)]
 pub enum WorkerEvent {
     Ready,
+    StorageInitializationFailed { detail: String },
     SettingsLoaded(AppSettings),
     SettingsSaved(AppSettings),
     SearchCompleted(SearchResult),
@@ -52,15 +53,8 @@ pub fn spawn_worker(
             .build()
             .expect("Failed to create the Tokio runtime");
         runtime.block_on(async move {
-            let storage = match Storage::open_default() {
-                Ok(storage) => storage,
-                Err(error) => {
-                    let _ = events.send(WorkerEvent::Error {
-                        kind: ErrorKind::General,
-                        detail: error.to_string(),
-                    });
-                    return;
-                }
+            let Some(storage) = initialize_storage(&events, Storage::open_default) else {
+                return;
             };
             let _ = events.send(WorkerEvent::Ready);
             send_initial_state(&storage, &events);
@@ -116,6 +110,21 @@ pub fn spawn_worker(
             }
         });
     })
+}
+
+fn initialize_storage(
+    events: &UnboundedSender<WorkerEvent>,
+    open_storage: impl FnOnce() -> Result<Storage, crate::error::AppError>,
+) -> Option<Storage> {
+    match open_storage() {
+        Ok(storage) => Some(storage),
+        Err(error) => {
+            let _ = events.send(WorkerEvent::StorageInitializationFailed {
+                detail: error.to_string(),
+            });
+            None
+        }
+    }
 }
 
 fn send_initial_state(storage: &Storage, events: &UnboundedSender<WorkerEvent>) {
@@ -230,4 +239,46 @@ fn optional_path(value: &str) -> Option<PathBuf> {
 
 fn optional_string(value: &str) -> Option<String> {
     (!value.trim().is_empty()).then(|| value.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::{AppError, StorageStage};
+    use std::path::PathBuf;
+    use tokio::sync::mpsc::error::TryRecvError;
+
+    #[test]
+    fn storage_initialization_failure_sends_dedicated_event() {
+        let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let database_path = PathBuf::from("C:/restricted/application.sqlite3");
+        let expected_detail = AppError::StorageIo {
+            stage: StorageStage::OpenDatabase,
+            path: Some(database_path.clone()),
+            source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied"),
+        }
+        .to_string();
+
+        let storage = initialize_storage(&events, || {
+            Err(AppError::StorageIo {
+                stage: StorageStage::OpenDatabase,
+                path: Some(database_path),
+                source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied"),
+            })
+        });
+
+        assert!(storage.is_none());
+        let event = receiver
+            .try_recv()
+            .expect("Expected a storage initialization failure event");
+        match event {
+            WorkerEvent::StorageInitializationFailed { detail } => {
+                assert_eq!(detail, expected_detail);
+            }
+            other => {
+                panic!("Expected a dedicated storage initialization failure event, got {other:?}")
+            }
+        }
+        assert!(matches!(receiver.try_recv(), Err(TryRecvError::Empty)));
+    }
 }

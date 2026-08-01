@@ -5,7 +5,7 @@ mod schema;
 use self::app_config::AppConfigStore;
 use crate::app::state::{AppSettings, DownloadRecord, DownloadStatus, NewDownload};
 use crate::error::{AppError, StorageStage};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, ErrorCode, OptionalExtension, params};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -55,7 +55,7 @@ impl Storage {
                 path: database_path.clone(),
                 source,
             })?;
-        configure_connection(&connection).map_err(|source| AppError::StorageSqlite {
+        Self::configure_connection(&connection).map_err(|source| AppError::StorageSqlite {
             stage: StorageStage::ConfigureConnection,
             path: database_path.clone(),
             source,
@@ -75,6 +75,30 @@ impl Storage {
                 source,
             })?;
         Ok(storage)
+    }
+
+    fn configure_connection(connection: &Connection) -> rusqlite::Result<()> {
+        for _ in 0..5 {
+            match connection.execute_batch(
+                "PRAGMA foreign_keys = ON;
+             PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;",
+            ) {
+                Ok(()) => return Ok(()),
+                Err(rusqlite::Error::SqliteFailure(error, _))
+                    if error.code == ErrorCode::DatabaseBusy
+                        || error.code == ErrorCode::DatabaseLocked =>
+                {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        connection.execute_batch(
+            "PRAGMA foreign_keys = ON;
+         PRAGMA journal_mode = WAL;
+         PRAGMA synchronous = NORMAL;",
+        )
     }
 
     fn migrate(&self) -> rusqlite::Result<()> {

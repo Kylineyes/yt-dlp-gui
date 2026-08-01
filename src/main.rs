@@ -1,13 +1,16 @@
 mod app;
 mod download;
 mod error;
+mod fatal_error_window;
 mod storage;
 
 slint::include_modules!();
 
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
-use slint::{Model, ModelRc, SharedString, StyledText, VecModel};
+use fatal_error_window::FatalErrorController;
+use slint::{CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, VecModel};
+use std::cell::RefCell;
 use std::rc::Rc;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -20,45 +23,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
     window.set_downloads(ModelRc::new(VecModel::<DownloadRow>::default()));
+    let fatal_window = Rc::new(RefCell::new(FatalErrorController::new(window.as_weak())));
 
-    install_event_bridge(&window, event_receiver);
+    let _event_pump = install_event_pump(&window, event_receiver, fatal_window.clone());
     install_callbacks(&window, command_sender.clone());
 
     window.run()?;
+    fatal_window.borrow_mut().hide();
     let _ = command_sender.send(UiCommand::Shutdown);
     let _ = worker.join();
     Ok(())
 }
 
-fn install_event_bridge(
+fn install_event_pump(
     window: &MainWindow,
     mut event_receiver: tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>,
-) {
+    fatal_window: Rc<RefCell<FatalErrorController>>,
+) -> slint::Timer {
+    let timer = slint::Timer::default();
     let weak_window = window.as_weak();
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create the event forwarding runtime");
-        runtime.block_on(async move {
-            while let Some(event) = event_receiver.recv().await {
-                let weak_window = weak_window.clone();
-                let _ = slint::invoke_from_event_loop(move || {
-                    let Some(window) = weak_window.upgrade() else {
-                        return;
-                    };
-                    apply_event(&window, event);
-                });
+    timer.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_millis(16),
+        move || {
+            let Some(window) = weak_window.upgrade() else {
+                return;
+            };
+            while let Ok(event) = event_receiver.try_recv() {
+                apply_event(&window, event, &fatal_window);
             }
-        });
-    });
+            fatal_window.borrow_mut().ensure_native_modal();
+        },
+    );
+    timer
 }
 
-fn apply_event(window: &MainWindow, event: WorkerEvent) {
+fn apply_event(
+    window: &MainWindow,
+    event: WorkerEvent,
+    fatal_window: &Rc<RefCell<FatalErrorController>>,
+) {
     match event {
         WorkerEvent::Ready => {
             window.set_downloads_message_kind(1);
             window.set_downloads_message_argument("".into());
+        }
+        WorkerEvent::StorageInitializationFailed { detail } => {
+            let is_new = fatal_window.borrow().window().is_none();
+            fatal_window.borrow_mut().show_or_update(detail);
+            fatal_window.borrow_mut().ensure_native_modal();
+            if is_new {
+                install_fatal_callbacks(fatal_window.clone());
+            }
         }
         WorkerEvent::SettingsLoaded(settings) => apply_settings(window, &settings),
         WorkerEvent::SettingsSaved(settings) => {
@@ -129,6 +145,35 @@ fn apply_event(window: &MainWindow, event: WorkerEvent) {
             window.set_downloads_message_kind(kind);
             window.set_downloads_message_argument(detail.into());
         }
+    }
+}
+
+fn install_fatal_callbacks(fatal_window: Rc<RefCell<FatalErrorController>>) {
+    let Some(fatal) = fatal_window.borrow().window().map(ComponentHandle::as_weak) else {
+        return;
+    };
+
+    let toggle_window = fatal_window.clone();
+    if let Some(fatal) = fatal.upgrade() {
+        fatal.on_toggle_fatal_detail(move || {
+            if let Some(window) = toggle_window.borrow().window() {
+                window.set_fatal_detail_expanded(!window.get_fatal_detail_expanded());
+            }
+        });
+    }
+
+    if let Some(fatal) = fatal.upgrade() {
+        fatal
+            .window()
+            .on_close_requested(|| CloseRequestResponse::KeepWindowShown);
+    }
+
+    let confirm_window = fatal_window.clone();
+    if let Some(fatal) = fatal.upgrade() {
+        fatal.on_confirm_fatal_error(move || {
+            confirm_window.borrow_mut().hide();
+            let _ = slint::quit_event_loop();
+        });
     }
 }
 
