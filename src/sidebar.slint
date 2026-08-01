@@ -2,8 +2,7 @@ import { Button, VerticalBox } from "std-widgets.slint";
 
 component NavigationButton inherits Button {
     in property <bool> active;
-    checkable: true;
-    checked: active;
+    primary: active;
     colorize-icon: true;
     horizontal-stretch: 1;
 }
@@ -23,8 +22,8 @@ export component Sidebar inherits Rectangle {
         Text { text: @tr("Download manager"); color: #666666; }
         Rectangle { height: 14px; }
         NavigationButton {
-            text: @tr("Settings");
-            icon: @image-url("../assets/icons/settings.svg");
+            text: @tr("Welcome");
+            icon: @image-url("../assets/icons/home.svg");
             active: root.selected-page == 0;
             clicked => { root.selected-page = 0; }
         }
@@ -42,6 +41,12 @@ export component Sidebar inherits Rectangle {
                 root.selected-page = 2;
                 root.refresh-downloads();
             }
+        }
+        NavigationButton {
+            text: @tr("Settings");
+            icon: @image-url("../assets/icons/settings.svg");
+            active: root.selected-page == 3;
+            clicked => { root.selected-page = 3; }
         }
         Rectangle { vertical-stretch: 1; }
         Text { text: @tr("Rust + Slint"); color: #777777; horizontal-alignment: center; }

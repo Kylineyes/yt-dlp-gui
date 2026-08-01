@@ -198,3 +198,63 @@ msgstr "yt-dlp 图形化工具"
 
 msgid "Rust + Slint"
 msgstr "Rust + Slint"
+
+msgid "Welcome"
+msgstr "欢迎"
+
+msgid "A desktop interface for creating and managing yt-dlp download tasks"
+msgstr "用于创建和管理 yt-dlp 下载任务的桌面界面"
+
+msgid "What this tool does"
+msgstr "本工具可以做什么"
+
+msgid "Configure yt-dlp, prepare and save download tasks, start downloads, and track their status in one place."
+msgstr "在一个界面中配置 yt-dlp、准备和保存下载任务、启动下载并跟踪任务状态。"
+
+msgid "How to use it"
+msgstr "使用流程"
+
+msgid "Step 1"
+msgstr "步骤 1"
+
+msgid "Configure"
+msgstr "配置环境"
+
+msgid "Set the yt-dlp path and default download directory in Settings."
+msgstr "在设置中配置 yt-dlp 路径和默认下载目录。"
+
+msgid "Step 2"
+msgstr "步骤 2"
+
+msgid "Choose media"
+msgstr "选择媒体"
+
+msgid "Open Search, enter a video or playlist URL, and choose a media option."
+msgstr "打开检索页，输入视频或播放列表 URL，然后选择媒体选项。"
+
+msgid "Step 3"
+msgstr "步骤 3"
+
+msgid "Download and track"
+msgstr "下载并跟踪"
+
+msgid "Add the task, then start and monitor it in Download tasks."
+msgstr "添加任务，然后在下载任务列表中启动并跟踪状态。"
+
+msgid "Built with Rust and Slint"
+msgstr "使用 Rust 和 Slint 构建"
+
+msgid "Powered by yt-dlp, ytd-rs, Tokio, rusqlite, SQLite, Serde, and serde_json."
+msgstr "本工具使用 yt-dlp、ytd-rs、Tokio、rusqlite、SQLite、Serde 和 serde_json。"
+
+msgid "FFmpeg is used as an external tool for media post-processing when needed."
+msgstr "需要进行媒体后处理时，会使用 FFmpeg 作为外部工具。"
+
+msgid "Thanks to these projects and the open-source community."
+msgstr "感谢这些项目以及开源社区。"
+
+msgid "Project repository"
+msgstr "项目仓库"
+
+msgid "https://github.com/Kylineyes/yt-dlp-gui"
+msgstr "https://github.com/Kylineyes/yt-dlp-gui"

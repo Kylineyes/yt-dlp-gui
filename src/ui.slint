@@ -4,6 +4,7 @@ import { StreamRow, DownloadRow } from "ui/types.slint";
 import { SettingsPage } from "ui/settings-page.slint";
 import { SearchPage } from "ui/search-page.slint";
 import { DownloadsPage } from "ui/downloads-page.slint";
+import { WelcomePage } from "ui/welcome-page.slint";
 
 export component MainWindow inherits Window {
     title: @tr("yt-dlp GUI");
@@ -50,19 +51,7 @@ export component MainWindow inherits Window {
         }
         Rectangle {
             horizontal-stretch: 1;
-            if root.selected-page == 0 : SettingsPage {
-                yt-dlp-path <=> root.yt-dlp-path;
-                ffmpeg-path <=> root.ffmpeg-path;
-                default-download-directory <=> root.default-download-directory;
-                proxy <=> root.proxy;
-                max-concurrency <=> root.max-concurrency;
-                language <=> root.language;
-                message-kind: root.settings-message-kind;
-                message-argument: root.settings-message-argument;
-                save => { root.save-settings(); }
-                change-language(language) => { root.change-language(language); }
-                reset => { root.reset-settings(); }
-            }
+            if root.selected-page == 0 : WelcomePage { }
             if root.selected-page == 1 : SearchPage {
                 url <=> root.search-url;
                 output-directory <=> root.search-output-directory;
@@ -83,6 +72,19 @@ export component MainWindow inherits Window {
                 refresh => { root.refresh-downloads(); }
                 start(id) => { root.start-download(id); }
                 pause(id) => { root.pause-download(id); }
+            }
+            if root.selected-page == 3 : SettingsPage {
+                yt-dlp-path <=> root.yt-dlp-path;
+                ffmpeg-path <=> root.ffmpeg-path;
+                default-download-directory <=> root.default-download-directory;
+                proxy <=> root.proxy;
+                max-concurrency <=> root.max-concurrency;
+                language <=> root.language;
+                message-kind: root.settings-message-kind;
+                message-argument: root.settings-message-argument;
+                save => { root.save-settings(); }
+                change-language(language) => { root.change-language(language); }
+                reset => { root.reset-settings(); }
             }
         }
     }
