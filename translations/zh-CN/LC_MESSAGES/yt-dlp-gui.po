@@ -1,0 +1,200 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: yt-dlp-gui 0.1.0\n"
+"Language: zh-CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Configure yt-dlp and the download environment"
+msgstr "配置 yt-dlp 及下载环境"
+
+msgid "yt-dlp path"
+msgstr "yt-dlp 路径"
+
+msgid "Leave empty to find yt-dlp.exe on PATH"
+msgstr "留空则从 PATH 查找 yt-dlp.exe"
+
+msgid "FFmpeg path"
+msgstr "FFmpeg 路径"
+
+msgid "Enter ffmpeg.exe or its directory"
+msgstr "填写 ffmpeg.exe 或其所在目录"
+
+msgid "Default download directory"
+msgstr "默认下载目录"
+
+msgid "For example: C:/Users/Username/Downloads"
+msgstr "例如：C:/Users/用户名/Downloads"
+
+msgid "Download proxy"
+msgstr "下载代理"
+
+msgid "For example: http://127.0.0.1:7890"
+msgstr "例如：http://127.0.0.1:7890"
+
+msgid "Language"
+msgstr "界面语言"
+
+msgid "Simplified Chinese"
+msgstr "简体中文"
+
+msgid "English"
+msgstr "English"
+
+msgid "Maximum concurrent downloads"
+msgstr "最大下载并发数"
+
+msgid "This version saves the concurrency setting, but downloads still run one at a time."
+msgstr "当前版本会保存并发设置，但实际下载仍按单任务串行执行。"
+
+msgid "Save settings"
+msgstr "保存设置"
+
+msgid "Restore defaults"
+msgstr "恢复默认值"
+
+msgid "Settings saved to SQLite"
+msgstr "设置已保存到 SQLite"
+
+msgid "Defaults restored; click Save settings"
+msgstr "已恢复默认值，请点击保存设置"
+
+msgid "Search"
+msgstr "检索"
+
+msgid "Enter a link, review available media streams, and create a download task"
+msgstr "输入链接，确认可选音视频流并创建下载任务"
+
+msgid "Enter a video or playlist URL"
+msgstr "请输入视频或播放列表 URL"
+
+msgid "This version returns demo stream information; real format inspection will be added through yt-dlp metadata later."
+msgstr "当前版本返回演示流信息；真实格式将在后续通过 yt-dlp 元数据检索接入。"
+
+msgid "Audio/video · 1080p · MP4 · H.264 + AAC"
+msgstr "音视频 · 1080p · MP4 · H.264 + AAC"
+
+msgid "Audio/video · 720p · MP4"
+msgstr "音视频 · 720p · MP4"
+
+msgid "Audio only · Best quality"
+msgstr "仅音频 · 最佳质量"
+
+msgid "1080p H.264 / MP4  ·  AAC / M4A"
+msgstr "1080p H.264 / MP4  ·  AAC / M4A"
+
+msgid "Up to 720p / MP4  ·  Best available audio"
+msgstr "最高 720p / MP4  ·  最佳可用音频"
+
+msgid "No video  ·  Best available audio"
+msgstr "无视频  ·  最佳可用音频"
+
+msgid "Size will be determined by yt-dlp"
+msgstr "大小由 yt-dlp 下载时确认"
+
+msgid "Download location"
+msgstr "下载位置"
+
+msgid "Choose a download directory"
+msgstr "选择任务下载目录"
+
+msgid "Add download task"
+msgstr "加入下载任务"
+
+msgid "Enter a URL to search"
+msgstr "请输入需要检索的 URL"
+
+msgid "Demo streams generated; choose a format and add the task"
+msgstr "已生成演示流，请选择格式后加入任务"
+
+msgid "Media stream selected"
+msgstr "已选择音视频流"
+
+msgid "Select a media stream first"
+msgstr "请先选择音视频流"
+
+msgid "Enter a download location"
+msgstr "请填写下载位置"
+
+msgid "Download tasks"
+msgstr "下载任务列表"
+
+msgid "Download history and current task status"
+msgstr "历史任务和当前下载状态"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Background service is ready"
+msgstr "后台服务已就绪"
+
+msgid "{} download tasks"
+msgstr "共 {} 个下载任务"
+
+msgid "Task {} is downloading"
+msgstr "任务 {} 正在下载"
+
+msgid "Task {}: {}"
+msgstr "任务 {}：{}"
+
+msgid "Task {} completed"
+msgstr "任务 {} 下载完成"
+
+msgid "Task {} failed: {}"
+msgstr "任务 {} 失败：{}"
+
+msgid "Task {} cannot be paused yet; the app will not fake a paused state"
+msgstr "任务 {} 暂不支持暂停；程序不会伪造暂停状态"
+
+msgid "Task added to the download list"
+msgstr "任务已加入下载列表"
+
+msgid "Unnamed resource"
+msgstr "未命名资源"
+
+msgid "Queued"
+msgstr "待开始"
+
+msgid "Ready"
+msgstr "就绪"
+
+msgid "Downloading"
+msgstr "下载中"
+
+msgid "Pause"
+msgstr "暂停"
+
+msgid "Completed"
+msgstr "完成"
+
+msgid "Failed"
+msgstr "失败"
+
+msgid "Format: {}"
+msgstr "格式：{}"
+
+msgid "Location: {}"
+msgstr "存放位置：{}"
+
+msgid "Started: {}    Completed: {}"
+msgstr "开始：{}    完成：{}"
+
+msgid "Size: {}"
+msgstr "下载体积：{}"
+
+msgid "Start"
+msgstr "开始"
+
+msgid "Download manager"
+msgstr "下载管理器"
+
+msgid "yt-dlp GUI"
+msgstr "yt-dlp 图形化工具"
+
+msgid "Rust + Slint"
+msgstr "Rust + Slint"

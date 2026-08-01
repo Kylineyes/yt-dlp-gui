@@ -1,0 +1,59 @@
+import { Button, ComboBox, LineEdit, ScrollView, SpinBox, VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+export component SettingsPage inherits Rectangle {
+    in-out property <string> yt-dlp-path;
+    in-out property <string> ffmpeg-path;
+    in-out property <string> default-download-directory;
+    in-out property <string> proxy;
+    in-out property <int> max-concurrency;
+    in-out property <string> language;
+    in property <int> message-kind;
+    in property <string> message-argument;
+    callback save();
+    callback reset();
+    callback change-language(string);
+
+    background: #fafafa;
+    ScrollView {
+        VerticalBox {
+            padding: 28px;
+            spacing: 10px;
+            Text { text: @tr("Settings"); font-size: 28px; font-weight: 600; }
+            Text { text: @tr("Configure yt-dlp and the download environment"); color: #666666; }
+            Rectangle { height: 12px; }
+            Text { text: @tr("yt-dlp path"); font-weight: 600; }
+            LineEdit { placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH"); text <=> root.yt-dlp-path; }
+            Text { text: @tr("FFmpeg path"); font-weight: 600; }
+            LineEdit { placeholder-text: @tr("Enter ffmpeg.exe or its directory"); text <=> root.ffmpeg-path; }
+            Text { text: @tr("Default download directory"); font-weight: 600; }
+            LineEdit { placeholder-text: @tr("For example: C:/Users/Username/Downloads"); text <=> root.default-download-directory; }
+            Text { text: @tr("Download proxy"); font-weight: 600; }
+            LineEdit { placeholder-text: @tr("For example: http://127.0.0.1:7890"); text <=> root.proxy; }
+            Text { text: @tr("Language"); font-weight: 600; }
+            ComboBox {
+                model: [@tr("Simplified Chinese"), @tr("English")];
+                current-index: root.language == "en" ? 1 : 0;
+                selected(value) => {
+                    root.language = self.current-index == 1 ? "en" : "zh-CN";
+                    root.change-language(root.language);
+                }
+            }
+            Text { text: @tr("Maximum concurrent downloads"); font-weight: 600; }
+            SpinBox { minimum: 1; maximum: 16; value <=> root.max-concurrency; }
+            Text { text: @tr("This version saves the concurrency setting, but downloads still run one at a time."); color: #805600; wrap: word-wrap; }
+            HorizontalBox {
+                spacing: 8px;
+                Button { text: @tr("Save settings"); primary: true; clicked => { root.save(); } }
+                Button { text: @tr("Restore defaults"); clicked => { root.reset(); } }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            Text {
+                text: root.message-kind == 1 ? @tr("Settings saved to SQLite") :
+                      root.message-kind == 2 ? @tr("Defaults restored; click Save settings") :
+                      root.message-argument;
+                color: #2563eb;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

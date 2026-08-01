@@ -1,0 +1,76 @@
+import { Button, LineEdit, ListView, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { StreamRow } from "types.slint";
+
+export component SearchPage inherits Rectangle {
+    in-out property <string> url;
+    in-out property <string> output-directory;
+    in property <string> resource-name;
+    in property <int> message-kind;
+    in property <string> message-argument;
+    in property <[StreamRow]> streams;
+    callback search();
+    callback select-stream(int);
+    callback create-download();
+
+    background: #fafafa;
+    VerticalBox {
+        padding: 28px;
+        spacing: 10px;
+        Text { text: @tr("Search"); font-size: 28px; font-weight: 600; }
+        Text { text: @tr("Enter a link, review available media streams, and create a download task"); color: #666666; }
+        HorizontalBox {
+            spacing: 8px;
+            LineEdit { placeholder-text: @tr("Enter a video or playlist URL"); text <=> root.url; horizontal-stretch: 1; }
+            Button { text: @tr("Search"); primary: true; clicked => { root.search(); } }
+        }
+        Text { text: @tr("This version returns demo stream information; real format inspection will be added through yt-dlp metadata later."); color: #805600; wrap: word-wrap; }
+        Text { text: root.resource-name; font-size: 18px; font-weight: 600; }
+        Rectangle {
+            border-width: 1px;
+            border-color: #dedede;
+            border-radius: 6px;
+            vertical-stretch: 1;
+            ListView {
+                for stream[index] in root.streams : Rectangle {
+                    height: 82px;
+                    background: stream.selected ? #e5f1fb : Math.mod(index, 2) == 0 ? #ffffff : #f7f7f7;
+                    border-radius: 4px;
+                    TouchArea { clicked => { root.select-stream(index); } }
+                    VerticalBox {
+                        padding: 10px;
+                        spacing: 3px;
+                        Text {
+                            text: stream.id == "best-mp4" ? @tr("Audio/video · 1080p · MP4 · H.264 + AAC") :
+                                  stream.id == "best-720p" ? @tr("Audio/video · 720p · MP4") :
+                                  @tr("Audio only · Best quality");
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: stream.id == "best-mp4" ? @tr("1080p H.264 / MP4  ·  AAC / M4A") :
+                                  stream.id == "best-720p" ? @tr("Up to 720p / MP4  ·  Best available audio") :
+                                  @tr("No video  ·  Best available audio");
+                            color: #555555;
+                        }
+                        Text { text: @tr("Size will be determined by yt-dlp"); color: #777777; }
+                    }
+                }
+            }
+        }
+        Text { text: @tr("Download location"); font-weight: 600; }
+        LineEdit { placeholder-text: @tr("Choose a download directory"); text <=> root.output-directory; }
+        HorizontalBox {
+            Button { text: @tr("Add download task"); primary: true; enabled: root.streams.length > 0; clicked => { root.create-download(); } }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        Text {
+            text: root.message-kind == 1 ? @tr("Enter a URL to search") :
+                  root.message-kind == 2 ? @tr("Demo streams generated; choose a format and add the task") :
+                  root.message-kind == 3 ? @tr("Media stream selected") :
+                  root.message-kind == 4 ? @tr("Select a media stream first") :
+                  root.message-kind == 5 ? @tr("Enter a download location") :
+                  root.message-argument;
+            color: #2563eb;
+            wrap: word-wrap;
+        }
+    }
+}

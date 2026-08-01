@@ -1,0 +1,23 @@
+export struct StreamRow {
+    id: string,
+    label: string,
+    format-selector: string,
+    video-format: string,
+    audio-format: string,
+    estimated-size: string,
+    selected: bool,
+}
+
+export struct DownloadRow {
+    id: int,
+    name: string,
+    url: string,
+    status: string,
+    started-at: string,
+    completed-at: string,
+    output-directory: string,
+    size-text: string,
+    format-text: string,
+    progress: float,
+    error-message: string,
+}

@@ -1,0 +1,49 @@
+import { Button, VerticalBox } from "std-widgets.slint";
+
+component NavigationButton inherits Button {
+    in property <bool> active;
+    checkable: true;
+    checked: active;
+    colorize-icon: true;
+    horizontal-stretch: 1;
+}
+
+export component Sidebar inherits Rectangle {
+    in-out property <int> selected-page;
+    callback refresh-downloads();
+
+    width: 224px;
+    background: #f3f3f3;
+    border-width: 0px;
+
+    VerticalBox {
+        padding: 16px;
+        spacing: 8px;
+        Text { text: @tr("yt-dlp GUI"); font-size: 22px; font-weight: 600; color: #202020; }
+        Text { text: @tr("Download manager"); color: #666666; }
+        Rectangle { height: 14px; }
+        NavigationButton {
+            text: @tr("Settings");
+            icon: @image-url("../assets/icons/settings.svg");
+            active: root.selected-page == 0;
+            clicked => { root.selected-page = 0; }
+        }
+        NavigationButton {
+            text: @tr("Search");
+            icon: @image-url("../assets/icons/search.svg");
+            active: root.selected-page == 1;
+            clicked => { root.selected-page = 1; }
+        }
+        NavigationButton {
+            text: @tr("Download tasks");
+            icon: @image-url("../assets/icons/bookmark.svg");
+            active: root.selected-page == 2;
+            clicked => {
+                root.selected-page = 2;
+                root.refresh-downloads();
+            }
+        }
+        Rectangle { vertical-stretch: 1; }
+        Text { text: @tr("Rust + Slint"); color: #777777; horizontal-alignment: center; }
+    }
+}
