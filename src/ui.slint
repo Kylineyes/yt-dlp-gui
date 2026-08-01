@@ -1,4 +1,4 @@
-import { HorizontalBox } from "std-widgets.slint";
+import { Button, HorizontalBox, TextEdit, VerticalBox } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
 import { StreamRow, DownloadRow } from "ui/types.slint";
 import { SettingsPage } from "ui/settings-page.slint";
@@ -85,6 +85,69 @@ export component MainWindow inherits Window {
                 save => { root.save-settings(); }
                 change-language(language) => { root.change-language(language); }
                 reset => { root.reset-settings(); }
+            }
+        }
+    }
+}
+
+export component FatalErrorWindow inherits Window {
+    title: @tr("Oops");
+    width: 620px;
+    height: root.fatal-detail-expanded ? 360px : 250px;
+    in property <string> fatal-detail;
+    in-out property <bool> fatal-detail-expanded: false;
+
+    callback toggle-fatal-detail();
+    callback confirm-fatal-error();
+
+    VerticalBox {
+        padding: 24px;
+        spacing: 14px;
+
+        Text {
+            text: @tr("Storage initialization failed");
+            color: #c42b1c;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        Text {
+            text: @tr("The application could not create or initialize its database file.");
+            color: #202020;
+            wrap: word-wrap;
+        }
+        Text {
+            text: @tr("Check the directory containing the application executable and make sure the current user can create and update files there.");
+            color: #555555;
+            wrap: word-wrap;
+        }
+        Rectangle { height: 4px; }
+        HorizontalBox {
+            spacing: 8px;
+            Button {
+                height: 36px;
+                text: root.fatal-detail-expanded ? @tr("Hide error log") : @tr("Show error log");
+                clicked => { root.toggle-fatal-detail(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                height: 36px;
+                text: @tr("OK");
+                primary: true;
+                clicked => { root.confirm-fatal-error(); }
+            }
+        }
+        if root.fatal-detail-expanded : Rectangle {
+            height: 96px;
+            background: #f7f7f7;
+            border-width: 1px;
+            border-color: #dedede;
+            border-radius: 6px;
+            TextEdit {
+                width: parent.width;
+                height: parent.height;
+                text: root.fatal-detail;
+                read-only: true;
+                wrap: word-wrap;
             }
         }
     }

@@ -2,9 +2,9 @@ mod schema;
 
 use crate::app::state::{AppSettings, DownloadRecord, DownloadStatus, NewDownload};
 use crate::error::{AppError, StorageStage};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, ErrorCode, OptionalExtension, params};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const DATABASE_FILE_NAME: &str = "application.sqlite3";
 
@@ -46,17 +46,17 @@ impl Storage {
                 source,
             })?;
         connection
-            .execute_batch(
-                "PRAGMA foreign_keys = ON;
-                 PRAGMA journal_mode = WAL;
-                 PRAGMA synchronous = NORMAL;
-                 PRAGMA busy_timeout = 5000;",
-            )
+            .busy_timeout(Duration::from_secs(5))
             .map_err(|source| AppError::StorageSqlite {
                 stage: StorageStage::ConfigureConnection,
                 path: database_path.clone(),
                 source,
             })?;
+        Self::configure_connection(&connection).map_err(|source| AppError::StorageSqlite {
+            stage: StorageStage::ConfigureConnection,
+            path: database_path.clone(),
+            source,
+        })?;
         schema::create_tables(&connection).map_err(|source| AppError::StorageSqlite {
             stage: StorageStage::CreateTables,
             path: database_path.clone(),
@@ -72,6 +72,30 @@ impl Storage {
                 source,
             })?;
         Ok(storage)
+    }
+
+    fn configure_connection(connection: &Connection) -> rusqlite::Result<()> {
+        for _ in 0..5 {
+            match connection.execute_batch(
+                "PRAGMA foreign_keys = ON;
+             PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;",
+            ) {
+                Ok(()) => return Ok(()),
+                Err(rusqlite::Error::SqliteFailure(error, _))
+                    if error.code == ErrorCode::DatabaseBusy
+                        || error.code == ErrorCode::DatabaseLocked =>
+                {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        connection.execute_batch(
+            "PRAGMA foreign_keys = ON;
+         PRAGMA journal_mode = WAL;
+         PRAGMA synchronous = NORMAL;",
+        )
     }
 
     fn migrate(&self) -> rusqlite::Result<()> {
