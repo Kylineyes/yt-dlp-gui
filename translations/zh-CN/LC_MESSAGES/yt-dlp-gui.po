@@ -73,9 +73,6 @@ msgstr "输入链接，确认可选音视频流并创建下载任务"
 msgid "Enter a video or playlist URL"
 msgstr "请输入视频或播放列表 URL"
 
-msgid "This version returns demo stream information; real format inspection will be added through yt-dlp metadata later."
-msgstr "当前版本返回演示流信息；真实格式将在后续通过 yt-dlp 元数据检索接入。"
-
 msgid "Audio/video · 1080p · MP4 · H.264 + AAC"
 msgstr "音视频 · 1080p · MP4 · H.264 + AAC"
 
@@ -109,11 +106,29 @@ msgstr "加入下载任务"
 msgid "Enter a URL to search"
 msgstr "请输入需要检索的 URL"
 
-msgid "Demo streams generated; choose a format and add the task"
-msgstr "已生成演示流，请选择格式后加入任务"
+msgid "Formats loaded; choose a format and add the task"
+msgstr "格式已加载，请选择格式后加入任务"
 
-msgid "Media stream selected"
-msgstr "已选择音视频流"
+msgid "Video: "
+msgstr "视频："
+
+msgid "Audio: "
+msgstr "音频："
+
+msgid "Size: "
+msgstr "大小："
+
+msgid "Audio only"
+msgstr "仅音频"
+
+msgid "Video only"
+msgstr "仅视频"
+
+msgid "Analyzing with yt-dlp..."
+msgstr "正在使用 yt-dlp 分析……"
+
+msgid "No downloadable formats were found"
+msgstr "未找到可下载格式"
 
 msgid "Select a media stream first"
 msgstr "请先选择音视频流"

@@ -23,7 +23,6 @@ export component SearchPage inherits Rectangle {
             LineEdit { placeholder-text: @tr("Enter a video or playlist URL"); text <=> root.url; horizontal-stretch: 1; }
             Button { text: @tr("Search"); primary: true; clicked => { root.search(); } }
         }
-        Text { text: @tr("This version returns demo stream information; real format inspection will be added through yt-dlp metadata later."); color: #805600; wrap: word-wrap; }
         Text { text: root.resource-name; font-size: 18px; font-weight: 600; }
         Rectangle {
             border-width: 1px;
@@ -40,18 +39,16 @@ export component SearchPage inherits Rectangle {
                         padding: 10px;
                         spacing: 3px;
                         Text {
-                            text: stream.id == "best-mp4" ? @tr("Audio/video · 1080p · MP4 · H.264 + AAC") :
-                                  stream.id == "best-720p" ? @tr("Audio/video · 720p · MP4") :
-                                  @tr("Audio only · Best quality");
+                            text: stream.id + "  ·  " + stream.label;
                             font-weight: 600;
                         }
                         Text {
-                            text: stream.id == "best-mp4" ? @tr("1080p H.264 / MP4  ·  AAC / M4A") :
-                                  stream.id == "best-720p" ? @tr("Up to 720p / MP4  ·  Best available audio") :
-                                  @tr("No video  ·  Best available audio");
+                            text: stream.video-format == "" ? @tr("Audio only") :
+                                  stream.audio-format == "" ? @tr("Video only") :
+                                  @tr("Video: ") + stream.video-format + "  ·  " + @tr("Audio: ") + stream.audio-format;
                             color: #555555;
                         }
-                        Text { text: @tr("Size will be determined by yt-dlp"); color: #777777; }
+                        Text { text: @tr("Size: ") + stream.estimated-size; color: #777777; }
                     }
                 }
             }
@@ -64,10 +61,12 @@ export component SearchPage inherits Rectangle {
         }
         Text {
             text: root.message-kind == 1 ? @tr("Enter a URL to search") :
-                  root.message-kind == 2 ? @tr("Demo streams generated; choose a format and add the task") :
-                  root.message-kind == 3 ? @tr("Media stream selected") :
+                  root.message-kind == 2 ? @tr("Formats loaded; choose a format and add the task") :
                   root.message-kind == 4 ? @tr("Select a media stream first") :
                   root.message-kind == 5 ? @tr("Enter a download location") :
+                  root.message-kind == 6 ? @tr("Analyzing with yt-dlp...") :
+                  root.message-kind == 7 ? @tr("No downloadable formats were found") :
+                  root.message-kind == 8 ? root.message-argument :
                   root.message-argument;
             color: #2563eb;
             wrap: word-wrap;
