@@ -1,0 +1,122 @@
+import { Button, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { ToastData } from "../types.slint";
+
+export enum ValidationStatus { checking, valid, invalid }
+export enum ToastKind { success, error, validation-error }
+
+export component ValidationIndicator inherits Rectangle {
+    in property <ValidationStatus> status;
+
+    width: 20px;
+    height: 20px;
+
+    Image {
+        source: root.status == ValidationStatus.valid ? @image-url("../../../assets/icons/status-valid.svg") :
+                root.status == ValidationStatus.invalid ? @image-url("../../../assets/icons/status-invalid.svg") :
+                @image-url("../../../assets/icons/status-checking.svg");
+        image-fit: contain;
+        accessible-label: root.status == ValidationStatus.valid ? @tr("Valid") :
+                          root.status == ValidationStatus.invalid ? @tr("Invalid") : @tr("Checking");
+    }
+}
+
+component ToastItem inherits Rectangle {
+    in property <ToastData> data;
+    callback dismissed(int);
+    private property <float> visual-opacity: 0;
+    private property <bool> closing: false;
+
+    opacity: root.visual-opacity;
+    height: 64px;
+    width: 620px;
+    background: root.data.kind == 0 ? #107c10 : #c42b1c;
+    border-radius: 7px;
+    drop-shadow-blur: 8px;
+    drop-shadow-color: #66000000;
+    // Keep entrance fast while giving dismissal a clearly visible fade.
+    animate visual-opacity { duration: root.closing ? 240ms : 80ms; easing: ease-in-out; }
+
+    init => {
+        // Start fully visible; the short animation is reserved for dismissal.
+        root.visual-opacity = 1;
+        lifetime-timer.start();
+    }
+
+    show-timer := Timer {
+        interval: 1ms;
+        running: false;
+        triggered => { root.visual-opacity = 1; }
+    }
+
+    lifetime-timer := Timer {
+        interval: root.data.kind == 0 ? 2760ms : 5760ms;
+        running: false;
+        triggered => { root.begin-close(); }
+    }
+
+    remove-timer := Timer {
+        interval: 240ms;
+        running: false;
+        triggered => {
+            root.dismissed(root.data.id);
+        }
+    }
+
+    function begin-close() {
+        if (!root.closing) {
+            root.closing = true;
+            lifetime-timer.stop();
+            root.visual-opacity = 0;
+            remove-timer.start();
+        }
+    }
+
+    content := HorizontalBox {
+        padding-left: 14px;
+        padding-right: 8px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        spacing: 10px;
+        alignment: center;
+        Text {
+            text: root.data.kind == 0 ? @tr("Settings saved") :
+                  root.data.kind == 2 ? @tr("Fix invalid settings before saving") :
+                  root.data.detail == "" ? @tr("Operation failed") : @tr("Operation failed: {}", root.data.detail);
+            color: #ffffff;
+            wrap: word-wrap;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        Rectangle {
+            width: dismiss-button.preferred-width;
+            height: 48px;
+            vertical-stretch: 1;
+            dismiss-button := Button {
+                x: 0px;
+                y: (parent.height - self.preferred-height) / 2;
+                width: self.preferred-width;
+                height: self.preferred-height;
+                text: @tr("Dismiss");
+                clicked => { root.begin-close(); }
+            }
+        }
+    }
+}
+
+export component ToastHost inherits Rectangle {
+    in property <[ToastData]> toasts;
+    callback dismissed(int);
+
+    background: transparent;
+    stack := VerticalBox {
+        x: (root.width - self.width) / 2;
+        y: root.height - self.height - 24px;
+        width: 620px;
+        height: self.preferred-height;
+        spacing: 8px;
+        for toast in root.toasts : ToastItem {
+            data: toast;
+            dismissed(id) => { root.dismissed(id); }
+        }
+    }
+}

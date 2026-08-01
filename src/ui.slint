@@ -1,6 +1,7 @@
 import { Button, HorizontalBox, TextEdit, VerticalBox } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
-import { StreamRow, DownloadRow } from "ui/types.slint";
+import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
+import { ToastHost, ToastKind, ValidationStatus } from "ui/components/feedback.slint";
 import { SettingsPage } from "ui/settings-page.slint";
 import { SearchPage } from "ui/search-page.slint";
 import { DownloadsPage } from "ui/downloads-page.slint";
@@ -18,6 +19,11 @@ export component MainWindow inherits Window {
     in-out property <string> proxy;
     in-out property <int> max-concurrency: 1;
     in-out property <string> language: "zh-CN";
+    in-out property <ValidationStatus> yt-dlp-status: ValidationStatus.checking;
+    in-out property <ValidationStatus> ffmpeg-status: ValidationStatus.checking;
+    in-out property <ValidationStatus> download-directory-status: ValidationStatus.checking;
+    in property <int> invalid-setting-field: -1;
+    in property <int> invalid-setting-revision;
     in-out property <string> search-url;
     in-out property <string> search-output-directory;
     in property <string> resource-name;
@@ -31,18 +37,27 @@ export component MainWindow inherits Window {
     in property <string> downloads-message-argument;
     in property <int> downloads-message-task-id;
     in property <string> downloads-message-detail;
+    in property <[ToastData]> toasts;
 
     callback save-settings();
     callback change-language(string);
     callback reset-settings();
+    callback validate-settings(int);
+    callback select-yt-dlp(string);
+    callback select-ffmpeg(string);
+    callback select-download-directory(string);
     callback search();
     callback select-stream(int);
     callback create-download();
     callback refresh-downloads();
     callback start-download(int);
     callback pause-download(int);
+    callback toast-dismissed(int);
+    callback page-changed(int);
     callback window-closed();
     pure callback format-step-description(string) -> styled-text;
+
+    changed selected-page => { root.page-changed(root.selected-page); }
 
     HorizontalBox {
         spacing: 0px;
@@ -76,20 +91,37 @@ export component MainWindow inherits Window {
                 start(id) => { root.start-download(id); }
                 pause(id) => { root.pause-download(id); }
             }
-            if root.selected-page == 3 : SettingsPage {
+            if root.selected-page == 3 : settings-page := SettingsPage {
                 yt-dlp-path <=> root.yt-dlp-path;
                 ffmpeg-path <=> root.ffmpeg-path;
                 default-download-directory <=> root.default-download-directory;
                 proxy <=> root.proxy;
                 max-concurrency <=> root.max-concurrency;
                 language <=> root.language;
+                yt-dlp-status <=> root.yt-dlp-status;
+                ffmpeg-status <=> root.ffmpeg-status;
+                download-directory-status <=> root.download-directory-status;
+                invalid-field: root.invalid-setting-field;
+                invalid-revision: root.invalid-setting-revision;
                 message-kind: root.settings-message-kind;
                 message-argument: root.settings-message-argument;
                 save => { root.save-settings(); }
                 change-language(language) => { root.change-language(language); }
                 reset => { root.reset-settings(); }
+                validate(field) => { root.validate-settings(field); }
+                select-yt-dlp(title) => { root.select-yt-dlp(title); }
+                select-ffmpeg(title) => { root.select-ffmpeg(title); }
+                select-download-directory(title) => { root.select-download-directory(title); }
             }
         }
+    }
+
+    ToastHost {
+        toasts: root.toasts;
+        dismissed(id) => { root.toast-dismissed(id); }
+        width: root.width;
+        height: root.height;
+        z: 10;
     }
 }
 

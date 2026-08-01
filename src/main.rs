@@ -6,15 +6,60 @@ mod storage;
 
 slint::include_modules!();
 
+use app::settings_validation::{SettingsValidation, validate_settings};
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
-use fatal_error_window::FatalErrorController;
-use slint::{
-    CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel,
-};
-use std::cell::RefCell;
+use slint::{Model, ModelRc, SharedString, TimerMode, VecModel};
+use std::cell::Cell;
 use std::rc::Rc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+use std::time::Duration;
 use tokio::sync::mpsc::unbounded_channel;
+
+const PAGE_WELCOME: i32 = 0;
+const PAGE_SETTINGS: i32 = 3;
+const TOAST_SUCCESS: i32 = 0;
+const TOAST_ERROR: i32 = 1;
+const TOAST_VALIDATION_ERROR: i32 = 2;
+
+struct ToastController {
+    model: Rc<VecModel<ToastData>>,
+    active_page: Cell<i32>,
+}
+
+impl ToastController {
+    fn new(model: Rc<VecModel<ToastData>>) -> Self {
+        Self {
+            model,
+            active_page: Cell::new(PAGE_WELCOME),
+        }
+    }
+
+    fn dismiss(&self, id: i32) -> bool {
+        if let Some(index) = (0..self.model.row_count()).find(|&index| {
+            self.model
+                .row_data(index)
+                .is_some_and(|toast| toast.id == id)
+        }) {
+            self.model.remove(index);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn change_page(&self, page: i32) {
+        if self.active_page.get() != page {
+            self.active_page.set(page);
+            self.model.set_vec(Vec::new());
+        }
+    }
+}
+
+type SharedToastController = Rc<ToastController>;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = MainWindow::new()?;
@@ -25,6 +70,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
     window.set_downloads(ModelRc::new(VecModel::<DownloadRow>::default()));
+    let toast_model = Rc::new(VecModel::<ToastData>::default());
+    window.set_toasts(ModelRc::from(toast_model.clone()));
+    let toasts = Rc::new(ToastController::new(toast_model));
+
+    install_event_bridge(&window, event_receiver);
+    install_callbacks(&window, command_sender.clone(), toasts);
     let fatal_window = Rc::new(RefCell::new(FatalErrorController::new(window.as_weak())));
 
     let _event_pump = install_event_pump(&window, event_receiver, fatal_window.clone());
@@ -81,8 +132,9 @@ fn apply_event(
         WorkerEvent::SettingsLoaded(settings) => apply_settings(window, &settings),
         WorkerEvent::SettingsSaved(settings) => {
             apply_settings(window, &settings);
-            window.set_settings_message_kind(1);
+            window.set_settings_message_kind(0);
             window.set_settings_message_argument("".into());
+            show_toast(window, PAGE_SETTINGS, TOAST_SUCCESS, "");
         }
         WorkerEvent::SearchCompleted(result) => {
             window.set_resource_name(result.resource_name.into());
@@ -142,63 +194,59 @@ fn apply_event(
             window.set_downloads_message_argument("".into());
             window.set_downloads_message_detail("".into());
         }
-        WorkerEvent::Error { kind, detail } => {
-            let kind = match kind {
-                ErrorKind::General => 1,
-            };
-            window.set_settings_message_kind(kind);
-            window.set_settings_message_argument(detail.clone().into());
-            window.set_search_message_kind(kind);
-            window.set_search_message_argument(detail.clone().into());
-            window.set_downloads_message_kind(kind);
-            window.set_downloads_message_argument(detail.into());
-        }
-    }
-}
-
-fn install_fatal_callbacks(fatal_window: Rc<RefCell<FatalErrorController>>) {
-    let Some(fatal) = fatal_window.borrow().window().map(ComponentHandle::as_weak) else {
-        return;
-    };
-
-    let toggle_window = fatal_window.clone();
-    if let Some(fatal) = fatal.upgrade() {
-        fatal.on_toggle_fatal_detail(move || {
-            if let Some(window) = toggle_window.borrow().window() {
-                window.set_fatal_detail_expanded(!window.get_fatal_detail_expanded());
+        WorkerEvent::Error { kind, detail } => match kind {
+            ErrorKind::General => {
+                let page = window.get_selected_page();
+                show_toast(window, page, TOAST_ERROR, &detail);
             }
-        });
-    }
-
-    if let Some(fatal) = fatal.upgrade() {
-        fatal
-            .window()
-            .on_close_requested(|| CloseRequestResponse::KeepWindowShown);
-    }
-
-    let confirm_window = fatal_window.clone();
-    if let Some(fatal) = fatal.upgrade() {
-        fatal.on_confirm_fatal_error(move || {
-            confirm_window.borrow_mut().hide();
-            let _ = slint::quit_event_loop();
-        });
+        },
     }
 }
 
-fn install_callbacks(window: &MainWindow, commands: tokio::sync::mpsc::UnboundedSender<UiCommand>) {
-    window.on_format_step_description(|description| {
-        StyledText::from_markdown(description.as_str())
-            .unwrap_or_else(|_| StyledText::from_plain_text(description.as_str()))
+fn install_callbacks(
+    window: &MainWindow,
+    commands: tokio::sync::mpsc::UnboundedSender<UiCommand>,
+    toasts: SharedToastController,
+) {
+    let callback_toasts = toasts.clone();
+    window.on_toast_dismissed(move |id| {
+        callback_toasts.dismiss(id);
     });
+
+    let callback_toasts = toasts.clone();
+    window.on_page_changed(move |page| callback_toasts.change_page(page));
 
     let weak = window.as_weak();
     let sender = commands.clone();
     window.on_save_settings(move || {
         if let Some(window) = weak.upgrade() {
+            let invalid_field = [
+                window.get_yt_dlp_status(),
+                window.get_ffmpeg_status(),
+                window.get_download_directory_status(),
+            ]
+            .into_iter()
+            .position(|status| status != ValidationStatus::Valid);
+            if let Some(field) = invalid_field {
+                window.set_selected_page(3);
+                window.set_invalid_setting_field(field as i32);
+                let revision = window
+                    .get_invalid_setting_revision()
+                    .checked_add(1)
+                    .unwrap_or(1);
+                window.set_invalid_setting_revision(revision);
+                show_toast(&window, PAGE_SETTINGS, TOAST_VALIDATION_ERROR, "");
+                return;
+            }
+
             let settings = settings_from_window(&window);
             if sender.send(UiCommand::SaveSettings(settings)).is_err() {
-                window.set_settings_message_kind(3);
-                window.set_settings_message_argument("".into());
+                show_toast(
+                    &window,
+                    PAGE_SETTINGS,
+                    TOAST_ERROR,
+                    "Settings command channel is closed",
+                );
             }
         }
     });
@@ -209,10 +257,7 @@ fn install_callbacks(window: &MainWindow, commands: tokio::sync::mpsc::Unbounded
             let language = language.to_string();
             match slint::select_bundled_translation(&language) {
                 Ok(()) => window.set_language(language.into()),
-                Err(error) => {
-                    window.set_settings_message_kind(0);
-                    window.set_settings_message_argument(error.to_string().into());
-                }
+                Err(error) => show_toast(&window, PAGE_SETTINGS, TOAST_ERROR, &error.to_string()),
             }
         }
     });
@@ -225,6 +270,37 @@ fn install_callbacks(window: &MainWindow, commands: tokio::sync::mpsc::Unbounded
             window.set_settings_message_argument("".into());
         }
     });
+
+    let weak = window.as_weak();
+    window.on_select_yt_dlp(move |title| {
+        if let Some(window) = weak.upgrade()
+            && let Some(path) = rfd::FileDialog::new().set_title(title.as_str()).pick_file()
+        {
+            window.set_yt_dlp_path(path.to_string_lossy().into_owned().into());
+        }
+    });
+
+    let weak = window.as_weak();
+    window.on_select_ffmpeg(move |title| {
+        if let Some(window) = weak.upgrade()
+            && let Some(path) = rfd::FileDialog::new().set_title(title.as_str()).pick_file()
+        {
+            window.set_ffmpeg_path(path.to_string_lossy().into_owned().into());
+        }
+    });
+
+    let weak = window.as_weak();
+    window.on_select_download_directory(move |title| {
+        if let Some(window) = weak.upgrade()
+            && let Some(path) = rfd::FileDialog::new()
+                .set_title(title.as_str())
+                .pick_folder()
+        {
+            window.set_default_download_directory(path.to_string_lossy().into_owned().into());
+        }
+    });
+
+    install_settings_validation(window);
 
     let weak = window.as_weak();
     let sender = commands.clone();
@@ -319,6 +395,84 @@ fn install_callbacks(window: &MainWindow, commands: tokio::sync::mpsc::Unbounded
     let _ = commands.send(UiCommand::LoadSettings);
 }
 
+fn install_settings_validation(window: &MainWindow) {
+    let revision = Arc::new(AtomicU64::new(0));
+    let timer = Rc::new(slint::Timer::default());
+    let weak = window.as_weak();
+    let callback_revision = revision.clone();
+    let callback_timer = timer.clone();
+
+    window.on_validate_settings(move |_| {
+        let current_revision = callback_revision.fetch_add(1, Ordering::SeqCst) + 1;
+        let weak = weak.clone();
+        let revision = callback_revision.clone();
+        callback_timer.start(
+            TimerMode::SingleShot,
+            Duration::from_millis(300),
+            move || {
+                let Some(window) = weak.upgrade() else {
+                    return;
+                };
+                let settings = settings_from_window(&window);
+                let weak = window.as_weak();
+                let revision = revision.clone();
+                std::thread::spawn(move || {
+                    let validation = validate_settings(&settings);
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if revision.load(Ordering::SeqCst) != current_revision {
+                            return;
+                        }
+                        if let Some(window) = weak.upgrade() {
+                            apply_validation(&window, validation);
+                        }
+                    });
+                });
+            },
+        );
+    });
+
+    // The callback owns a clone; this initial invocation validates values loaded at startup.
+    window.invoke_validate_settings(-1);
+}
+
+fn apply_validation(window: &MainWindow, validation: SettingsValidation) {
+    window.set_yt_dlp_status(validation_status(validation.yt_dlp_path));
+    window.set_ffmpeg_status(validation_status(validation.ffmpeg_path));
+    window.set_download_directory_status(validation_status(validation.default_download_directory));
+}
+
+fn validation_status(valid: bool) -> ValidationStatus {
+    if valid {
+        ValidationStatus::Valid
+    } else {
+        ValidationStatus::Invalid
+    }
+}
+
+fn show_toast(window: &MainWindow, page: i32, kind: i32, detail: &str) {
+    if window.get_selected_page() != page {
+        return;
+    }
+    let model = window.get_toasts();
+    let model = model
+        .as_any()
+        .downcast_ref::<VecModel<ToastData>>()
+        .expect("Toast model should be a VecModel");
+    let next_id = model
+        .iter()
+        .map(|toast| toast.id)
+        .max()
+        .unwrap_or_default()
+        .checked_add(1)
+        .unwrap_or(1);
+    model.push(ToastData {
+        id: next_id,
+        kind,
+        detail: detail.into(),
+        page,
+    });
+}
+
 fn settings_from_window(window: &MainWindow) -> AppSettings {
     AppSettings {
         yt_dlp_path: window.get_yt_dlp_path().to_string(),
@@ -340,6 +494,7 @@ fn apply_settings(window: &MainWindow, settings: &AppSettings) {
     if slint::select_bundled_translation(&settings.language).is_ok() {
         window.set_language(settings.language.clone().into());
     }
+    window.invoke_validate_settings(-1);
 }
 
 fn stream_to_row(stream: &MediaStream, selected: bool) -> StreamRow {

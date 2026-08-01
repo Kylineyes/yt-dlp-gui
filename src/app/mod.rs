@@ -3,6 +3,7 @@ use crate::storage::Storage;
 use std::path::PathBuf;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
+pub mod settings_validation;
 pub mod state;
 use state::{AppSettings, DownloadRecord, MediaStream, NewDownload, SearchResult};
 
