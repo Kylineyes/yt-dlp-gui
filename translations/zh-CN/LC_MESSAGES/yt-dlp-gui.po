@@ -196,5 +196,8 @@ msgstr "下载管理器"
 msgid "yt-dlp GUI"
 msgstr "yt-dlp 图形化工具"
 
-msgid "Rust + Slint"
-msgstr "Rust + Slint"
+msgid "yt-dlp Integration Platform"
+msgstr "yt-dlp 集成平台"
+
+msgid "Welcome"
+msgstr "欢迎"
