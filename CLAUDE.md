@@ -33,3 +33,25 @@ This project is a graphical frontend for the `yt-dlp` library, built with Rust a
 - `src/download/ytdlp.rs` is the sole adapter around `ytd-rs`. `ytd-rs` still launches an external `yt-dlp` executable; the application accepts an explicit executable path or resolves `yt-dlp` from `PATH`.
 - `src/storage.rs` owns SQLite schema and persistence. Application configuration, download records, and download logs live in `%LOCALAPPDATA%/yt-dlp-gui/application.sqlite3`; SQLite is built from bundled sources.
 - Slint runs on the main thread. A dedicated Tokio worker thread owns SQLite and async `yt-dlp` work; background updates return through `slint::invoke_from_event_loop`.
+
+## Git commit convention
+
+Use the Conventional Commits format for all commit messages:
+
+```text
+<type>(<scope>): <imperative description>
+```
+
+- Write commit messages in Simplified Chinese, except for the required Conventional Commits type and technical identifiers.
+- Use a lowercase type such as `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `build`, or `ci`.
+- Add a concise scope when it clarifies the affected area, such as `ui`, `storage`, `download`, or `i18n`.
+- Keep the subject concise and imperative; do not end it with punctuation.
+- Use `!` for breaking changes and explain the migration in the commit body.
+- Keep the commit body focused on why the change is needed and any relevant implementation details.
+
+Examples:
+
+```text
+feat(ui): 新增默认欢迎页面
+fix(storage): 修复数据库初始化失败处理
+```
