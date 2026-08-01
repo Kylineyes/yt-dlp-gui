@@ -9,7 +9,9 @@ slint::include_modules!();
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
 use fatal_error_window::FatalErrorController;
-use slint::{CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, VecModel};
+use slint::{
+    CloseRequestResponse, ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel,
+};
 use std::cell::RefCell;
 use std::rc::Rc;
 use tokio::sync::mpsc::unbounded_channel;
