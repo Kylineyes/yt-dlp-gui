@@ -73,9 +73,6 @@ msgstr "输入链接，确认可选音视频流并创建下载任务"
 msgid "Enter a video or playlist URL"
 msgstr "请输入视频或播放列表 URL"
 
-msgid "This version returns demo stream information; real format inspection will be added through yt-dlp metadata later."
-msgstr "当前版本返回演示流信息；真实格式将在后续通过 yt-dlp 元数据检索接入。"
-
 msgid "Audio/video · 1080p · MP4 · H.264 + AAC"
 msgstr "音视频 · 1080p · MP4 · H.264 + AAC"
 
@@ -109,11 +106,29 @@ msgstr "加入下载任务"
 msgid "Enter a URL to search"
 msgstr "请输入需要检索的 URL"
 
-msgid "Demo streams generated; choose a format and add the task"
-msgstr "已生成演示流，请选择格式后加入任务"
+msgid "Formats loaded; choose a format and add the task"
+msgstr "格式已加载，请选择格式后加入任务"
 
-msgid "Media stream selected"
-msgstr "已选择音视频流"
+msgid "Video: "
+msgstr "视频："
+
+msgid "Audio: "
+msgstr "音频："
+
+msgid "Size: "
+msgstr "大小："
+
+msgid "Audio only"
+msgstr "仅音频"
+
+msgid "Video only"
+msgstr "仅视频"
+
+msgid "Analyzing with yt-dlp..."
+msgstr "正在使用 yt-dlp 分析……"
+
+msgid "No downloadable formats were found"
+msgstr "未找到可下载格式"
 
 msgid "Select a media stream first"
 msgstr "请先选择音视频流"
@@ -220,8 +235,8 @@ msgstr "步骤 1"
 msgid "Configure"
 msgstr "配置环境"
 
-msgid "Set the yt-dlp path and default download directory in Settings."
-msgstr "在设置中配置 yt-dlp 路径和默认下载目录。"
+msgid "Set the yt-dlp path and default download directory in **Settings**."
+msgstr "在 **设置** 中配置 yt-dlp 路径和默认下载目录。"
 
 msgid "Step 2"
 msgstr "步骤 2"
@@ -229,8 +244,8 @@ msgstr "步骤 2"
 msgid "Choose media"
 msgstr "选择媒体"
 
-msgid "Open Search, enter a video or playlist URL, and choose a media option."
-msgstr "打开检索页，输入视频或播放列表 URL，然后选择媒体选项。"
+msgid "Open **Search**, enter a video or playlist URL, and choose a media option."
+msgstr "打开 **检索** 页，输入视频或播放列表 URL，然后选择媒体选项。"
 
 msgid "Step 3"
 msgstr "步骤 3"
@@ -238,8 +253,8 @@ msgstr "步骤 3"
 msgid "Download and track"
 msgstr "下载并跟踪"
 
-msgid "Add the task, then start and monitor it in Download tasks."
-msgstr "添加任务，然后在下载任务列表中启动并跟踪状态。"
+msgid "Add the task, then start and monitor it in **Download tasks**."
+msgstr "添加任务，然后在 **下载任务列表** 中启动并跟踪状态。"
 
 msgid "Built with Rust and Slint"
 msgstr "使用 Rust 和 Slint 构建"
@@ -296,3 +311,23 @@ msgstr "关闭"
 
 msgid "Fix invalid settings before saving"
 msgstr "请先修正无效设置再保存"
+msgid "Oops"
+msgstr "糟糕"
+
+msgid "Storage initialization failed"
+msgstr "存储初始化失败"
+
+msgid "The application could not create or initialize its database file."
+msgstr "应用程序无法创建或初始化数据库文件。"
+
+msgid "Check the directory containing the application executable and make sure the current user can create and update files there."
+msgstr "请检查应用程序可执行文件所在目录，并确认当前用户可以在该目录中创建和更新文件。"
+
+msgid "Show error log"
+msgstr "显示错误日志"
+
+msgid "Hide error log"
+msgstr "隐藏错误日志"
+
+msgid "OK"
+msgstr "确定"

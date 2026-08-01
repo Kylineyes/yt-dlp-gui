@@ -1,6 +1,7 @@
 mod app;
 mod download;
 mod error;
+mod fatal_error_window;
 mod storage;
 
 slint::include_modules!();
@@ -75,42 +76,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     install_event_bridge(&window, event_receiver);
     install_callbacks(&window, command_sender.clone(), toasts);
+    let fatal_window = Rc::new(RefCell::new(FatalErrorController::new(window.as_weak())));
+
+    let _event_pump = install_event_pump(&window, event_receiver, fatal_window.clone());
+    install_callbacks(&window, command_sender.clone());
 
     window.run()?;
+    fatal_window.borrow_mut().hide();
     let _ = command_sender.send(UiCommand::Shutdown);
     let _ = worker.join();
     Ok(())
 }
 
-fn install_event_bridge(
+fn install_event_pump(
     window: &MainWindow,
     mut event_receiver: tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>,
-) {
+    fatal_window: Rc<RefCell<FatalErrorController>>,
+) -> slint::Timer {
+    let timer = slint::Timer::default();
     let weak_window = window.as_weak();
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create the event forwarding runtime");
-        runtime.block_on(async move {
-            while let Some(event) = event_receiver.recv().await {
-                let weak_window = weak_window.clone();
-                let _ = slint::invoke_from_event_loop(move || {
-                    let Some(window) = weak_window.upgrade() else {
-                        return;
-                    };
-                    apply_event(&window, event);
-                });
+    timer.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_millis(16),
+        move || {
+            let Some(window) = weak_window.upgrade() else {
+                return;
+            };
+            while let Ok(event) = event_receiver.try_recv() {
+                apply_event(&window, event, &fatal_window);
             }
-        });
-    });
+            fatal_window.borrow_mut().ensure_native_modal();
+        },
+    );
+    timer
 }
 
-fn apply_event(window: &MainWindow, event: WorkerEvent) {
+fn apply_event(
+    window: &MainWindow,
+    event: WorkerEvent,
+    fatal_window: &Rc<RefCell<FatalErrorController>>,
+) {
     match event {
         WorkerEvent::Ready => {
             window.set_downloads_message_kind(1);
             window.set_downloads_message_argument("".into());
+        }
+        WorkerEvent::StorageInitializationFailed { detail } => {
+            let is_new = fatal_window.borrow().window().is_none();
+            fatal_window.borrow_mut().show_or_update(detail);
+            fatal_window.borrow_mut().ensure_native_modal();
+            if is_new {
+                install_fatal_callbacks(fatal_window.clone());
+            }
         }
         WorkerEvent::SettingsLoaded(settings) => apply_settings(window, &settings),
         WorkerEvent::SettingsSaved(settings) => {
@@ -130,6 +147,12 @@ fn apply_event(window: &MainWindow, event: WorkerEvent) {
             window.set_streams(ModelRc::from(Rc::new(VecModel::from(rows))));
             window.set_search_message_kind(2);
             window.set_search_message_argument("".into());
+        }
+        WorkerEvent::SearchFailed { detail } => {
+            window.set_resource_name("".into());
+            window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
+            window.set_search_message_kind(8);
+            window.set_search_message_argument(detail.into());
         }
         WorkerEvent::DownloadsLoaded(downloads) => {
             let rows = downloads
@@ -288,6 +311,10 @@ fn install_callbacks(
                 window.set_search_message_kind(1);
                 window.set_search_message_argument("".into());
             } else {
+                window.set_resource_name("".into());
+                window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
+                window.set_search_message_kind(6);
+                window.set_search_message_argument("".into());
                 let _ = sender.send(UiCommand::Search { url });
             }
         }
@@ -305,7 +332,7 @@ fn install_callbacks(
                 model.set_row_data(index, row);
             }
         }
-        window.set_search_message_kind(3);
+        window.set_search_message_kind(0);
         window.set_search_message_argument("".into());
     });
 
