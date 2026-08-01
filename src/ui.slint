@@ -1,0 +1,89 @@
+import { HorizontalBox } from "std-widgets.slint";
+import { Sidebar } from "sidebar.slint";
+import { StreamRow, DownloadRow } from "ui/types.slint";
+import { SettingsPage } from "ui/settings-page.slint";
+import { SearchPage } from "ui/search-page.slint";
+import { DownloadsPage } from "ui/downloads-page.slint";
+
+export component MainWindow inherits Window {
+    title: @tr("yt-dlp GUI");
+    width: 1120px;
+    height: 720px;
+
+    in-out property <int> selected-page: 0;
+    in-out property <string> yt-dlp-path;
+    in-out property <string> ffmpeg-path;
+    in-out property <string> default-download-directory;
+    in-out property <string> proxy;
+    in-out property <int> max-concurrency: 1;
+    in-out property <string> language: "zh-CN";
+    in-out property <string> search-url;
+    in-out property <string> search-output-directory;
+    in property <string> resource-name;
+    in property <[StreamRow]> streams;
+    in property <[DownloadRow]> downloads;
+    in property <int> settings-message-kind;
+    in property <string> settings-message-argument;
+    in property <int> search-message-kind;
+    in property <string> search-message-argument;
+    in property <int> downloads-message-kind;
+    in property <string> downloads-message-argument;
+    in property <int> downloads-message-task-id;
+    in property <string> downloads-message-detail;
+
+    callback save-settings();
+    callback change-language(string);
+    callback reset-settings();
+    callback search();
+    callback select-stream(int);
+    callback create-download();
+    callback refresh-downloads();
+    callback start-download(int);
+    callback pause-download(int);
+    callback window-closed();
+
+    HorizontalBox {
+        spacing: 0px;
+        Sidebar {
+            selected-page <=> root.selected-page;
+            refresh-downloads => { root.refresh-downloads(); }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            if root.selected-page == 0 : SettingsPage {
+                yt-dlp-path <=> root.yt-dlp-path;
+                ffmpeg-path <=> root.ffmpeg-path;
+                default-download-directory <=> root.default-download-directory;
+                proxy <=> root.proxy;
+                max-concurrency <=> root.max-concurrency;
+                language <=> root.language;
+                message-kind: root.settings-message-kind;
+                message-argument: root.settings-message-argument;
+                save => { root.save-settings(); }
+                change-language(language) => { root.change-language(language); }
+                reset => { root.reset-settings(); }
+            }
+            if root.selected-page == 1 : SearchPage {
+                url <=> root.search-url;
+                output-directory <=> root.search-output-directory;
+                resource-name: root.resource-name;
+                streams: root.streams;
+                message-kind: root.search-message-kind;
+                message-argument: root.search-message-argument;
+                search => { root.search(); }
+                select-stream(index) => { root.select-stream(index); }
+                create-download => { root.create-download(); }
+            }
+            if root.selected-page == 2 : DownloadsPage {
+                downloads: root.downloads;
+                message-kind: root.downloads-message-kind;
+                message-argument: root.downloads-message-argument;
+                message-task-id: root.downloads-message-task-id;
+                message-detail: root.downloads-message-detail;
+                refresh => { root.refresh-downloads(); }
+                start(id) => { root.start-download(id); }
+                pause(id) => { root.pause-download(id); }
+            }
+        }
+    }
+}
