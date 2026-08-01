@@ -9,8 +9,9 @@ slint::include_modules!();
 use app::settings_validation::{SettingsValidation, validate_settings};
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
-use slint::{Model, ModelRc, SharedString, TimerMode, VecModel};
-use std::cell::Cell;
+use fatal_error_window::FatalErrorController;
+use slint::{ComponentHandle, Model, ModelRc, SharedString, TimerMode, VecModel};
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{
     Arc,
@@ -74,12 +75,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     window.set_toasts(ModelRc::from(toast_model.clone()));
     let toasts = Rc::new(ToastController::new(toast_model));
 
-    install_event_bridge(&window, event_receiver);
-    install_callbacks(&window, command_sender.clone(), toasts);
     let fatal_window = Rc::new(RefCell::new(FatalErrorController::new(window.as_weak())));
 
     let _event_pump = install_event_pump(&window, event_receiver, fatal_window.clone());
-    install_callbacks(&window, command_sender.clone());
+    install_callbacks(&window, command_sender.clone(), toasts);
 
     window.run()?;
     fatal_window.borrow_mut().hide();
@@ -122,7 +121,7 @@ fn apply_event(
             window.set_downloads_message_argument("".into());
         }
         WorkerEvent::StorageInitializationFailed { detail } => {
-            let is_new = fatal_window.borrow().window().is_none();
+            let is_new = !fatal_window.borrow().is_visible();
             fatal_window.borrow_mut().show_or_update(detail);
             fatal_window.borrow_mut().ensure_native_modal();
             if is_new {
@@ -201,6 +200,19 @@ fn apply_event(
             }
         },
     }
+}
+
+fn install_fatal_callbacks(controller: Rc<RefCell<FatalErrorController>>) {
+    controller.borrow().with_window(|window| {
+        let callback_controller = controller.clone();
+        window.on_toggle_fatal_detail(move || {
+            callback_controller.borrow().with_window(|window| {
+                window.set_fatal_detail_expanded(!window.get_fatal_detail_expanded());
+            });
+        });
+        let callback_controller = controller.clone();
+        window.on_confirm_fatal_error(move || callback_controller.borrow_mut().hide());
+    });
 }
 
 fn install_callbacks(

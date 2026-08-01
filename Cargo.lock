@@ -6120,6 +6120,7 @@ dependencies = [
 name = "yt-dlp-gui"
 version = "0.1.0"
 dependencies = [
+ "raw-window-handle",
  "rfd",
  "rusqlite",
  "serde",
