@@ -1,10 +1,13 @@
+mod app_config;
+mod config_keys;
 mod schema;
 
+use self::app_config::AppConfigStore;
 use crate::app::state::{AppSettings, DownloadRecord, DownloadStatus, NewDownload};
 use crate::error::{AppError, StorageStage};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, params};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const DATABASE_FILE_NAME: &str = "application.sqlite3";
 
@@ -46,17 +49,17 @@ impl Storage {
                 source,
             })?;
         connection
-            .execute_batch(
-                "PRAGMA foreign_keys = ON;
-                 PRAGMA journal_mode = WAL;
-                 PRAGMA synchronous = NORMAL;
-                 PRAGMA busy_timeout = 5000;",
-            )
+            .busy_timeout(Duration::from_secs(5))
             .map_err(|source| AppError::StorageSqlite {
                 stage: StorageStage::ConfigureConnection,
                 path: database_path.clone(),
                 source,
             })?;
+        configure_connection(&connection).map_err(|source| AppError::StorageSqlite {
+            stage: StorageStage::ConfigureConnection,
+            path: database_path.clone(),
+            source,
+        })?;
         schema::create_tables(&connection).map_err(|source| AppError::StorageSqlite {
             stage: StorageStage::CreateTables,
             path: database_path.clone(),
@@ -110,9 +113,11 @@ impl Storage {
             "CREATE INDEX IF NOT EXISTS idx_download_logs_download_id
                  ON download_logs(download_id, sequence);
              CREATE INDEX IF NOT EXISTS idx_downloads_updated_at
-                 ON downloads(updated_at DESC, id DESC);
-             PRAGMA user_version = 1;",
+                 ON downloads(updated_at DESC, id DESC);",
         )?;
+        AppConfigStore::new(&self.connection)
+            .seed_defaults(&AppSettings::default(), timestamp())?;
+        self.connection.execute_batch("PRAGMA user_version = 1;")?;
         Ok(())
     }
 
@@ -128,57 +133,11 @@ impl Storage {
     }
 
     pub fn load_settings(&self) -> Result<AppSettings, AppError> {
-        let defaults = AppSettings::default();
-        Ok(AppSettings {
-            yt_dlp_path: self
-                .config_value("yt_dlp_path")?
-                .unwrap_or(defaults.yt_dlp_path),
-            ffmpeg_path: self
-                .config_value("ffmpeg_path")?
-                .unwrap_or(defaults.ffmpeg_path),
-            default_download_directory: self
-                .config_value("default_download_directory")?
-                .unwrap_or(defaults.default_download_directory),
-            proxy: self.config_value("proxy")?.unwrap_or(defaults.proxy),
-            max_concurrency: self
-                .config_value("max_concurrency")?
-                .and_then(|value| value.parse().ok())
-                .unwrap_or(defaults.max_concurrency)
-                .clamp(1, 16),
-            language: self.config_value("language")?.unwrap_or(defaults.language),
-        })
-    }
-
-    fn config_value(&self, key: &str) -> Result<Option<String>, AppError> {
-        Ok(self
-            .connection
-            .query_row(
-                "SELECT value FROM app_config WHERE key = ?1",
-                [key],
-                |row| row.get(0),
-            )
-            .optional()?)
+        Ok(AppConfigStore::new(&self.connection).load_settings()?)
     }
 
     pub fn save_settings(&self, settings: &AppSettings) -> Result<(), AppError> {
-        let now = timestamp();
-        for (key, value) in [
-            ("yt_dlp_path", settings.yt_dlp_path.clone()),
-            ("ffmpeg_path", settings.ffmpeg_path.clone()),
-            (
-                "default_download_directory",
-                settings.default_download_directory.clone(),
-            ),
-            ("proxy", settings.proxy.clone()),
-            ("max_concurrency", settings.max_concurrency.to_string()),
-            ("language", settings.language.clone()),
-        ] {
-            self.connection.execute(
-                "INSERT INTO app_config (key, value, updated_at) VALUES (?1, ?2, ?3)
-                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-                params![key, value, now],
-            )?;
-        }
+        AppConfigStore::new(&self.connection).save_settings(settings, timestamp())?;
         Ok(())
     }
 
@@ -308,6 +267,35 @@ impl Storage {
     }
 }
 
+fn configure_connection(connection: &Connection) -> rusqlite::Result<()> {
+    const ATTEMPTS: usize = 10;
+    for attempt in 0..ATTEMPTS {
+        match connection.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;",
+        ) {
+            Ok(()) => return Ok(()),
+            Err(error) if is_database_locked(&error) && attempt + 1 < ATTEMPTS => {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("connection configuration attempts should return")
+}
+
+fn is_database_locked(error: &rusqlite::Error) -> bool {
+    matches!(
+        error,
+        rusqlite::Error::SqliteFailure(sqlite_error, _)
+            if matches!(
+                sqlite_error.code,
+                rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+            )
+    )
+}
+
 fn database_path_next_to_executable(executable_path: &Path) -> Result<PathBuf, AppError> {
     let executable_directory = executable_path
         .parent()
@@ -331,6 +319,7 @@ fn timestamp() -> i64 {
 
 #[cfg(test)]
 mod tests {
+    use super::config_keys::ALL_CONFIG_KEYS;
     use super::{DATABASE_FILE_NAME, Storage, database_path_next_to_executable};
     use crate::app::state::{AppSettings, NewDownload};
     use crate::error::{AppError, StorageStage};
@@ -416,6 +405,64 @@ mod tests {
     }
 
     #[test]
+    fn initializes_app_config_with_default_values() {
+        let storage = Storage::open_or_initialize(":memory:")
+            .expect("in-memory database should initialize defaults");
+        let defaults = AppSettings::default();
+
+        assert_eq!(config_row_count(&storage), ALL_CONFIG_KEYS.len());
+        for key in ALL_CONFIG_KEYS {
+            let (value, updated_at) = config_entry(&storage, key.as_str());
+            assert_eq!(value, key.value_from(&defaults));
+            assert!(updated_at >= 0);
+        }
+        assert_eq!(
+            storage
+                .load_settings()
+                .expect("default settings should load"),
+            defaults
+        );
+        assert!(defaults.default_download_directory.is_empty());
+    }
+
+    #[test]
+    fn initialization_preserves_existing_config_and_fills_missing_keys() {
+        let test_directory = TestDirectory::create("partial-config");
+        let database_path = test_directory.path().join(DATABASE_FILE_NAME);
+        {
+            let storage = Storage::open_or_initialize(&database_path)
+                .expect("database should initialize defaults");
+            storage
+                .connection
+                .execute("DELETE FROM app_config", [])
+                .expect("default config should be cleared");
+            storage
+                .connection
+                .execute(
+                    "INSERT INTO app_config (key, value, updated_at) VALUES (?1, ?2, ?3)",
+                    rusqlite::params![super::config_keys::PROXY, "http://127.0.0.1:7890", 42],
+                )
+                .expect("custom proxy should be inserted");
+            storage
+                .connection
+                .execute(
+                    "INSERT INTO app_config (key, value, updated_at) VALUES ('future_key', 'future', 7)",
+                    [],
+                )
+                .expect("unknown key should be inserted");
+        }
+
+        let storage = Storage::open_or_initialize(&database_path)
+            .expect("missing config values should be seeded");
+        assert_eq!(
+            config_entry(&storage, super::config_keys::PROXY),
+            ("http://127.0.0.1:7890".into(), 42)
+        );
+        assert_eq!(config_entry(&storage, "future_key"), ("future".into(), 7));
+        assert_eq!(config_row_count(&storage), ALL_CONFIG_KEYS.len() + 1);
+    }
+
+    #[test]
     fn creates_database_file_and_initializes_schema() {
         let test_directory = TestDirectory::create("initialize");
         let database_path = test_directory.path().join(DATABASE_FILE_NAME);
@@ -464,7 +511,9 @@ mod tests {
             let storage = Storage::open_or_initialize(&database_path)
                 .expect("database should initialize the first time");
             let settings = AppSettings {
+                proxy: "http://127.0.0.1:8080".into(),
                 max_concurrency: 7,
+                language: "en".into(),
                 ..AppSettings::default()
             };
             storage
@@ -472,15 +521,17 @@ mod tests {
                 .expect("settings should be saved");
         }
 
+        let stored_before_reopen = config_entries(&database_path);
         let reopened = Storage::open_or_initialize(&database_path)
             .expect("initialized database should reopen");
-        assert_eq!(
-            reopened
-                .load_settings()
-                .expect("existing settings should be loaded")
-                .max_concurrency,
-            7
-        );
+        let settings = reopened
+            .load_settings()
+            .expect("existing settings should be loaded");
+        assert_eq!(settings.max_concurrency, 7);
+        assert_eq!(settings.proxy, "http://127.0.0.1:8080");
+        assert_eq!(settings.language, "en");
+        drop(reopened);
+        assert_eq!(config_entries(&database_path), stored_before_reopen);
     }
 
     #[test]
@@ -558,6 +609,47 @@ mod tests {
                 .expect("initialization thread should not panic")
                 .expect("concurrent initialization should succeed");
         }
+
+        let storage = Storage::open_or_initialize(&database_path)
+            .expect("concurrently initialized database should reopen");
+        assert_eq!(config_row_count(&storage), ALL_CONFIG_KEYS.len());
+    }
+
+    #[test]
+    fn save_settings_rolls_back_when_one_key_fails() {
+        let storage = Storage::open_or_initialize(":memory:")
+            .expect("in-memory database should initialize defaults");
+        let defaults = storage
+            .load_settings()
+            .expect("default settings should load");
+        storage
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER reject_proxy_update
+                 BEFORE UPDATE ON app_config
+                 WHEN NEW.key = 'proxy'
+                 BEGIN
+                     SELECT RAISE(ABORT, 'proxy update rejected');
+                 END;",
+            )
+            .expect("failure trigger should be created");
+        let changed = AppSettings {
+            yt_dlp_path: "yt-dlp-custom.exe".into(),
+            proxy: "http://127.0.0.1:7890".into(),
+            max_concurrency: 8,
+            language: "en".into(),
+            ..defaults.clone()
+        };
+
+        storage
+            .save_settings(&changed)
+            .expect_err("one rejected key should fail the entire save");
+        assert_eq!(
+            storage
+                .load_settings()
+                .expect("settings should still be readable"),
+            defaults
+        );
     }
 
     #[test]
@@ -607,6 +699,38 @@ mod tests {
             database_path,
             Path::new("C:/Program Files/yt-dlp-gui/application.sqlite3")
         );
+    }
+
+    fn config_row_count(storage: &Storage) -> usize {
+        let count: i64 = storage
+            .connection
+            .query_row("SELECT COUNT(*) FROM app_config", [], |row| row.get(0))
+            .expect("config rows should be countable");
+        usize::try_from(count).expect("config row count should fit usize")
+    }
+
+    fn config_entry(storage: &Storage, key: &str) -> (String, i64) {
+        storage
+            .connection
+            .query_row(
+                "SELECT value, updated_at FROM app_config WHERE key = ?1",
+                [key],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("config entry should exist")
+    }
+
+    fn config_entries(database_path: &Path) -> Vec<(String, String, i64)> {
+        let connection = rusqlite::Connection::open(database_path)
+            .expect("database should open for config inspection");
+        let mut statement = connection
+            .prepare("SELECT key, value, updated_at FROM app_config ORDER BY key")
+            .expect("config entries should be queryable");
+        statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .expect("config entry query should run")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("config entries should be readable")
     }
 
     fn object_names(storage: &Storage, object_type: &str) -> Vec<String> {
