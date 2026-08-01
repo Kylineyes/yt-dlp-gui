@@ -25,12 +25,6 @@ export component Sidebar inherits Rectangle {
         NavigationButton {
             text: @tr("Welcome");
             icon: @image-url("../assets/icons/home.svg");
-            enabled: false;
-            active: false;
-        }
-        NavigationButton {
-            text: @tr("Settings");
-            icon: @image-url("../assets/icons/settings.svg");
             active: root.selected-page == 0;
             clicked => { root.selected-page = 0; }
         }
