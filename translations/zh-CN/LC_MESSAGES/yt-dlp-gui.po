@@ -220,8 +220,8 @@ msgstr "步骤 1"
 msgid "Configure"
 msgstr "配置环境"
 
-msgid "Set the yt-dlp path and default download directory in Settings."
-msgstr "在设置中配置 yt-dlp 路径和默认下载目录。"
+msgid "Set the yt-dlp path and default download directory in **Settings**."
+msgstr "在 **设置** 中配置 yt-dlp 路径和默认下载目录。"
 
 msgid "Step 2"
 msgstr "步骤 2"
@@ -229,8 +229,8 @@ msgstr "步骤 2"
 msgid "Choose media"
 msgstr "选择媒体"
 
-msgid "Open Search, enter a video or playlist URL, and choose a media option."
-msgstr "打开检索页，输入视频或播放列表 URL，然后选择媒体选项。"
+msgid "Open **Search**, enter a video or playlist URL, and choose a media option."
+msgstr "打开 **检索** 页，输入视频或播放列表 URL，然后选择媒体选项。"
 
 msgid "Step 3"
 msgstr "步骤 3"
@@ -238,8 +238,8 @@ msgstr "步骤 3"
 msgid "Download and track"
 msgstr "下载并跟踪"
 
-msgid "Add the task, then start and monitor it in Download tasks."
-msgstr "添加任务，然后在下载任务列表中启动并跟踪状态。"
+msgid "Add the task, then start and monitor it in **Download tasks**."
+msgstr "添加任务，然后在 **下载任务列表** 中启动并跟踪状态。"
 
 msgid "Built with Rust and Slint"
 msgstr "使用 Rust 和 Slint 构建"
