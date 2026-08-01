@@ -57,8 +57,14 @@ impl FatalErrorController {
         }
     }
 
-    pub fn window(&self) -> Option<&FatalErrorWindow> {
-        self.window.as_ref()
+    pub fn is_visible(&self) -> bool {
+        self.window.is_some()
+    }
+
+    pub fn with_window(&self, callback: impl FnOnce(&FatalErrorWindow)) {
+        if let Some(window) = self.window.as_ref() {
+            callback(window);
+        }
     }
 
     #[cfg(windows)]
