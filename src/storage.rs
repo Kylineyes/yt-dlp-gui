@@ -5,7 +5,8 @@ mod schema;
 use self::app_config::AppConfigStore;
 use crate::app::state::{AppSettings, DownloadRecord, DownloadStatus, NewDownload};
 use crate::error::{AppError, StorageStage};
-use rusqlite::{Connection, ErrorCode, OptionalExtension, params};
+use rusqlite::Connection;
+use rusqlite::params;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -78,27 +79,31 @@ impl Storage {
     }
 
     fn configure_connection(connection: &Connection) -> rusqlite::Result<()> {
-        for _ in 0..5 {
+        const ATTEMPTS: usize = 10;
+        for attempt in 0..ATTEMPTS {
             match connection.execute_batch(
                 "PRAGMA foreign_keys = ON;
-             PRAGMA journal_mode = WAL;
-             PRAGMA synchronous = NORMAL;",
+                 PRAGMA journal_mode = WAL;
+                 PRAGMA synchronous = NORMAL;",
             ) {
                 Ok(()) => return Ok(()),
-                Err(rusqlite::Error::SqliteFailure(error, _))
-                    if error.code == ErrorCode::DatabaseBusy
-                        || error.code == ErrorCode::DatabaseLocked =>
+                Err(error)
+                    if matches!(
+                        &error,
+                        rusqlite::Error::SqliteFailure(sqlite_error, _)
+                            if matches!(
+                                sqlite_error.code,
+                                rusqlite::ErrorCode::DatabaseBusy
+                                    | rusqlite::ErrorCode::DatabaseLocked
+                            )
+                    ) && attempt + 1 < ATTEMPTS =>
                 {
                     std::thread::sleep(Duration::from_millis(25));
                 }
                 Err(error) => return Err(error),
             }
         }
-        connection.execute_batch(
-            "PRAGMA foreign_keys = ON;
-         PRAGMA journal_mode = WAL;
-         PRAGMA synchronous = NORMAL;",
-        )
+        unreachable!("connection configuration attempts should return")
     }
 
     fn migrate(&self) -> rusqlite::Result<()> {
@@ -289,35 +294,6 @@ impl Storage {
         )?;
         Ok(())
     }
-}
-
-fn configure_connection(connection: &Connection) -> rusqlite::Result<()> {
-    const ATTEMPTS: usize = 10;
-    for attempt in 0..ATTEMPTS {
-        match connection.execute_batch(
-            "PRAGMA foreign_keys = ON;
-             PRAGMA journal_mode = WAL;
-             PRAGMA synchronous = NORMAL;",
-        ) {
-            Ok(()) => return Ok(()),
-            Err(error) if is_database_locked(&error) && attempt + 1 < ATTEMPTS => {
-                std::thread::sleep(Duration::from_millis(25));
-            }
-            Err(error) => return Err(error),
-        }
-    }
-    unreachable!("connection configuration attempts should return")
-}
-
-fn is_database_locked(error: &rusqlite::Error) -> bool {
-    matches!(
-        error,
-        rusqlite::Error::SqliteFailure(sqlite_error, _)
-            if matches!(
-                sqlite_error.code,
-                rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
-            )
-    )
 }
 
 fn database_path_next_to_executable(executable_path: &Path) -> Result<PathBuf, AppError> {
