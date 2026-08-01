@@ -7,7 +7,7 @@ slint::include_modules!();
 
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
-use slint::{Model, ModelRc, SharedString, VecModel};
+use slint::{Model, ModelRc, SharedString, StyledText, VecModel};
 use std::rc::Rc;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -133,6 +133,11 @@ fn apply_event(window: &MainWindow, event: WorkerEvent) {
 }
 
 fn install_callbacks(window: &MainWindow, commands: tokio::sync::mpsc::UnboundedSender<UiCommand>) {
+    window.on_format_step_description(|description| {
+        StyledText::from_markdown(description.as_str())
+            .unwrap_or_else(|_| StyledText::from_plain_text(description.as_str()))
+    });
+
     let weak = window.as_weak();
     let sender = commands.clone();
     window.on_save_settings(move || {
