@@ -1,0 +1,170 @@
+import { VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+component StepCard inherits Rectangle {
+    in property <string> step-number;
+    in property <string> step-title;
+    in property <string> step-description;
+
+    background: #ffffff;
+    border-width: 1px;
+    border-color: #dedede;
+    border-radius: 7px;
+    horizontal-stretch: 1;
+
+    VerticalBox {
+        padding: 14px;
+        spacing: 7px;
+        Text {
+            text: root.step-number;
+            color: #2563eb;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        Text {
+            text: root.step-title;
+            color: #202020;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        Text {
+            text: root.step-description;
+            color: #666666;
+            wrap: word-wrap;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component WelcomePage inherits Rectangle {
+    background: #fafafa;
+
+    VerticalBox {
+        padding: 28px;
+        spacing: 10px;
+
+        Text {
+            text: @tr("Welcome");
+            color: #202020;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        Text {
+            text: @tr("A desktop interface for creating and managing yt-dlp download tasks");
+            color: #666666;
+            font-size: 16px;
+        }
+
+        Rectangle { height: 4px; }
+
+        // Keep the product summary focused on capabilities available in this version.
+        Rectangle {
+            height: 104px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: #dedede;
+            border-radius: 7px;
+
+            VerticalBox {
+                padding: 14px;
+                spacing: 7px;
+                Text {
+                    text: @tr("What this tool does");
+                    color: #202020;
+                    font-size: 18px;
+                    font-weight: 600;
+                }
+                Text {
+                    text: @tr("Configure yt-dlp, prepare and save download tasks, start downloads, and track their status in one place.");
+                    color: #555555;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        Rectangle { height: 4px; }
+        Text {
+            text: @tr("How to use it");
+            color: #202020;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        HorizontalBox {
+            height: 158px;
+            spacing: 10px;
+
+            StepCard {
+                step-number: @tr("Step 1");
+                step-title: @tr("Configure");
+                step-description: @tr("Set the yt-dlp path and default download directory in Settings.");
+            }
+            StepCard {
+                step-number: @tr("Step 2");
+                step-title: @tr("Choose media");
+                step-description: @tr("Open Search, enter a video or playlist URL, and choose a media option.");
+            }
+            StepCard {
+                step-number: @tr("Step 3");
+                step-title: @tr("Download and track");
+                step-description: @tr("Add the task, then start and monitor it in Download tasks.");
+            }
+        }
+
+        Rectangle { vertical-stretch: 1; }
+
+        // The footer acknowledges both embedded libraries and external tools.
+        Rectangle {
+            height: 136px;
+            background: #ffffff;
+            border-width: 1px;
+            border-color: #dedede;
+            border-radius: 7px;
+
+            HorizontalBox {
+                padding: 14px;
+                spacing: 18px;
+                VerticalBox {
+                    horizontal-stretch: 3;
+                    spacing: 5px;
+                    Text {
+                        text: @tr("Built with Rust and Slint");
+                        color: #202020;
+                        font-weight: 600;
+                    }
+                    Text {
+                        text: @tr("Powered by yt-dlp, ytd-rs, Tokio, rusqlite, SQLite, Serde, and serde_json.");
+                        color: #555555;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: @tr("FFmpeg is used as an external tool for media post-processing when needed.");
+                        color: #666666;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: @tr("Thanks to these projects and the open-source community.");
+                        color: #666666;
+                        wrap: word-wrap;
+                    }
+                }
+                Rectangle {
+                    width: 1px;
+                    background: #dedede;
+                }
+                VerticalBox {
+                    horizontal-stretch: 2;
+                    spacing: 7px;
+                    Text {
+                        text: @tr("Project repository");
+                        color: #202020;
+                        font-weight: 600;
+                    }
+                    Text {
+                        text: @tr("https://github.com/Kylineyes/yt-dlp-gui");
+                        color: #2563eb;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+}

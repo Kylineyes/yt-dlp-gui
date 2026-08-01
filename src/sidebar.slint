@@ -2,6 +2,7 @@ import { Button, VerticalBox } from "std-widgets.slint";
 
 component NavigationButton inherits Button {
     in property <bool> active;
+    primary: active;
     checked: active;
     colorize-icon: true;
     horizontal-stretch: 1;
@@ -47,6 +48,12 @@ export component Sidebar inherits Rectangle {
                 root.selected-page = 2;
                 root.refresh-downloads();
             }
+        }
+        NavigationButton {
+            text: @tr("Settings");
+            icon: @image-url("../assets/icons/settings.svg");
+            active: root.selected-page == 3;
+            clicked => { root.selected-page = 3; }
         }
         Rectangle { vertical-stretch: 1; }
     }
