@@ -260,3 +260,39 @@ msgid "https://github.com/Kylineyes/yt-dlp-gui"
 msgstr "https://github.com/Kylineyes/yt-dlp-gui"
 msgid "yt-dlp Integration Platform"
 msgstr "yt-dlp 集成平台"
+
+msgid "Browse…"
+msgstr "浏览…"
+
+msgid "Select yt-dlp executable"
+msgstr "选择 yt-dlp 可执行文件"
+
+msgid "Select FFmpeg executable"
+msgstr "选择 FFmpeg 可执行文件"
+
+msgid "Select download directory"
+msgstr "选择下载目录"
+
+msgid "Valid"
+msgstr "有效"
+
+msgid "Invalid"
+msgstr "无效"
+
+msgid "Checking"
+msgstr "检查中"
+
+msgid "Settings saved"
+msgstr "设置已保存"
+
+msgid "Operation failed"
+msgstr "操作失败"
+
+msgid "Operation failed: {}"
+msgstr "操作失败：{}"
+
+msgid "Dismiss"
+msgstr "关闭"
+
+msgid "Fix invalid settings before saving"
+msgstr "请先修正无效设置再保存"

@@ -1,4 +1,14 @@
 import { Button, ComboBox, LineEdit, ScrollView, SpinBox, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { ValidationIndicator, ValidationStatus } from "components/feedback.slint";
+
+component SettingLabel inherits HorizontalBox {
+    in property <string> label;
+    in property <ValidationStatus> status;
+
+    spacing: 8px;
+    ValidationIndicator { status: root.status; }
+    Text { text: root.label; font-weight: 600; vertical-alignment: center; }
+}
 
 export component SettingsPage inherits Rectangle {
     in-out property <string> yt-dlp-path;
@@ -7,11 +17,37 @@ export component SettingsPage inherits Rectangle {
     in-out property <string> proxy;
     in-out property <int> max-concurrency;
     in-out property <string> language;
+    in-out property <ValidationStatus> yt-dlp-status;
+    in-out property <ValidationStatus> ffmpeg-status;
+    in-out property <ValidationStatus> download-directory-status;
+    in property <int> invalid-field: -1;
+    in property <int> invalid-revision;
     in property <int> message-kind;
     in property <string> message-argument;
     callback save();
     callback reset();
     callback change-language(string);
+    callback validate(int);
+    callback select-yt-dlp(string);
+    callback select-ffmpeg(string);
+    callback select-download-directory(string);
+    public function focus-invalid-field(field: int) {
+        if (field == 0) {
+            yt-dlp-input.focus();
+            yt-dlp-input.select-all();
+        } else if (field == 1) {
+            ffmpeg-input.focus();
+            ffmpeg-input.select-all();
+        } else {
+            download-directory-input.focus();
+            download-directory-input.select-all();
+        }
+    }
+
+    changed invalid-revision => { root.focus-invalid-field(root.invalid-field); }
+    changed yt-dlp-path => { root.yt-dlp-status = ValidationStatus.checking; root.validate(0); }
+    changed ffmpeg-path => { root.ffmpeg-status = ValidationStatus.checking; root.validate(1); }
+    changed default-download-directory => { root.download-directory-status = ValidationStatus.checking; root.validate(2); }
 
     background: #fafafa;
     ScrollView {
@@ -21,12 +57,24 @@ export component SettingsPage inherits Rectangle {
             Text { text: @tr("Settings"); font-size: 28px; font-weight: 600; }
             Text { text: @tr("Configure yt-dlp and the download environment"); color: #666666; }
             Rectangle { height: 12px; }
-            Text { text: @tr("yt-dlp path"); font-weight: 600; }
-            LineEdit { placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH"); text <=> root.yt-dlp-path; }
-            Text { text: @tr("FFmpeg path"); font-weight: 600; }
-            LineEdit { placeholder-text: @tr("Enter ffmpeg.exe or its directory"); text <=> root.ffmpeg-path; }
-            Text { text: @tr("Default download directory"); font-weight: 600; }
-            LineEdit { placeholder-text: @tr("For example: C:/Users/Username/Downloads"); text <=> root.default-download-directory; }
+            SettingLabel { label: @tr("yt-dlp path"); status: root.yt-dlp-status; }
+            HorizontalBox {
+                spacing: 8px;
+                yt-dlp-input := LineEdit { placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH"); text <=> root.yt-dlp-path; horizontal-stretch: 1; }
+                Button { text: @tr("Browse…"); clicked => { root.select-yt-dlp(@tr("Select yt-dlp executable")); } }
+            }
+            SettingLabel { label: @tr("FFmpeg path"); status: root.ffmpeg-status; }
+            HorizontalBox {
+                spacing: 8px;
+                ffmpeg-input := LineEdit { placeholder-text: @tr("Enter ffmpeg.exe or its directory"); text <=> root.ffmpeg-path; horizontal-stretch: 1; }
+                Button { text: @tr("Browse…"); clicked => { root.select-ffmpeg(@tr("Select FFmpeg executable")); } }
+            }
+            SettingLabel { label: @tr("Default download directory"); status: root.download-directory-status; }
+            HorizontalBox {
+                spacing: 8px;
+                download-directory-input := LineEdit { placeholder-text: @tr("For example: C:/Users/Username/Downloads"); text <=> root.default-download-directory; horizontal-stretch: 1; }
+                Button { text: @tr("Browse…"); clicked => { root.select-download-directory(@tr("Select download directory")); } }
+            }
             Text { text: @tr("Download proxy"); font-weight: 600; }
             LineEdit { placeholder-text: @tr("For example: http://127.0.0.1:7890"); text <=> root.proxy; }
             Text { text: @tr("Language"); font-weight: 600; }
@@ -48,9 +96,7 @@ export component SettingsPage inherits Rectangle {
                 Rectangle { horizontal-stretch: 1; }
             }
             Text {
-                text: root.message-kind == 1 ? @tr("Settings saved to SQLite") :
-                      root.message-kind == 2 ? @tr("Defaults restored; click Save settings") :
-                      root.message-argument;
+                text: root.message-kind == 2 ? @tr("Defaults restored; click Save settings") : root.message-argument;
                 color: #2563eb;
                 wrap: word-wrap;
             }
