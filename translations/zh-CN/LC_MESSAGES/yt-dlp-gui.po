@@ -258,3 +258,5 @@ msgstr "项目仓库"
 
 msgid "https://github.com/Kylineyes/yt-dlp-gui"
 msgstr "https://github.com/Kylineyes/yt-dlp-gui"
+msgid "yt-dlp Integration Platform"
+msgstr "yt-dlp 集成平台"

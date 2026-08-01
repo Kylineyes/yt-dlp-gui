@@ -3,6 +3,7 @@ import { Button, VerticalBox } from "std-widgets.slint";
 component NavigationButton inherits Button {
     in property <bool> active;
     primary: active;
+    checked: active;
     colorize-icon: true;
     horizontal-stretch: 1;
 }
@@ -18,12 +19,18 @@ export component Sidebar inherits Rectangle {
     VerticalBox {
         padding: 16px;
         spacing: 8px;
-        Text { text: @tr("yt-dlp GUI"); font-size: 22px; font-weight: 600; color: #202020; }
+        Text { text: @tr("yt-dlp Integration Platform"); font-size: 22px; font-weight: 600; color: #202020; }
         Text { text: @tr("Download manager"); color: #666666; }
         Rectangle { height: 14px; }
         NavigationButton {
             text: @tr("Welcome");
             icon: @image-url("../assets/icons/home.svg");
+            enabled: false;
+            active: false;
+        }
+        NavigationButton {
+            text: @tr("Settings");
+            icon: @image-url("../assets/icons/settings.svg");
             active: root.selected-page == 0;
             clicked => { root.selected-page = 0; }
         }
@@ -49,6 +56,5 @@ export component Sidebar inherits Rectangle {
             clicked => { root.selected-page = 3; }
         }
         Rectangle { vertical-stretch: 1; }
-        Text { text: @tr("Rust + Slint"); color: #777777; horizontal-alignment: center; }
     }
 }
