@@ -178,6 +178,11 @@ fn install_fatal_callbacks(fatal_window: Rc<RefCell<FatalErrorController>>) {
 }
 
 fn install_callbacks(window: &MainWindow, commands: tokio::sync::mpsc::UnboundedSender<UiCommand>) {
+    window.on_format_step_description(|description| {
+        StyledText::from_markdown(description.as_str())
+            .unwrap_or_else(|_| StyledText::from_plain_text(description.as_str()))
+    });
+
     let weak = window.as_weak();
     let sender = commands.clone();
     window.on_save_settings(move || {

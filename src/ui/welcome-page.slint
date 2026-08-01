@@ -3,7 +3,7 @@ import { VerticalBox, HorizontalBox } from "std-widgets.slint";
 component StepCard inherits Rectangle {
     in property <string> step-number;
     in property <string> step-title;
-    in property <string> step-description;
+    in property <styled-text> step-description;
 
     background: #ffffff;
     border-width: 1px;
@@ -26,16 +26,17 @@ component StepCard inherits Rectangle {
             font-size: 18px;
             font-weight: 600;
         }
-        Text {
+        StyledText {
             text: root.step-description;
-            color: #666666;
-            wrap: word-wrap;
+            default-color: #666666;
             vertical-stretch: 1;
         }
     }
 }
 
 export component WelcomePage inherits Rectangle {
+    pure callback format-step-description(string) -> styled-text;
+
     background: #fafafa;
 
     VerticalBox {
@@ -95,17 +96,17 @@ export component WelcomePage inherits Rectangle {
             StepCard {
                 step-number: @tr("Step 1");
                 step-title: @tr("Configure");
-                step-description: @tr("Set the yt-dlp path and default download directory in Settings.");
+                step-description: root.format-step-description(@tr("Set the yt-dlp path and default download directory in **Settings**."));
             }
             StepCard {
                 step-number: @tr("Step 2");
                 step-title: @tr("Choose media");
-                step-description: @tr("Open Search, enter a video or playlist URL, and choose a media option.");
+                step-description: root.format-step-description(@tr("Open **Search**, enter a video or playlist URL, and choose a media option."));
             }
             StepCard {
                 step-number: @tr("Step 3");
                 step-title: @tr("Download and track");
-                step-description: @tr("Add the task, then start and monitor it in Download tasks.");
+                step-description: root.format-step-description(@tr("Add the task, then start and monitor it in **Download tasks**."));
             }
         }
 
@@ -158,10 +159,19 @@ export component WelcomePage inherits Rectangle {
                         color: #202020;
                         font-weight: 600;
                     }
-                    Text {
-                        text: @tr("https://github.com/Kylineyes/yt-dlp-gui");
-                        color: #2563eb;
-                        wrap: word-wrap;
+                    Rectangle {
+                        height: repository-url.preferred-height;
+                        width: repository-url.preferred-width;
+                        repository-url := Text {
+                            text: @tr("https://github.com/Kylineyes/yt-dlp-gui");
+                            color: #2563eb;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                Platform.open-url("https://github.com/Kylineyes/yt-dlp-gui");
+                            }
+                        }
                     }
                 }
             }

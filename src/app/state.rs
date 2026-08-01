@@ -44,16 +44,10 @@ pub struct AppSettings {
 
 impl Default for AppSettings {
     fn default() -> Self {
-        let default_download_directory = std::env::var_os("USERPROFILE")
-            .map(std::path::PathBuf::from)
-            .map(|path| path.join("Downloads"))
-            .unwrap_or_else(|| std::path::PathBuf::from("downloads"))
-            .to_string_lossy()
-            .into_owned();
         Self {
             yt_dlp_path: String::new(),
             ffmpeg_path: String::new(),
-            default_download_directory,
+            default_download_directory: String::new(),
             proxy: String::new(),
             max_concurrency: 1,
             language: "zh-CN".into(),
