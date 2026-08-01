@@ -21,7 +21,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 应用配置、下载记录和项目日志统一保存在：
 
 ```text
-%LOCALAPPDATA%\yt-dlp-gui\application.sqlite3
+<可执行文件所在目录>\application.sqlite3
 ```
 
 SQLite 使用 `rusqlite` 的 `bundled` 功能构建，不要求系统预装 SQLite。

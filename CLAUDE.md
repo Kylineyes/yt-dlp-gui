@@ -31,5 +31,5 @@ This project is a graphical frontend for the `yt-dlp` library, built with Rust a
 - `src/ui.slint` contains the presentation layer. Keep downloader and persistence details out of Slint.
 - `src/app/` is the application/state layer. It owns command handling, download lifecycle transitions, and coordination between storage and the downloader adapter.
 - `src/download/ytdlp.rs` is the sole adapter around `ytd-rs`. `ytd-rs` still launches an external `yt-dlp` executable; the application accepts an explicit executable path or resolves `yt-dlp` from `PATH`.
-- `src/storage.rs` owns SQLite schema and persistence. Application configuration, download records, and download logs live in `%LOCALAPPDATA%/yt-dlp-gui/application.sqlite3`; SQLite is built from bundled sources.
+- `src/storage.rs` owns SQLite schema and persistence. Application configuration, download records, and download logs live in `application.sqlite3` beside the application executable; SQLite is built from bundled sources.
 - Slint runs on the main thread. A dedicated Tokio worker thread owns SQLite and async `yt-dlp` work; background updates return through `slint::invoke_from_event_loop`.
