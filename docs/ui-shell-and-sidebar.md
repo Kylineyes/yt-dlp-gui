@@ -15,7 +15,7 @@ MainWindow (1120px × 720px)
     └── active page content (remaining width)
 ```
 
-The shell owns page selection, callback wiring, worker event presentation, and the `ToastHost`. Individual pages must not duplicate the shell or perform persistence/download work.
+The shell owns page selection, callback wiring, worker event presentation, the resolved color scheme, and the `ToastHost`. Individual pages must not duplicate the shell, choose a color scheme, or perform persistence/download work. The shell maps the persisted Follow system, Light, and Dark preference to Slint's palette; pages consume shared `Theme` tokens.
 
 ## Page routing
 

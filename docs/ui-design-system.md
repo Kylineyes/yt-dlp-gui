@@ -200,6 +200,14 @@ Toasts use the same semantic colors as messages, with a solid semantic backgroun
 - Do not rely on color alone for selected, valid, invalid, success, warning, or error states.
 - Verify both bundled languages after UI changes.
 
+## Color schemes
+
+The application supports three persistent appearance preferences: `system`, `light`, and `dark`. The default is `system`, which follows the platform scheme. Choosing Light or Dark immediately previews the resolved theme; the existing Save settings action persists that preference, while Restore defaults returns it to `system`.
+
+All shared color tokens have a light and dark value and are exposed to Slint through `src/ui/theme.slint`. Page components must consume `Theme` tokens and must not add hexadecimal colors outside that module. The deep theme uses layered navy surfaces rather than pure black: window `#121826`, page `#151C2C`, sidebar `#101725`, card `#1E293B`, default border `#3A4A63`, primary text `#F3F6FC`, secondary text `#C2CCDA`, and accent `#76AEFF`.
+
+Text on standard surfaces must maintain at least a 4.5:1 contrast ratio. Focus borders, selection indicators, and large text must maintain at least 3:1 contrast. Success, warning, error, validation, and navigation states continue to use text, icons, or indicators in addition to color.
+
 ## Implementation and review rules
 
 - New UI values must be added to this document before being used in a page.

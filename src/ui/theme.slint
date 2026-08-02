@@ -1,0 +1,44 @@
+import { StyleMetrics } from "std-widgets.slint";
+
+export global Theme {
+    out property <bool> dark: StyleMetrics.dark-color-scheme;
+
+    out property <color> surface-window: dark ? #121826 : #F7F8FA;
+    out property <color> surface-page: dark ? #151C2C : #F7F8FA;
+    out property <color> surface-sidebar: dark ? #101725 : #F1F3F5;
+    out property <color> surface-card: dark ? #1E293B : #FFFFFF;
+    out property <color> surface-muted: dark ? #273449 : #F3F4F6;
+    out property <color> surface-hover: dark ? #243654 : #EFF6FF;
+    out property <color> surface-selected: dark ? #1D3A63 : #DBEAFE;
+    out property <color> surface-selected-hover: dark ? #254978 : #BFDBFE;
+
+    out property <color> border-default: dark ? #3A4A63 : #D9DEE7;
+    out property <color> border-hover: dark ? #5A8FD8 : #93C5FD;
+    out property <color> border-focus: dark ? #7DB7FF : #2563EB;
+
+    out property <color> text-primary: dark ? #F3F6FC : #1F2937;
+    out property <color> text-secondary: dark ? #C2CCDA : #5B6472;
+    out property <color> text-tertiary: dark ? #97A6BA : #7B8494;
+    out property <color> text-disabled: dark ? #718096 : #A0A8B5;
+    out property <color> text-on-accent: dark ? #071426 : #FFFFFF;
+    out property <color> text-on-solid: #FFFFFF;
+
+    out property <color> accent: dark ? #76AEFF : #2563EB;
+    out property <color> accent-hover: dark ? #9AC5FF : #1D4ED8;
+    out property <color> accent-pressed: dark ? #4D90E8 : #1E40AF;
+    out property <color> accent-disabled: dark ? #31567F : #BFDBFE;
+    out property <color> info-surface: dark ? #162D4D : #EFF6FF;
+
+    out property <color> success: dark ? #5BD68B : #15803D;
+    out property <color> success-surface: dark ? #153827 : #F0FDF4;
+    out property <color> warning: dark ? #F6C45B : #A16207;
+    out property <color> warning-surface: dark ? #422F10 : #FEF3C7;
+    out property <color> danger: dark ? #FF8A80 : #C42B1C;
+    out property <color> danger-surface: dark ? #4A2024 : #FEF2F2;
+
+    out property <color> toast-success: dark ? #167A45 : #15803D;
+    out property <color> toast-danger: dark ? #B83A42 : #C42B1C;
+    out property <color> progress-track: dark ? #35445C : #D9DEE7;
+    out property <color> progress-fill: dark ? #76AEFF : #2563EB;
+    out property <color> shadow: dark ? #99000000 : #33000000;
+}
