@@ -320,7 +320,7 @@ fn install_callbacks(
         }
     });
 
-    install_settings_validation(window);
+    install_settings_validation(window, commands.clone());
 
     let weak = window.as_weak();
     window.on_search_url_edited(move || {
