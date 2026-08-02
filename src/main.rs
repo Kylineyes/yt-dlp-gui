@@ -1,7 +1,7 @@
 mod app;
 mod download;
 mod error;
-mod fatal_error_window;
+mod prompt_window;
 mod storage;
 
 slint::include_modules!();
@@ -9,8 +9,8 @@ slint::include_modules!();
 use app::settings_validation::{SettingsValidation, ValidationError, validate_settings};
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
-use fatal_error_window::FatalErrorController;
-use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel};
+use prompt_window::{PromptConfirmAction, PromptController};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, TimerMode, VecModel};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{
@@ -74,13 +74,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     window.set_toasts(ModelRc::from(toast_model.clone()));
     let toasts = Rc::new(ToastController::new(toast_model));
 
-    let fatal_window = Rc::new(RefCell::new(FatalErrorController::new(window.as_weak())));
+    let prompt_controller = Rc::new(RefCell::new(PromptController::new(window.as_weak())));
 
-    let _event_pump = install_event_pump(&window, event_receiver, fatal_window.clone());
+    let _event_pump = install_event_pump(&window, event_receiver, prompt_controller.clone());
     install_callbacks(&window, command_sender.clone(), toasts);
 
     window.run()?;
-    fatal_window.borrow_mut().hide();
+    prompt_controller.borrow_mut().hide();
     let _ = command_sender.send(UiCommand::Shutdown);
     let _ = worker.join();
     Ok(())
@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn install_event_pump(
     window: &MainWindow,
     mut event_receiver: tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>,
-    fatal_window: Rc<RefCell<FatalErrorController>>,
+    prompt_controller: Rc<RefCell<PromptController>>,
 ) -> slint::Timer {
     let timer = slint::Timer::default();
     let weak_window = window.as_weak();
@@ -101,9 +101,9 @@ fn install_event_pump(
                 return;
             };
             while let Ok(event) = event_receiver.try_recv() {
-                apply_event(&window, event, &fatal_window);
+                apply_event(&window, event, &prompt_controller);
             }
-            fatal_window.borrow_mut().ensure_native_modal();
+            prompt_controller.borrow_mut().ensure_native_modal();
         },
     );
     timer
@@ -112,7 +112,7 @@ fn install_event_pump(
 fn apply_event(
     window: &MainWindow,
     event: WorkerEvent,
-    fatal_window: &Rc<RefCell<FatalErrorController>>,
+    prompt_controller: &Rc<RefCell<PromptController>>,
 ) {
     match event {
         WorkerEvent::Ready => {
@@ -120,11 +120,20 @@ fn apply_event(
             window.set_downloads_message_argument("".into());
         }
         WorkerEvent::StorageInitializationFailed { detail } => {
-            let is_new = !fatal_window.borrow().is_visible();
-            fatal_window.borrow_mut().show_or_update(detail);
-            fatal_window.borrow_mut().ensure_native_modal();
-            if is_new {
-                install_fatal_callbacks(fatal_window.clone());
+            window.set_prompt_detail(detail.into());
+            let created = prompt_controller.borrow_mut().show_with_action(
+                window.get_storage_initialization_title(),
+                window.get_storage_initialization_message(),
+                PromptConfirmAction::Quit,
+            );
+            if created {
+                install_prompt_callback(prompt_controller.clone());
+            }
+        }
+        WorkerEvent::PromptRequested { title, message } => {
+            let created = prompt_controller.borrow_mut().show(title, message);
+            if created {
+                install_prompt_callback(prompt_controller.clone());
             }
         }
         WorkerEvent::SettingsLoaded(settings) => apply_settings(window, &settings),
@@ -215,18 +224,14 @@ fn apply_event(
     }
 }
 
-fn install_fatal_callbacks(controller: Rc<RefCell<FatalErrorController>>) {
+fn install_prompt_callback(controller: Rc<RefCell<PromptController>>) {
     controller.borrow().with_window(|window| {
         let callback_controller = controller.clone();
-        window.on_toggle_fatal_detail(move || {
-            callback_controller.borrow().with_window(|window| {
-                window.set_fatal_detail_expanded(!window.get_fatal_detail_expanded());
-            });
-        });
-        let callback_controller = controller.clone();
-        window.on_confirm_fatal_error(move || {
-            callback_controller.borrow_mut().hide();
-            let _ = slint::quit_event_loop();
+        window.on_confirmed(move || {
+            let action = callback_controller.borrow_mut().confirm();
+            if action == PromptConfirmAction::Quit {
+                let _ = slint::quit_event_loop();
+            }
         });
     });
 }

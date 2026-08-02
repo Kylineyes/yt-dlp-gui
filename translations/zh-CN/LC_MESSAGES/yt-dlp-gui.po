@@ -326,23 +326,20 @@ msgstr "无法启动该可执行文件"
 
 msgid "Download directory does not exist or is not a directory"
 msgstr "下载目录不存在或不是目录"
-msgid "Oops"
-msgstr "糟糕"
 
 msgid "Storage initialization failed"
 msgstr "存储初始化失败"
 
-msgid "The application could not create or initialize its database file."
-msgstr "应用程序无法创建或初始化数据库文件。"
-
-msgid "Check the directory containing the application executable and make sure the current user can create and update files there."
-msgstr "请检查应用程序可执行文件所在目录，并确认当前用户可以在该目录中创建和更新文件。"
-
-msgid "Show error log"
-msgstr "显示错误日志"
-
-msgid "Hide error log"
-msgstr "隐藏错误日志"
+msgid ""
+"The application could not create or initialize its database file. Check the "
+"directory containing the application executable and make sure the current "
+"user can create and update files there.\n"
+"\n"
+"Technical details: {}"
+msgstr ""
+"应用程序无法创建或初始化数据库文件。请检查应用程序可执行文件所在目录，并确认当前用户可以在该目录中创建和更新文件。\n"
+"\n"
+"技术详情：{}"
 
 msgid "OK"
 msgstr "确定"

@@ -67,6 +67,10 @@ export component MainWindow inherits Window {
     callback window-closed();
     pure callback format-step-description(string) -> styled-text;
 
+    in-out property <string> prompt-detail;
+    out property <string> storage-initialization-title: @tr("Storage initialization failed");
+    out property <string> storage-initialization-message: @tr("The application could not create or initialize its database file. Check the directory containing the application executable and make sure the current user can create and update files there.\n\nTechnical details: {}", root.prompt-detail);
+
     changed selected-page => { root.page-changed(root.selected-page); }
 
     HorizontalBox {
@@ -146,54 +150,23 @@ export component MainWindow inherits Window {
     }
 }
 
-export component FatalErrorWindow inherits Window {
-    title: @tr("Oops");
-    width: 620px;
-    height: root.fatal-detail-expanded ? 360px : 250px;
-    in property <string> fatal-detail;
-    in-out property <bool> fatal-detail-expanded: false;
+export component PromptWindow inherits Window {
+    in property <string> prompt-title;
+    in property <string> prompt-message;
+    callback confirmed();
 
-    callback toggle-fatal-detail();
-    callback confirm-fatal-error();
+    title: root.prompt-title;
+    min-width: 620px;
+    max-width: 620px;
+    min-height: 250px;
+    max-height: 250px;
 
     VerticalBox {
         padding: 24px;
         spacing: 14px;
 
-        Text {
-            text: @tr("Storage initialization failed");
-            color: #c42b1c;
-            font-size: 24px;
-            font-weight: 600;
-        }
-        Text {
-            text: @tr("The application could not create or initialize its database file.");
-            color: #202020;
-            wrap: word-wrap;
-        }
-        Text {
-            text: @tr("Check the directory containing the application executable and make sure the current user can create and update files there.");
-            color: #555555;
-            wrap: word-wrap;
-        }
-        Rectangle { height: 4px; }
-        HorizontalBox {
-            spacing: 8px;
-            Button {
-                height: 36px;
-                text: root.fatal-detail-expanded ? @tr("Hide error log") : @tr("Show error log");
-                clicked => { root.toggle-fatal-detail(); }
-            }
-            Rectangle { horizontal-stretch: 1; }
-            Button {
-                height: 36px;
-                text: @tr("OK");
-                primary: true;
-                clicked => { root.confirm-fatal-error(); }
-            }
-        }
-        if root.fatal-detail-expanded : Rectangle {
-            height: 96px;
+        Rectangle {
+            vertical-stretch: 1;
             background: #f7f7f7;
             border-width: 1px;
             border-color: #dedede;
@@ -201,9 +174,18 @@ export component FatalErrorWindow inherits Window {
             TextEdit {
                 width: parent.width;
                 height: parent.height;
-                text: root.fatal-detail;
+                text: root.prompt-message;
                 read-only: true;
                 wrap: word-wrap;
+            }
+        }
+        HorizontalBox {
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                height: 36px;
+                text: @tr("OK");
+                primary: true;
+                clicked => { root.confirmed(); }
             }
         }
     }
