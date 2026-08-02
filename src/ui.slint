@@ -28,6 +28,8 @@ export component MainWindow inherits Window {
     in-out property <string> search-output-directory;
     in property <string> resource-name;
     in property <[StreamRow]> streams;
+    in-out property <bool> search-in-progress;
+    in-out property <int> selected-stream-index: -1;
     in property <[DownloadRow]> downloads;
     in property <int> settings-message-kind;
     in property <string> settings-message-argument;
@@ -46,6 +48,8 @@ export component MainWindow inherits Window {
     callback select-yt-dlp(string);
     callback select-ffmpeg(string);
     callback select-download-directory(string);
+    callback select-search-output-directory(string);
+    callback search-url-edited();
     callback search();
     callback select-stream(int);
     callback create-download();
@@ -73,10 +77,15 @@ export component MainWindow inherits Window {
             if root.selected-page == 1 : SearchPage {
                 url <=> root.search-url;
                 output-directory <=> root.search-output-directory;
+                default-download-directory: root.default-download-directory;
                 resource-name: root.resource-name;
                 streams: root.streams;
+                search-in-progress: root.search-in-progress;
+                selected-stream-index: root.selected-stream-index;
                 message-kind: root.search-message-kind;
                 message-argument: root.search-message-argument;
+                url-edited => { root.search-url-edited(); }
+                select-output-directory(title) => { root.select-search-output-directory(title); }
                 search => { root.search(); }
                 select-stream(index) => { root.select-stream(index); }
                 create-download => { root.create-download(); }

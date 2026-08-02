@@ -5,7 +5,7 @@ use ytd_rs::YtDlp;
 pub struct DownloadRequest {
     pub url: String,
     pub output_directory: PathBuf,
-    pub yt_dlp_path: Option<PathBuf>,
+    pub yt_dlp_path: PathBuf,
     pub ffmpeg_path: Option<PathBuf>,
     pub proxy: Option<String>,
     pub format_selector: String,
@@ -13,7 +13,7 @@ pub struct DownloadRequest {
 
 pub struct InspectRequest {
     pub url: String,
-    pub yt_dlp_path: Option<PathBuf>,
+    pub yt_dlp_path: PathBuf,
     pub proxy: Option<String>,
 }
 
@@ -33,10 +33,9 @@ pub struct InspectedFormat {
 }
 
 pub async fn inspect(request: InspectRequest) -> Result<Vec<InspectedMedia>, AppError> {
-    let mut task = YtDlp::new(request.url).arg("--no-playlist");
-    if let Some(path) = request.yt_dlp_path {
-        task = task.yt_dlp_path(path.to_string_lossy().into_owned());
-    }
+    let mut task = YtDlp::new(request.url)
+        .arg("--no-playlist")
+        .yt_dlp_path(request.yt_dlp_path.to_string_lossy().into_owned());
     if let Some(proxy) = request.proxy {
         task = task.proxy(proxy);
     }
@@ -165,11 +164,8 @@ where
     let mut task = YtDlp::new(request.url)
         .output_dir(request.output_directory)
         .arg("--newline")
-        .format(request.format_selector);
-
-    if let Some(path) = request.yt_dlp_path {
-        task = task.yt_dlp_path(path.to_string_lossy().into_owned());
-    }
+        .format(request.format_selector)
+        .yt_dlp_path(request.yt_dlp_path.to_string_lossy().into_owned());
     if let Some(path) = request.ffmpeg_path {
         task = task.arg_with("--ffmpeg-location", path.to_string_lossy().into_owned());
     }

@@ -4,10 +4,15 @@ import { StreamRow } from "types.slint";
 export component SearchPage inherits Rectangle {
     in-out property <string> url;
     in-out property <string> output-directory;
+    in property <string> default-download-directory;
     in property <string> resource-name;
     in property <int> message-kind;
     in property <string> message-argument;
     in property <[StreamRow]> streams;
+    in property <bool> search-in-progress;
+    in property <int> selected-stream-index: -1;
+    callback url-edited();
+    callback select-output-directory(string);
     callback search();
     callback select-stream(int);
     callback create-download();
@@ -20,8 +25,14 @@ export component SearchPage inherits Rectangle {
         Text { text: @tr("Enter a link, review available media streams, and create a download task"); color: #666666; }
         HorizontalBox {
             spacing: 8px;
-            LineEdit { placeholder-text: @tr("Enter a video or playlist URL"); text <=> root.url; horizontal-stretch: 1; }
-            Button { text: @tr("Search"); primary: true; clicked => { root.search(); } }
+            LineEdit {
+                placeholder-text: @tr("Enter a video or playlist URL");
+                text <=> root.url;
+                enabled: !root.search-in-progress;
+                edited => { root.url-edited(); }
+                horizontal-stretch: 1;
+            }
+            Button { text: @tr("Search"); primary: true; enabled: !root.search-in-progress; clicked => { root.search(); } }
         }
         Text { text: root.resource-name; font-size: 18px; font-weight: 600; }
         Rectangle {
@@ -54,9 +65,29 @@ export component SearchPage inherits Rectangle {
             }
         }
         Text { text: @tr("Download location"); font-weight: 600; }
-        LineEdit { placeholder-text: @tr("Choose a download directory"); text <=> root.output-directory; }
         HorizontalBox {
-            Button { text: @tr("Add download task"); primary: true; enabled: root.streams.length > 0; clicked => { root.create-download(); } }
+            spacing: 8px;
+            LineEdit {
+                placeholder-text: @tr("Choose a download directory");
+                text <=> root.output-directory;
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: @tr("Load default location");
+                clicked => { root.output-directory = root.default-download-directory; }
+            }
+            Button {
+                text: @tr("Browse…");
+                clicked => { root.select-output-directory(@tr("Select download directory")); }
+            }
+        }
+        HorizontalBox {
+            Button {
+                text: @tr("Add download task");
+                primary: true;
+                enabled: !root.search-in-progress && root.selected-stream-index >= 0;
+                clicked => { root.create-download(); }
+            }
             Rectangle { horizontal-stretch: 1; }
         }
         Text {

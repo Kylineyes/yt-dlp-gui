@@ -279,6 +279,9 @@ msgstr "yt-dlp 集成平台"
 msgid "Browse…"
 msgstr "浏览…"
 
+msgid "Load default location"
+msgstr "加载默认位置"
+
 msgid "Select yt-dlp executable"
 msgstr "选择 yt-dlp 可执行文件"
 
