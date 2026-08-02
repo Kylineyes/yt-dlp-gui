@@ -10,7 +10,7 @@ use app::settings_validation::{SettingsValidation, ValidationError, validate_set
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
 use fatal_error_window::FatalErrorController;
-use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, TimerMode, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{
@@ -320,7 +320,7 @@ fn install_callbacks(
         }
     });
 
-    install_settings_validation(window);
+    install_settings_validation(window, commands.clone());
 
     let weak = window.as_weak();
     window.on_search_url_edited(move || {
