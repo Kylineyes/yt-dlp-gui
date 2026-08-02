@@ -34,6 +34,23 @@ This project is a graphical frontend for the `yt-dlp` library, built with Rust a
 - `src/storage.rs` owns SQLite schema and persistence. Application configuration, download records, and download logs live in `application.sqlite3` beside the application executable; SQLite is built from bundled sources.
 - Slint runs on the main thread. A dedicated Tokio worker thread owns SQLite and async `yt-dlp` work; background updates return through `slint::invoke_from_event_loop`.
 
+## UI design documentation
+
+All Slint layout, styling, control-state, user-visible copy, and UI callback work must read [`docs/ui-design-system.md`](docs/ui-design-system.md) first, then read the design document for the target module. The design system is the single source of truth for shared colors, typography, spacing, dimensions, surfaces, borders, and interaction states. Page documents define module structure and behavior; they must reference shared tokens instead of creating page-specific visual values.
+
+Use this document routing:
+
+- `src/ui.slint` or `src/sidebar.slint`: read [`docs/ui-shell-and-sidebar.md`](docs/ui-shell-and-sidebar.md).
+- `src/ui/welcome-page.slint`: read [`docs/ui-welcome-page.md`](docs/ui-welcome-page.md).
+- `src/ui/search-page.slint` or `StreamRow`: read [`docs/ui-search-page.md`](docs/ui-search-page.md).
+- `src/ui/downloads-page.slint` or `DownloadRow`: read [`docs/ui-downloads-page.md`](docs/ui-downloads-page.md).
+- `src/ui/settings-page.slint` or `SettingLabel`: read [`docs/ui-settings-page.md`](docs/ui-settings-page.md).
+- `src/ui/components/feedback.slint` or `FatalErrorWindow`: read [`docs/ui-feedback-and-errors.md`](docs/ui-feedback-and-errors.md).
+- `src/ui/types.slint`: read the design system and the page documents for every consumer of the changed data contract.
+- Rust code that changes UI properties, callbacks, or state transitions: read the corresponding page document and, when applicable, the shell or feedback document.
+
+For UI changes, follow this priority order: explicit user requirements, `docs/ui-design-system.md`, the target module document, then the existing implementation. If code and documentation diverge, update the relevant document first for an intentional product change; otherwise bring the implementation back into compliance. Document any page-specific exception and its reason. Before finishing, check that shared values, `@tr(...)` copy, translation placeholders, callback contracts, and affected module documents remain synchronized. Use `.claude/skills/verify/SKILL.md` for real-window UI verification when behavior or appearance changes.
+
 ## Git commit convention
 
 Use the Conventional Commits format for all commit messages:
