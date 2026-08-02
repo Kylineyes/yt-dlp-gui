@@ -24,11 +24,16 @@ component ToastItem inherits Rectangle {
     in property <ToastData> data;
     callback dismissed(int);
     private property <float> visual-opacity: 0;
+    private property <float> countdown-progress: 1;
     private property <bool> closing: false;
 
     opacity: root.visual-opacity;
+    animate countdown-progress {
+        duration: root.closing ? 240ms : (root.data.kind == 0 ? 3000ms : 6000ms);
+        easing: linear;
+    }
     height: 64px;
-    width: 620px;
+    width: content.preferred-width;
     background: root.data.kind == 0 ? #107c10 : #c42b1c;
     border-radius: 7px;
     drop-shadow-blur: 8px;
@@ -40,12 +45,13 @@ component ToastItem inherits Rectangle {
         // Start fully visible; the short animation is reserved for dismissal.
         root.visual-opacity = 1;
         lifetime-timer.start();
+        countdown-start-timer.start();
     }
 
-    show-timer := Timer {
+    countdown-start-timer := Timer {
         interval: 1ms;
         running: false;
-        triggered => { root.visual-opacity = 1; }
+        triggered => { root.countdown-progress = 0; }
     }
 
     lifetime-timer := Timer {
@@ -66,6 +72,8 @@ component ToastItem inherits Rectangle {
         if (!root.closing) {
             root.closing = true;
             lifetime-timer.stop();
+            countdown-start-timer.stop();
+            root.countdown-progress = 0;
             root.visual-opacity = 0;
             remove-timer.start();
         }
@@ -83,9 +91,7 @@ component ToastItem inherits Rectangle {
                   root.data.kind == 2 ? @tr("Fix invalid settings before saving") :
                   root.data.detail == "" ? @tr("Operation failed") : @tr("Operation failed: {}", root.data.detail);
             color: #ffffff;
-            wrap: word-wrap;
             vertical-alignment: center;
-            horizontal-stretch: 1;
         }
         Rectangle {
             width: dismiss-button.preferred-width;
@@ -101,6 +107,22 @@ component ToastItem inherits Rectangle {
             }
         }
     }
+
+    countdown-viewport := Rectangle {
+        x: 0px;
+        y: root.height - self.height;
+        width: root.width;
+        height: 3px;
+        clip: true;
+        background: #ffffff33;
+        countdown-bar := Rectangle {
+            x: parent.width - self.width;
+            y: 0px;
+            width: parent.width * root.countdown-progress;
+            height: parent.height;
+            background: #ffffffcc;
+        }
+    }
 }
 
 export component ToastHost inherits Rectangle {
@@ -109,14 +131,17 @@ export component ToastHost inherits Rectangle {
 
     background: transparent;
     stack := VerticalBox {
-        x: (root.width - self.width) / 2;
         y: root.height - self.height - 24px;
-        width: 620px;
+        width: root.width;
         height: self.preferred-height;
         spacing: 8px;
-        for toast in root.toasts : ToastItem {
-            data: toast;
-            dismissed(id) => { root.dismissed(id); }
+        for toast in root.toasts : Rectangle {
+            height: 64px;
+            toast-item := ToastItem {
+                x: (parent.width - self.width) / 2;
+                data: toast;
+                dismissed(id) => { root.dismissed(id); }
+            }
         }
     }
 }

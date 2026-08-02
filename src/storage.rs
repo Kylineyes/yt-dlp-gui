@@ -3,6 +3,7 @@ mod config_keys;
 mod schema;
 
 use self::app_config::AppConfigStore;
+use self::config_keys::AppConfigKey;
 use crate::app::state::{AppSettings, DownloadRecord, DownloadStatus, NewDownload};
 use crate::error::{AppError, StorageStage};
 use rusqlite::Connection;
@@ -165,6 +166,21 @@ impl Storage {
         Ok(AppConfigStore::new(&self.connection).load_settings()?)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn require_yt_dlp_path(&self) -> Result<PathBuf, AppError> {
+        let store = AppConfigStore::new(&self.connection);
+        let value = store.get_value(AppConfigKey::YtDlpPath)?.ok_or_else(|| {
+            AppError::NotFound("Required configuration 'yt_dlp_path' is missing".into())
+        })?;
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(AppError::NotFound(
+                "Required configuration 'yt_dlp_path' is empty".into(),
+            ));
+        }
+        Ok(PathBuf::from(value))
+    }
+
     pub fn save_settings(&self, settings: &AppSettings) -> Result<(), AppError> {
         AppConfigStore::new(&self.connection).save_settings(settings, timestamp())?;
         Ok(())
@@ -319,7 +335,7 @@ fn timestamp() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::config_keys::ALL_CONFIG_KEYS;
+    use super::config_keys::{ALL_CONFIG_KEYS, YT_DLP_PATH};
     use super::{DATABASE_FILE_NAME, Storage, database_path_next_to_executable};
     use crate::app::state::{AppSettings, NewDownload};
     use crate::error::{AppError, StorageStage};
@@ -402,6 +418,61 @@ mod tests {
         let records = storage.list_downloads().expect("tasks should be listed");
         assert_eq!(records[0].downloaded_bytes, 1024);
         assert_eq!(records[0].resource_name, "Test resource");
+    }
+
+    #[test]
+    fn require_yt_dlp_path_rejects_missing_configuration() {
+        let storage =
+            Storage::open_or_initialize(":memory:").expect("in-memory database should initialize");
+        storage
+            .connection
+            .execute("DELETE FROM app_config WHERE key = ?1", [YT_DLP_PATH])
+            .expect("yt-dlp configuration should be removed");
+
+        let error = storage
+            .require_yt_dlp_path()
+            .expect_err("missing yt-dlp path should fail");
+        assert!(matches!(error, AppError::NotFound(_)));
+        assert!(error.to_string().contains("missing"));
+    }
+
+    #[test]
+    fn require_yt_dlp_path_rejects_empty_configuration() {
+        let storage =
+            Storage::open_or_initialize(":memory:").expect("in-memory database should initialize");
+        set_config_value(&storage, YT_DLP_PATH, "");
+
+        let error = storage
+            .require_yt_dlp_path()
+            .expect_err("empty yt-dlp path should fail");
+        assert!(matches!(error, AppError::NotFound(_)));
+        assert!(error.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn require_yt_dlp_path_rejects_whitespace_configuration() {
+        let storage =
+            Storage::open_or_initialize(":memory:").expect("in-memory database should initialize");
+        set_config_value(&storage, YT_DLP_PATH, " \t\r\n ");
+
+        let error = storage
+            .require_yt_dlp_path()
+            .expect_err("whitespace-only yt-dlp path should fail");
+        assert!(matches!(error, AppError::NotFound(_)));
+        assert!(error.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn require_yt_dlp_path_returns_trimmed_path_without_validation() {
+        let storage =
+            Storage::open_or_initialize(":memory:").expect("in-memory database should initialize");
+        set_config_value(&storage, YT_DLP_PATH, "  deliberately/missing/yt-dlp  ");
+
+        let path = storage
+            .require_yt_dlp_path()
+            .expect("non-empty configured path should be returned");
+        assert_eq!(path, PathBuf::from("deliberately/missing/yt-dlp"));
+        assert!(!path.exists());
     }
 
     #[test]
@@ -707,6 +778,16 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM app_config", [], |row| row.get(0))
             .expect("config rows should be countable");
         usize::try_from(count).expect("config row count should fit usize")
+    }
+
+    fn set_config_value(storage: &Storage, key: &str, value: &str) {
+        storage
+            .connection
+            .execute(
+                "UPDATE app_config SET value = ?1 WHERE key = ?2",
+                rusqlite::params![value, key],
+            )
+            .expect("config value should be updated");
     }
 
     fn config_entry(storage: &Storage, key: &str) -> (String, i64) {
