@@ -51,6 +51,8 @@ Use this document routing:
 
 For UI changes, follow this priority order: explicit user requirements, `docs/ui-design-system.md`, the target module document, then the existing implementation. If code and documentation diverge, update the relevant document first for an intentional product change; otherwise bring the implementation back into compliance. Document any page-specific exception and its reason. Before finishing, check that shared values, `@tr(...)` copy, translation placeholders, callback contracts, and affected module documents remain synchronized. Use `.claude/skills/verify/SKILL.md` for real-window UI verification when behavior or appearance changes.
 
+When work in any non-UI module introduces a new user-facing UI element, interaction, visual state, or component pattern, stop before implementation and tell the user that a design pass is required. First assign a design agent to propose the element's layout, visual states, accessibility, internationalization, and design-system impact; update the relevant design documentation after the user approves the proposal, then implement the module change. Do not add new UI elements opportunistically while working on another module.
+
 ## Git commit convention
 
 Use the Conventional Commits format for all commit messages:
