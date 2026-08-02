@@ -1,6 +1,9 @@
 use super::config_keys::{ALL_CONFIG_KEYS, AppConfigKey};
+use super::{Storage, timestamp};
 use crate::app::state::AppSettings;
+use crate::error::AppError;
 use rusqlite::{Connection, OptionalExtension, params};
+use std::path::PathBuf;
 
 const SELECT_VALUE_SQL: &str = "SELECT value FROM app_config WHERE key = ?1";
 const INSERT_DEFAULT_SQL: &str =
@@ -53,6 +56,7 @@ impl<'connection> AppConfigStore<'connection> {
         settings: &AppSettings,
         updated_at: i64,
     ) -> rusqlite::Result<()> {
+        // Persist one complete snapshot so a failed key cannot leave mixed settings behind.
         let transaction = self.connection.unchecked_transaction()?;
         {
             let mut statement = transaction.prepare_cached(UPSERT_VALUE_SQL)?;
@@ -61,5 +65,32 @@ impl<'connection> AppConfigStore<'connection> {
             }
         }
         transaction.commit()
+    }
+}
+
+impl Storage {
+    pub fn load_settings(&self) -> Result<AppSettings, AppError> {
+        Ok(AppConfigStore::new(&self.connection).load_settings()?)
+    }
+
+    /// Returns the configured path without checking the filesystem or executable behavior.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn require_yt_dlp_path(&self) -> Result<PathBuf, AppError> {
+        let store = AppConfigStore::new(&self.connection);
+        let value = store.get_value(AppConfigKey::YtDlpPath)?.ok_or_else(|| {
+            AppError::NotFound("Required configuration 'yt_dlp_path' is missing".into())
+        })?;
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(AppError::NotFound(
+                "Required configuration 'yt_dlp_path' is empty".into(),
+            ));
+        }
+        Ok(PathBuf::from(value))
+    }
+
+    pub fn save_settings(&self, settings: &AppSettings) -> Result<(), AppError> {
+        AppConfigStore::new(&self.connection).save_settings(settings, timestamp())?;
+        Ok(())
     }
 }
