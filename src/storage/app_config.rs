@@ -1,4 +1,4 @@
-use super::config_keys::ALL_CONFIG_KEYS;
+use super::config_keys::{ALL_CONFIG_KEYS, AppConfigKey};
 use crate::app::state::AppSettings;
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -32,14 +32,16 @@ impl<'connection> AppConfigStore<'connection> {
         Ok(())
     }
 
+    pub(super) fn get_value(&self, key: AppConfigKey) -> rusqlite::Result<Option<String>> {
+        self.connection
+            .query_row(SELECT_VALUE_SQL, [key.as_str()], |row| row.get(0))
+            .optional()
+    }
+
     pub(super) fn load_settings(&self) -> rusqlite::Result<AppSettings> {
         let mut settings = AppSettings::default();
-        let mut statement = self.connection.prepare_cached(SELECT_VALUE_SQL)?;
         for key in ALL_CONFIG_KEYS {
-            let value = statement
-                .query_row([key.as_str()], |row| row.get::<_, String>(0))
-                .optional()?;
-            if let Some(value) = value {
+            if let Some(value) = self.get_value(key)? {
                 key.apply_to(&mut settings, value);
             }
         }
