@@ -10,7 +10,7 @@ use app::settings_validation::{SettingsValidation, validate_settings};
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
 use fatal_error_window::FatalErrorController;
-use slint::{ComponentHandle, Model, ModelRc, SharedString, TimerMode, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, TimerMode, VecModel};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{
@@ -220,6 +220,11 @@ fn install_callbacks(
     commands: tokio::sync::mpsc::UnboundedSender<UiCommand>,
     toasts: SharedToastController,
 ) {
+    window.on_format_step_description(|description| {
+        StyledText::from_markdown(description.as_str())
+            .unwrap_or_else(|_| StyledText::from_plain_text(description.as_str()))
+    });
+
     let callback_toasts = toasts.clone();
     window.on_toast_dismissed(move |id| {
         callback_toasts.dismiss(id);
