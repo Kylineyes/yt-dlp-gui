@@ -273,6 +273,10 @@ msgstr "项目仓库"
 
 msgid "https://github.com/Kylineyes/yt-dlp-gui"
 msgstr "https://github.com/Kylineyes/yt-dlp-gui"
+
+msgid "Open the yt-dlp GUI project repository"
+msgstr "打开 yt-dlp GUI 项目仓库"
+
 msgid "yt-dlp Integration Platform"
 msgstr "yt-dlp 集成平台"
 

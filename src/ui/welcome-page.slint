@@ -5,30 +5,31 @@ component StepCard inherits Rectangle {
     in property <string> step-title;
     in property <styled-text> step-description;
 
-    background: #ffffff;
+    background: #FFFFFF;
     border-width: 1px;
-    border-color: #dedede;
-    border-radius: 7px;
+    border-color: #D9DEE7;
+    border-radius: 8px;
     horizontal-stretch: 1;
 
     VerticalBox {
-        padding: 14px;
-        spacing: 7px;
+        padding: 16px;
+        spacing: 8px;
         Text {
             text: root.step-number;
-            color: #2563eb;
+            color: #2563EB;
             font-size: 14px;
-            font-weight: 700;
+            font-weight: 600;
         }
         Text {
             text: root.step-title;
-            color: #202020;
-            font-size: 18px;
+            color: #1F2937;
+            font-size: 16px;
             font-weight: 600;
         }
         StyledText {
             text: root.step-description;
-            default-color: #666666;
+            default-color: #5B6472;
+            default-font-size: 14px;
             vertical-stretch: 1;
         }
     }
@@ -37,136 +38,144 @@ component StepCard inherits Rectangle {
 export component WelcomePage inherits Rectangle {
     pure callback format-step-description(string) -> styled-text;
 
-    background: #fafafa;
+    background: #F7F8FA;
 
     VerticalBox {
-        padding: 28px;
-        spacing: 10px;
+        padding: 24px;
+        spacing: 24px;
 
-        Text {
-            text: @tr("Welcome");
-            color: #202020;
-            font-size: 28px;
-            font-weight: 600;
+        VerticalBox {
+            spacing: 8px;
+            Text {
+                text: @tr("Welcome");
+                color: #1F2937;
+                font-size: 28px;
+                font-weight: 600;
+            }
+            Text {
+                text: @tr("A desktop interface for creating and managing yt-dlp download tasks");
+                color: #5B6472;
+                font-size: 16px;
+                wrap: word-wrap;
+            }
         }
-        Text {
-            text: @tr("A desktop interface for creating and managing yt-dlp download tasks");
-            color: #666666;
-            font-size: 16px;
-        }
 
-        Rectangle { height: 4px; }
-
-        // Keep the product summary focused on capabilities available in this version.
+        // Summarize the capabilities available in this version.
         Rectangle {
-            height: 104px;
-            background: #ffffff;
+            background: #FFFFFF;
             border-width: 1px;
-            border-color: #dedede;
-            border-radius: 7px;
+            border-color: #D9DEE7;
+            border-radius: 8px;
 
             VerticalBox {
-                padding: 14px;
-                spacing: 7px;
+                padding: 16px;
+                spacing: 8px;
                 Text {
                     text: @tr("What this tool does");
-                    color: #202020;
-                    font-size: 18px;
+                    color: #1F2937;
+                    font-size: 16px;
                     font-weight: 600;
                 }
                 Text {
                     text: @tr("Configure yt-dlp, prepare and save download tasks, start downloads, and track their status in one place.");
-                    color: #555555;
+                    color: #5B6472;
+                    font-size: 14px;
                     wrap: word-wrap;
                 }
             }
         }
 
-        Rectangle { height: 4px; }
-        Text {
-            text: @tr("How to use it");
-            color: #202020;
-            font-size: 20px;
-            font-weight: 600;
+        VerticalBox {
+            spacing: 12px;
+            Text {
+                text: @tr("How to use it");
+                color: #1F2937;
+                font-size: 20px;
+                font-weight: 600;
+            }
+            HorizontalBox {
+                spacing: 8px;
+                StepCard {
+                    step-number: @tr("Step 1");
+                    step-title: @tr("Configure");
+                    step-description: root.format-step-description(@tr("Set the yt-dlp path and default download directory in **Settings**."));
+                }
+                StepCard {
+                    step-number: @tr("Step 2");
+                    step-title: @tr("Choose media");
+                    step-description: root.format-step-description(@tr("Open **Search**, enter a video or playlist URL, and choose a media option."));
+                }
+                StepCard {
+                    step-number: @tr("Step 3");
+                    step-title: @tr("Download and track");
+                    step-description: root.format-step-description(@tr("Add the task, then start and monitor it in **Download tasks**."));
+                }
+            }
         }
-        HorizontalBox {
-            height: 158px;
-            spacing: 10px;
 
-            StepCard {
-                step-number: @tr("Step 1");
-                step-title: @tr("Configure");
-                step-description: root.format-step-description(@tr("Set the yt-dlp path and default download directory in **Settings**."));
-            }
-            StepCard {
-                step-number: @tr("Step 2");
-                step-title: @tr("Choose media");
-                step-description: root.format-step-description(@tr("Open **Search**, enter a video or playlist URL, and choose a media option."));
-            }
-            StepCard {
-                step-number: @tr("Step 3");
-                step-title: @tr("Download and track");
-                step-description: root.format-step-description(@tr("Add the task, then start and monitor it in **Download tasks**."));
-            }
-        }
-
-        Rectangle { vertical-stretch: 1; }
-
-        // The footer acknowledges both embedded libraries and external tools.
+        // Acknowledge project dependencies without introducing another action.
         Rectangle {
-            height: 136px;
-            background: #ffffff;
+            background: #FFFFFF;
             border-width: 1px;
-            border-color: #dedede;
-            border-radius: 7px;
+            border-color: #D9DEE7;
+            border-radius: 8px;
 
             HorizontalBox {
-                padding: 14px;
-                spacing: 18px;
+                padding: 16px;
+                spacing: 24px;
                 VerticalBox {
                     horizontal-stretch: 3;
-                    spacing: 5px;
+                    spacing: 8px;
                     Text {
                         text: @tr("Built with Rust and Slint");
-                        color: #202020;
+                        color: #1F2937;
+                        font-size: 16px;
                         font-weight: 600;
                     }
                     Text {
                         text: @tr("Powered by yt-dlp, ytd-rs, Tokio, rusqlite, SQLite, Serde, and serde_json.");
-                        color: #555555;
+                        color: #5B6472;
+                        font-size: 14px;
                         wrap: word-wrap;
                     }
                     Text {
                         text: @tr("FFmpeg is used as an external tool for media post-processing when needed.");
-                        color: #666666;
+                        color: #5B6472;
+                        font-size: 14px;
                         wrap: word-wrap;
                     }
                     Text {
                         text: @tr("Thanks to these projects and the open-source community.");
-                        color: #666666;
+                        color: #5B6472;
+                        font-size: 14px;
                         wrap: word-wrap;
                     }
                 }
                 Rectangle {
                     width: 1px;
-                    background: #dedede;
+                    background: #D9DEE7;
                 }
                 VerticalBox {
                     horizontal-stretch: 2;
-                    spacing: 7px;
+                    spacing: 8px;
                     Text {
                         text: @tr("Project repository");
-                        color: #202020;
+                        color: #1F2937;
+                        font-size: 16px;
                         font-weight: 600;
                     }
                     Rectangle {
                         height: repository-url.preferred-height;
                         width: repository-url.preferred-width;
+                        background: link-area.pressed ? #DBEAFE : link-area.has-hover ? #EFF6FF : transparent;
+                        border-radius: 6px;
                         repository-url := Text {
                             text: @tr("https://github.com/Kylineyes/yt-dlp-gui");
-                            color: #2563eb;
+                            color: link-area.pressed ? #1E40AF : link-area.has-hover ? #1D4ED8 : #2563EB;
+                            font-size: 14px;
+                            accessible-label: @tr("Open the yt-dlp GUI project repository");
                         }
-                        TouchArea {
+                        link-area := TouchArea {
                             mouse-cursor: pointer;
                             clicked => {
                                 Platform.open-url("https://github.com/Kylineyes/yt-dlp-gui");
