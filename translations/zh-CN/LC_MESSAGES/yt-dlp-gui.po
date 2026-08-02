@@ -311,6 +311,18 @@ msgstr "关闭"
 
 msgid "Fix invalid settings before saving"
 msgstr "请先修正无效设置再保存"
+
+msgid "Remove leading or trailing whitespace"
+msgstr "请移除开头或结尾的空白字符"
+
+msgid "Path does not exist or is not a file"
+msgstr "路径不存在或不是文件"
+
+msgid "The executable could not be started"
+msgstr "无法启动该可执行文件"
+
+msgid "Download directory does not exist or is not a directory"
+msgstr "下载目录不存在或不是目录"
 msgid "Oops"
 msgstr "糟糕"
 

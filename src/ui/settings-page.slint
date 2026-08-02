@@ -20,8 +20,14 @@ export component SettingsPage inherits Rectangle {
     in-out property <ValidationStatus> yt-dlp-status;
     in-out property <ValidationStatus> ffmpeg-status;
     in-out property <ValidationStatus> download-directory-status;
+    in-out property <ValidationStatus> proxy-status;
     in property <int> invalid-field: -1;
     in property <int> invalid-revision;
+    in-out property <bool> pending-save;
+    in-out property <int> yt-dlp-error-kind;
+    in-out property <int> ffmpeg-error-kind;
+    in-out property <int> download-directory-error-kind;
+    in-out property <int> proxy-error-kind;
     in property <int> message-kind;
     in property <string> message-argument;
     callback save();
@@ -38,16 +44,20 @@ export component SettingsPage inherits Rectangle {
         } else if (field == 1) {
             ffmpeg-input.focus();
             ffmpeg-input.select-all();
-        } else {
+        } else if (field == 2) {
             download-directory-input.focus();
             download-directory-input.select-all();
+        } else {
+            proxy-input.focus();
+            proxy-input.select-all();
         }
     }
 
     changed invalid-revision => { root.focus-invalid-field(root.invalid-field); }
-    changed yt-dlp-path => { root.yt-dlp-status = ValidationStatus.checking; root.validate(0); }
-    changed ffmpeg-path => { root.ffmpeg-status = ValidationStatus.checking; root.validate(1); }
-    changed default-download-directory => { root.download-directory-status = ValidationStatus.checking; root.validate(2); }
+    changed yt-dlp-path => { root.yt-dlp-status = ValidationStatus.checking; root.yt-dlp-error-kind = 0; }
+    changed ffmpeg-path => { root.ffmpeg-status = ValidationStatus.checking; root.ffmpeg-error-kind = 0; }
+    changed default-download-directory => { root.download-directory-status = ValidationStatus.checking; root.download-directory-error-kind = 0; }
+    changed proxy => { root.proxy-status = ValidationStatus.checking; root.proxy-error-kind = 0; }
 
     background: #fafafa;
     ScrollView {
@@ -60,23 +70,63 @@ export component SettingsPage inherits Rectangle {
             SettingLabel { label: @tr("yt-dlp path"); status: root.yt-dlp-status; }
             HorizontalBox {
                 spacing: 8px;
-                yt-dlp-input := LineEdit { placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH"); text <=> root.yt-dlp-path; horizontal-stretch: 1; }
+                yt-dlp-input := LineEdit {
+                    placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH");
+                    text <=> root.yt-dlp-path;
+                    horizontal-stretch: 1;
+                    changed has-focus => { if (!self.has-focus) { root.validate(0); } }
+                }
                 Button { text: @tr("Browse…"); clicked => { root.select-yt-dlp(@tr("Select yt-dlp executable")); } }
+            }
+            if root.yt-dlp-error-kind != 0 : Text {
+                text: root.yt-dlp-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
+                      root.yt-dlp-error-kind == 2 ? @tr("Path does not exist or is not a file") :
+                      @tr("The executable could not be started");
+                color: #c42b1c;
             }
             SettingLabel { label: @tr("FFmpeg path"); status: root.ffmpeg-status; }
             HorizontalBox {
                 spacing: 8px;
-                ffmpeg-input := LineEdit { placeholder-text: @tr("Enter ffmpeg.exe or its directory"); text <=> root.ffmpeg-path; horizontal-stretch: 1; }
+                ffmpeg-input := LineEdit {
+                    placeholder-text: @tr("Enter ffmpeg.exe or its directory");
+                    text <=> root.ffmpeg-path;
+                    horizontal-stretch: 1;
+                    changed has-focus => { if (!self.has-focus) { root.validate(1); } }
+                }
                 Button { text: @tr("Browse…"); clicked => { root.select-ffmpeg(@tr("Select FFmpeg executable")); } }
+            }
+            if root.ffmpeg-error-kind != 0 : Text {
+                text: root.ffmpeg-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
+                      root.ffmpeg-error-kind == 2 ? @tr("Path does not exist or is not a file") :
+                      @tr("The executable could not be started");
+                color: #c42b1c;
             }
             SettingLabel { label: @tr("Default download directory"); status: root.download-directory-status; }
             HorizontalBox {
                 spacing: 8px;
-                download-directory-input := LineEdit { placeholder-text: @tr("For example: C:/Users/Username/Downloads"); text <=> root.default-download-directory; horizontal-stretch: 1; }
+                download-directory-input := LineEdit {
+                    placeholder-text: @tr("For example: C:/Users/Username/Downloads");
+                    text <=> root.default-download-directory;
+                    horizontal-stretch: 1;
+                    changed has-focus => { if (!self.has-focus) { root.validate(2); } }
+                }
                 Button { text: @tr("Browse…"); clicked => { root.select-download-directory(@tr("Select download directory")); } }
             }
-            Text { text: @tr("Download proxy"); font-weight: 600; }
-            LineEdit { placeholder-text: @tr("For example: http://127.0.0.1:7890"); text <=> root.proxy; }
+            if root.download-directory-error-kind != 0 : Text {
+                text: root.download-directory-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
+                      @tr("Download directory does not exist or is not a directory");
+                color: #c42b1c;
+            }
+            SettingLabel { label: @tr("Download proxy"); status: root.proxy-status; }
+            proxy-input := LineEdit {
+                placeholder-text: @tr("For example: http://127.0.0.1:7890");
+                text <=> root.proxy;
+                changed has-focus => { if (!self.has-focus) { root.validate(3); } }
+            }
+            if root.proxy-error-kind != 0 : Text {
+                text: @tr("Remove leading or trailing whitespace");
+                color: #c42b1c;
+            }
             Text { text: @tr("Language"); font-weight: 600; }
             ComboBox {
                 model: [@tr("Simplified Chinese"), @tr("English")];
@@ -91,7 +141,7 @@ export component SettingsPage inherits Rectangle {
             Text { text: @tr("This version saves the concurrency setting, but downloads still run one at a time."); color: #805600; wrap: word-wrap; }
             HorizontalBox {
                 spacing: 8px;
-                Button { text: @tr("Save settings"); primary: true; clicked => { root.save(); } }
+                Button { text: @tr("Save settings"); primary: true; enabled: !root.pending-save; clicked => { root.save(); } }
                 Button { text: @tr("Restore defaults"); clicked => { root.reset(); } }
                 Rectangle { horizontal-stretch: 1; }
             }

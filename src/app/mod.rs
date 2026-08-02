@@ -257,7 +257,7 @@ async fn run_download(id: i64, storage: &Storage, events: &UnboundedSender<Worke
 }
 
 fn optional_path(value: &str) -> Option<PathBuf> {
-    (!value.trim().is_empty()).then(|| PathBuf::from(value))
+    (!value.is_empty()).then(|| PathBuf::from(value))
 }
 
 fn optional_string(value: &str) -> Option<String> {

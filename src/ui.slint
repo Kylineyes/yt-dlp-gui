@@ -22,8 +22,14 @@ export component MainWindow inherits Window {
     in-out property <ValidationStatus> yt-dlp-status: ValidationStatus.checking;
     in-out property <ValidationStatus> ffmpeg-status: ValidationStatus.checking;
     in-out property <ValidationStatus> download-directory-status: ValidationStatus.checking;
+    in-out property <ValidationStatus> proxy-status: ValidationStatus.checking;
+    in-out property <int> yt-dlp-error-kind: 0;
+    in-out property <int> ffmpeg-error-kind: 0;
+    in-out property <int> download-directory-error-kind: 0;
+    in-out property <int> proxy-error-kind: 0;
     in property <int> invalid-setting-field: -1;
     in property <int> invalid-setting-revision;
+    in-out property <bool> pending-save: false;
     in-out property <string> search-url;
     in-out property <string> search-output-directory;
     in property <string> resource-name;
@@ -101,8 +107,14 @@ export component MainWindow inherits Window {
                 yt-dlp-status <=> root.yt-dlp-status;
                 ffmpeg-status <=> root.ffmpeg-status;
                 download-directory-status <=> root.download-directory-status;
+                proxy-status <=> root.proxy-status;
+                yt-dlp-error-kind <=> root.yt-dlp-error-kind;
+                ffmpeg-error-kind <=> root.ffmpeg-error-kind;
+                download-directory-error-kind <=> root.download-directory-error-kind;
+                proxy-error-kind <=> root.proxy-error-kind;
                 invalid-field: root.invalid-setting-field;
                 invalid-revision: root.invalid-setting-revision;
+                pending-save: root.pending-save;
                 message-kind: root.settings-message-kind;
                 message-argument: root.settings-message-argument;
                 save => { root.save-settings(); }
