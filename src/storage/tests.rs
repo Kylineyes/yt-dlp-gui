@@ -1,6 +1,6 @@
 use super::config_keys::{ALL_CONFIG_KEYS, YT_DLP_PATH};
-use super::{DATABASE_FILE_NAME, Storage, database_path_next_to_executable};
-use crate::app::state::{AppSettings, NewDownload};
+use super::{database_path_next_to_executable, Storage, DATABASE_FILE_NAME};
+use crate::app::state::{AppSettings, NewDownload, ThemePreference};
 use crate::error::{AppError, StorageStage};
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -81,6 +81,47 @@ fn persists_settings_and_download_progress() {
     let records = storage.list_downloads().expect("tasks should be listed");
     assert_eq!(records[0].downloaded_bytes, 1024);
     assert_eq!(records[0].resource_name, "Test resource");
+}
+
+#[test]
+fn persists_theme_preference_and_defaults_unknown_values() {
+    let storage = Storage::open_or_initialize(":memory:")
+        .expect("in-memory database should initialize defaults");
+    assert_eq!(
+        storage
+            .load_settings()
+            .expect("default settings should load")
+            .theme_preference,
+        ThemePreference::System
+    );
+
+    let settings = AppSettings {
+        theme_preference: ThemePreference::Dark,
+        ..AppSettings::default()
+    };
+    storage
+        .save_settings(&settings)
+        .expect("theme preference should be saved");
+    assert_eq!(
+        storage
+            .load_settings()
+            .expect("saved settings should load")
+            .theme_preference,
+        ThemePreference::Dark
+    );
+
+    set_config_value(
+        &storage,
+        super::config_keys::THEME_PREFERENCE,
+        "unsupported",
+    );
+    assert_eq!(
+        storage
+            .load_settings()
+            .expect("unknown theme preference should load")
+            .theme_preference,
+        ThemePreference::System
+    );
 }
 
 #[test]
@@ -403,11 +444,9 @@ fn open_failure_includes_stage_path_and_source() {
         }
         other => panic!("expected a contextual SQLite open error, got {other:?}"),
     }
-    assert!(
-        error
-            .to_string()
-            .contains(&database_path.display().to_string())
-    );
+    assert!(error
+        .to_string()
+        .contains(&database_path.display().to_string()));
     assert!(error.source().is_some());
 }
 

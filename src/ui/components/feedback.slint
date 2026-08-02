@@ -1,4 +1,5 @@
 import { Button, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
 import { ToastData } from "../types.slint";
 
 export enum ValidationStatus { checking, valid, invalid }
@@ -34,10 +35,10 @@ component ToastItem inherits Rectangle {
     }
     height: 64px;
     width: content.preferred-width;
-    background: root.data.kind == 0 ? #107c10 : #c42b1c;
+    background: root.data.kind == 0 ? Theme.toast-success : Theme.toast-danger;
     border-radius: 7px;
     drop-shadow-blur: 8px;
-    drop-shadow-color: #66000000;
+    drop-shadow-color: Theme.shadow;
     // Keep entrance fast while giving dismissal a clearly visible fade.
     animate visual-opacity { duration: root.closing ? 240ms : 80ms; easing: ease-in-out; }
 
@@ -90,7 +91,7 @@ component ToastItem inherits Rectangle {
             text: root.data.kind == 0 ? @tr("Settings saved") :
                   root.data.kind == 2 ? @tr("Fix invalid settings before saving") :
                   root.data.detail == "" ? @tr("Operation failed") : @tr("Operation failed: {}", root.data.detail);
-            color: #ffffff;
+            color: Theme.text-on-solid;
             vertical-alignment: center;
         }
         Rectangle {
@@ -114,13 +115,13 @@ component ToastItem inherits Rectangle {
         width: root.width;
         height: 3px;
         clip: true;
-        background: #ffffff33;
+        background: Theme.text-on-solid.with-alpha(0.2);
         countdown-bar := Rectangle {
             x: parent.width - self.width;
             y: 0px;
             width: parent.width * root.countdown-progress;
             height: parent.height;
-            background: #ffffffcc;
+            background: Theme.text-on-solid.with-alpha(0.8);
         }
     }
 }

@@ -40,6 +40,18 @@ msgstr "例如：http://127.0.0.1:7890"
 msgid "Language"
 msgstr "界面语言"
 
+msgid "Appearance"
+msgstr "外观"
+
+msgid "Follow system"
+msgstr "跟随系统"
+
+msgid "Light"
+msgstr "浅色"
+
+msgid "Dark"
+msgstr "深色"
+
 msgid "Simplified Chinese"
 msgstr "简体中文"
 
