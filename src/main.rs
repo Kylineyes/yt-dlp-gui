@@ -6,7 +6,7 @@ mod storage;
 
 slint::include_modules!();
 
-use app::settings_validation::{SettingsValidation, validate_settings};
+use app::settings_validation::{SettingsValidation, ValidationError, validate_settings};
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
 use fatal_error_window::FatalErrorController;
@@ -17,7 +17,6 @@ use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
-use std::time::Duration;
 use tokio::sync::mpsc::unbounded_channel;
 
 const PAGE_WELCOME: i32 = 0;
@@ -225,7 +224,10 @@ fn install_fatal_callbacks(controller: Rc<RefCell<FatalErrorController>>) {
             });
         });
         let callback_controller = controller.clone();
-        window.on_confirm_fatal_error(move || callback_controller.borrow_mut().hide());
+        window.on_confirm_fatal_error(move || {
+            callback_controller.borrow_mut().hide();
+            let _ = slint::quit_event_loop();
+        });
     });
 }
 
@@ -248,37 +250,10 @@ fn install_callbacks(
     window.on_page_changed(move |page| callback_toasts.change_page(page));
 
     let weak = window.as_weak();
-    let sender = commands.clone();
     window.on_save_settings(move || {
         if let Some(window) = weak.upgrade() {
-            let invalid_field = [
-                window.get_yt_dlp_status(),
-                window.get_ffmpeg_status(),
-                window.get_download_directory_status(),
-            ]
-            .into_iter()
-            .position(|status| status != ValidationStatus::Valid);
-            if let Some(field) = invalid_field {
-                window.set_selected_page(3);
-                window.set_invalid_setting_field(field as i32);
-                let revision = window
-                    .get_invalid_setting_revision()
-                    .checked_add(1)
-                    .unwrap_or(1);
-                window.set_invalid_setting_revision(revision);
-                show_toast(&window, PAGE_SETTINGS, TOAST_VALIDATION_ERROR, "");
-                return;
-            }
-
-            let settings = settings_from_window(&window);
-            if sender.send(UiCommand::SaveSettings(settings)).is_err() {
-                show_toast(
-                    &window,
-                    PAGE_SETTINGS,
-                    TOAST_ERROR,
-                    "Settings command channel is closed",
-                );
-            }
+            window.set_pending_save(true);
+            window.invoke_validate_settings(-1);
         }
     });
 
@@ -308,6 +283,7 @@ fn install_callbacks(
             && let Some(path) = rfd::FileDialog::new().set_title(title.as_str()).pick_file()
         {
             window.set_yt_dlp_path(path.to_string_lossy().into_owned().into());
+            window.invoke_validate_settings(0);
         }
     });
 
@@ -317,6 +293,7 @@ fn install_callbacks(
             && let Some(path) = rfd::FileDialog::new().set_title(title.as_str()).pick_file()
         {
             window.set_ffmpeg_path(path.to_string_lossy().into_owned().into());
+            window.invoke_validate_settings(1);
         }
     });
 
@@ -328,6 +305,7 @@ fn install_callbacks(
                 .pick_folder()
         {
             window.set_default_download_directory(path.to_string_lossy().into_owned().into());
+            window.invoke_validate_settings(2);
         }
     });
 
@@ -457,40 +435,49 @@ fn install_callbacks(
     let _ = commands.send(UiCommand::LoadSettings);
 }
 
-fn install_settings_validation(window: &MainWindow) {
+fn install_settings_validation(
+    window: &MainWindow,
+    commands: tokio::sync::mpsc::UnboundedSender<UiCommand>,
+) {
     let revision = Arc::new(AtomicU64::new(0));
-    let timer = Rc::new(slint::Timer::default());
     let weak = window.as_weak();
     let callback_revision = revision.clone();
-    let callback_timer = timer.clone();
+    let callback_commands = commands.clone();
 
     window.on_validate_settings(move |_| {
         let current_revision = callback_revision.fetch_add(1, Ordering::SeqCst) + 1;
         let weak = weak.clone();
         let revision = callback_revision.clone();
-        callback_timer.start(
-            TimerMode::SingleShot,
-            Duration::from_millis(300),
-            move || {
-                let Some(window) = weak.upgrade() else {
+        let Some(window) = weak.upgrade() else {
+            return;
+        };
+        let settings = settings_from_window(&window);
+        let weak = window.as_weak();
+        let revision = revision.clone();
+        let commands = callback_commands.clone();
+        std::thread::spawn(move || {
+            let validation = validate_settings(&settings);
+            let _ = slint::invoke_from_event_loop(move || {
+                if revision.load(Ordering::SeqCst) != current_revision {
                     return;
-                };
-                let settings = settings_from_window(&window);
-                let weak = window.as_weak();
-                let revision = revision.clone();
-                std::thread::spawn(move || {
-                    let validation = validate_settings(&settings);
-                    let _ = slint::invoke_from_event_loop(move || {
-                        if revision.load(Ordering::SeqCst) != current_revision {
-                            return;
+                }
+                if let Some(window) = weak.upgrade() {
+                    let should_save = window.get_pending_save();
+                    apply_validation(&window, validation);
+                    if should_save && validation.is_valid() {
+                        let settings = settings_from_window(&window);
+                        if commands.send(UiCommand::SaveSettings(settings)).is_err() {
+                            show_toast(
+                                &window,
+                                PAGE_SETTINGS,
+                                TOAST_ERROR,
+                                "Settings command channel is closed",
+                            );
                         }
-                        if let Some(window) = weak.upgrade() {
-                            apply_validation(&window, validation);
-                        }
-                    });
-                });
-            },
-        );
+                    }
+                }
+            });
+        });
     });
 
     // The callback owns a clone; this initial invocation validates values loaded at startup.
@@ -498,16 +485,47 @@ fn install_settings_validation(window: &MainWindow) {
 }
 
 fn apply_validation(window: &MainWindow, validation: SettingsValidation) {
-    window.set_yt_dlp_status(validation_status(validation.yt_dlp_path));
-    window.set_ffmpeg_status(validation_status(validation.ffmpeg_path));
-    window.set_download_directory_status(validation_status(validation.default_download_directory));
+    if window.get_pending_save() {
+        if let Some(field) = validation.first_invalid_field() {
+            window.set_pending_save(false);
+            window.set_selected_page(3);
+            window.set_invalid_setting_field(field);
+            let revision = window
+                .get_invalid_setting_revision()
+                .checked_add(1)
+                .unwrap_or(1);
+            window.set_invalid_setting_revision(revision);
+            show_toast(window, PAGE_SETTINGS, TOAST_VALIDATION_ERROR, "");
+        } else {
+            window.set_pending_save(false);
+        }
+    }
+    window.set_yt_dlp_status(validation_status(validation.yt_dlp_error));
+    window.set_ffmpeg_status(validation_status(validation.ffmpeg_error));
+    window.set_download_directory_status(validation_status(validation.download_directory_error));
+    window.set_proxy_status(validation_status(validation.proxy_error));
+    window.set_yt_dlp_error_kind(validation_error_kind(validation.yt_dlp_error));
+    window.set_ffmpeg_error_kind(validation_error_kind(validation.ffmpeg_error));
+    window.set_download_directory_error_kind(validation_error_kind(
+        validation.download_directory_error,
+    ));
+    window.set_proxy_error_kind(validation_error_kind(validation.proxy_error));
 }
 
-fn validation_status(valid: bool) -> ValidationStatus {
-    if valid {
+fn validation_status(error: ValidationError) -> ValidationStatus {
+    if error == ValidationError::None {
         ValidationStatus::Valid
     } else {
         ValidationStatus::Invalid
+    }
+}
+
+fn validation_error_kind(error: ValidationError) -> i32 {
+    match error {
+        ValidationError::None => 0,
+        ValidationError::SurroundingWhitespace => 1,
+        ValidationError::InvalidExecutablePath | ValidationError::InvalidDirectory => 2,
+        ValidationError::ExecutableProbeFailed => 3,
     }
 }
 
