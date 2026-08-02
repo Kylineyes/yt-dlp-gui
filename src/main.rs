@@ -211,7 +211,10 @@ fn install_fatal_callbacks(controller: Rc<RefCell<FatalErrorController>>) {
             });
         });
         let callback_controller = controller.clone();
-        window.on_confirm_fatal_error(move || callback_controller.borrow_mut().hide());
+        window.on_confirm_fatal_error(move || {
+            callback_controller.borrow_mut().hide();
+            let _ = slint::quit_event_loop();
+        });
     });
 }
 
