@@ -1,11 +1,57 @@
-import { Button, VerticalBox } from "std-widgets.slint";
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 
-component NavigationButton inherits Button {
+component NavigationButton inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
     in property <bool> active;
-    primary: active;
-    checked: active;
-    colorize-icon: true;
+    callback clicked();
+    private property <bool> hovered: false;
+    private property <bool> pressed: false;
+
+    height: 40px;
     horizontal-stretch: 1;
+    background: root.pressed ? #DBEAFE : root.hovered && root.active ? #BFDBFE : root.active ? #DBEAFE : root.hovered ? #EFF6FF : transparent;
+    border-radius: 6px;
+
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: 3px;
+        height: parent.height;
+        background: root.active ? #2563EB : transparent;
+        border-radius: 2px;
+    }
+
+    HorizontalBox {
+        x: 11px;
+        y: 0px;
+        width: parent.width - 19px;
+        height: parent.height;
+        spacing: 8px;
+        alignment: center;
+        Image {
+            width: 20px;
+            height: 20px;
+            source: root.icon;
+            image-fit: contain;
+            accessible-label: root.label;
+        }
+        Text {
+            text: root.label;
+            color: root.pressed ? #1E40AF : root.active || root.hovered ? #1D4ED8 : #5B6472;
+            font-size: 14px;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+    }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+        changed has-hover => { root.hovered = self.has-hover; }
+        changed pressed => { root.pressed = self.pressed; }
+    }
 }
 
 export component Sidebar inherits Rectangle {
@@ -13,29 +59,38 @@ export component Sidebar inherits Rectangle {
     callback refresh-downloads();
 
     width: 224px;
-    background: #f3f3f3;
+    background: #F1F3F5;
     border-width: 0px;
 
     VerticalBox {
         padding: 16px;
         spacing: 8px;
-        Text { text: @tr("yt-dlp Integration Platform"); font-size: 22px; font-weight: 600; color: #202020; }
-        Text { text: @tr("Download manager"); color: #666666; }
-        Rectangle { height: 14px; }
+        Text {
+            text: @tr("yt-dlp Integration Platform");
+            font-size: 20px;
+            font-weight: 600;
+            color: #1F2937;
+        }
+        Text {
+            text: @tr("Download manager");
+            font-size: 14px;
+            color: #5B6472;
+        }
+        Rectangle { height: 16px; }
         NavigationButton {
-            text: @tr("Welcome");
+            label: @tr("Welcome");
             icon: @image-url("../assets/icons/home.svg");
             active: root.selected-page == 0;
             clicked => { root.selected-page = 0; }
         }
         NavigationButton {
-            text: @tr("Search");
+            label: @tr("Search");
             icon: @image-url("../assets/icons/search.svg");
             active: root.selected-page == 1;
             clicked => { root.selected-page = 1; }
         }
         NavigationButton {
-            text: @tr("Download tasks");
+            label: @tr("Download tasks");
             icon: @image-url("../assets/icons/bookmark.svg");
             active: root.selected-page == 2;
             clicked => {
@@ -44,7 +99,7 @@ export component Sidebar inherits Rectangle {
             }
         }
         NavigationButton {
-            text: @tr("Settings");
+            label: @tr("Settings");
             icon: @image-url("../assets/icons/settings.svg");
             active: root.selected-page == 3;
             clicked => { root.selected-page = 3; }
