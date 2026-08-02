@@ -36,6 +36,8 @@ pub enum WorkerEvent {
     SettingsSaved(AppSettings),
     SearchCompleted(SearchResult),
     SearchFailed { detail: String },
+    DownloadCreated { id: i64 },
+    DownloadCreateFailed { detail: String },
     DownloadsLoaded(Vec<DownloadRecord>),
     DownloadStarted { id: i64 },
     LogLine { id: i64, line: String },
@@ -85,9 +87,18 @@ pub fn spawn_worker(
                                 continue;
                             }
                         };
+                        let yt_dlp_path = match storage.require_yt_dlp_path() {
+                            Ok(path) => path,
+                            Err(error) => {
+                                let _ = events.send(WorkerEvent::SearchFailed {
+                                    detail: error.to_string(),
+                                });
+                                continue;
+                            }
+                        };
                         let result = ytdlp::inspect(ytdlp::InspectRequest {
                             url,
-                            yt_dlp_path: optional_path(&settings.yt_dlp_path),
+                            yt_dlp_path,
                             proxy: optional_string(&settings.proxy),
                         })
                         .await;
@@ -137,14 +148,28 @@ pub fn spawn_worker(
                         }
                     }
                     UiCommand::CreateDownload(download) => {
-                        let result = storage
-                            .create_download(&download)
-                            .and_then(|_| storage.list_downloads());
-                        match result {
-                            Ok(downloads) => {
-                                let _ = events.send(WorkerEvent::DownloadsLoaded(downloads));
+                        if let Err(error) = storage.require_yt_dlp_path() {
+                            let _ = events.send(WorkerEvent::DownloadCreateFailed {
+                                detail: error.to_string(),
+                            });
+                            continue;
+                        }
+                        match storage.create_download(&download) {
+                            Ok(id) => match storage.list_downloads() {
+                                Ok(downloads) => {
+                                    let _ = events.send(WorkerEvent::DownloadsLoaded(downloads));
+                                    let _ = events.send(WorkerEvent::DownloadCreated { id });
+                                }
+                                Err(error) => {
+                                    let _ = events.send(WorkerEvent::DownloadCreated { id });
+                                    send_error(&events, error);
+                                }
                             }
-                            Err(error) => send_error(&events, error),
+                            Err(error) => {
+                                let _ = events.send(WorkerEvent::DownloadCreateFailed {
+                                    detail: error.to_string(),
+                                });
+                            }
                         }
                     }
                     UiCommand::StartDownload { id } => {
@@ -218,6 +243,13 @@ async fn run_download(id: i64, storage: &Storage, events: &UnboundedSender<Worke
             return;
         }
     };
+    let yt_dlp_path = match storage.require_yt_dlp_path() {
+        Ok(path) => path,
+        Err(error) => {
+            send_error(events, error);
+            return;
+        }
+    };
     if let Err(error) = storage.mark_started(id) {
         send_error(events, error);
         return;
@@ -228,7 +260,7 @@ async fn run_download(id: i64, storage: &Storage, events: &UnboundedSender<Worke
         DownloadRequest {
             url: record.url,
             output_directory: PathBuf::from(record.output_directory),
-            yt_dlp_path: optional_path(&settings.yt_dlp_path),
+            yt_dlp_path,
             ffmpeg_path: optional_path(&settings.ffmpeg_path),
             proxy: optional_string(&settings.proxy),
             format_selector: record.format_selector,

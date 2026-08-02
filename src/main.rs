@@ -139,16 +139,30 @@ fn apply_event(
             let rows = result
                 .streams
                 .iter()
-                .enumerate()
-                .map(|(index, stream)| stream_to_row(stream, index == 0))
+                .map(|stream| stream_to_row(stream, false))
                 .collect::<Vec<_>>();
             window.set_streams(ModelRc::from(Rc::new(VecModel::from(rows))));
+            window.set_search_in_progress(false);
+            window.set_selected_stream_index(-1);
             window.set_search_message_kind(2);
             window.set_search_message_argument("".into());
         }
         WorkerEvent::SearchFailed { detail } => {
             window.set_resource_name("".into());
             window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
+            window.set_search_in_progress(false);
+            window.set_selected_stream_index(-1);
+            window.set_search_message_kind(8);
+            window.set_search_message_argument(detail.into());
+        }
+        WorkerEvent::DownloadCreated { id } => {
+            window.set_selected_page(2);
+            window.set_downloads_message_kind(8);
+            window.set_downloads_message_task_id(i32::try_from(id).unwrap_or(i32::MAX));
+            window.set_downloads_message_argument("".into());
+            window.set_downloads_message_detail("".into());
+        }
+        WorkerEvent::DownloadCreateFailed { detail } => {
             window.set_search_message_kind(8);
             window.set_search_message_argument(detail.into());
         }
@@ -295,12 +309,37 @@ fn install_callbacks(
         }
     });
 
-    install_settings_validation(window, commands.clone());
+    let weak = window.as_weak();
+    window.on_select_search_output_directory(move |title| {
+        if let Some(window) = weak.upgrade()
+            && let Some(path) = rfd::FileDialog::new()
+                .set_title(title.as_str())
+                .pick_folder()
+        {
+            window.set_search_output_directory(path.to_string_lossy().into_owned().into());
+        }
+    });
+
+    install_settings_validation(window);
+
+    let weak = window.as_weak();
+    window.on_search_url_edited(move || {
+        if let Some(window) = weak.upgrade() {
+            window.set_resource_name("".into());
+            window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
+            window.set_selected_stream_index(-1);
+            window.set_search_message_kind(0);
+            window.set_search_message_argument("".into());
+        }
+    });
 
     let weak = window.as_weak();
     let sender = commands.clone();
     window.on_search(move || {
         if let Some(window) = weak.upgrade() {
+            if window.get_search_in_progress() {
+                return;
+            }
             let url = window.get_search_url().to_string();
             if url.trim().is_empty() {
                 window.set_search_message_kind(1);
@@ -308,9 +347,15 @@ fn install_callbacks(
             } else {
                 window.set_resource_name("".into());
                 window.set_streams(ModelRc::new(VecModel::<StreamRow>::default()));
+                window.set_selected_stream_index(-1);
+                window.set_search_in_progress(true);
                 window.set_search_message_kind(6);
                 window.set_search_message_argument("".into());
-                let _ = sender.send(UiCommand::Search { url });
+                if sender.send(UiCommand::Search { url }).is_err() {
+                    window.set_search_in_progress(false);
+                    window.set_search_message_kind(8);
+                    window.set_search_message_argument("Background worker is unavailable".into());
+                }
             }
         }
     });
@@ -327,6 +372,7 @@ fn install_callbacks(
                 model.set_row_data(index, row);
             }
         }
+        window.set_selected_stream_index(selected_index);
         window.set_search_message_kind(0);
         window.set_search_message_argument("".into());
     });
@@ -360,10 +406,9 @@ fn install_callbacks(
             video_format: stream.video_format.to_string(),
             audio_format: stream.audio_format.to_string(),
         };
-        if sender.send(UiCommand::CreateDownload(download)).is_ok() {
-            window.set_selected_page(2);
-            window.set_downloads_message_kind(8);
-            window.set_downloads_message_argument("".into());
+        if sender.send(UiCommand::CreateDownload(download)).is_err() {
+            window.set_search_message_kind(8);
+            window.set_search_message_argument("Background worker is unavailable".into());
         }
     });
 
