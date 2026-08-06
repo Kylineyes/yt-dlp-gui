@@ -1,8 +1,7 @@
-import { Button, HorizontalBox, VerticalBox } from "std-widgets.slint";
-import { ToastData } from "../types.slint";
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { ToastData, ToastKind } from "../types.slint";
 
 export enum ValidationStatus { checking, valid, invalid }
-export enum ToastKind { success, error, validation-error }
 
 export component ValidationIndicator inherits Rectangle {
     in property <ValidationStatus> status;
@@ -26,23 +25,23 @@ component ToastItem inherits Rectangle {
     private property <float> visual-opacity: 0;
     private property <float> countdown-progress: 1;
     private property <bool> closing: false;
+    private property <bool> dismiss-hovered: false;
+    private property <bool> dismiss-pressed: false;
 
     opacity: root.visual-opacity;
     animate countdown-progress {
-        duration: root.closing ? 240ms : (root.data.kind == 0 ? 3000ms : 6000ms);
+        duration: root.closing ? 240ms : (root.data.kind == ToastKind.success ? 3000ms : 6000ms);
         easing: linear;
     }
-    height: 64px;
-    width: content.preferred-width;
-    background: root.data.kind == 0 ? #107c10 : #c42b1c;
-    border-radius: 7px;
+    height: 72px;
+    width: 440px;
+    background: root.data.kind == ToastKind.success ? #15803D : #C42B1C;
+    border-radius: 8px;
     drop-shadow-blur: 8px;
     drop-shadow-color: #66000000;
-    // Keep entrance fast while giving dismissal a clearly visible fade.
     animate visual-opacity { duration: root.closing ? 240ms : 80ms; easing: ease-in-out; }
 
     init => {
-        // Start fully visible; the short animation is reserved for dismissal.
         root.visual-opacity = 1;
         lifetime-timer.start();
         countdown-start-timer.start();
@@ -55,7 +54,7 @@ component ToastItem inherits Rectangle {
     }
 
     lifetime-timer := Timer {
-        interval: root.data.kind == 0 ? 2760ms : 5760ms;
+        interval: root.data.kind == ToastKind.success ? 2760ms : 5760ms;
         running: false;
         triggered => { root.begin-close(); }
     }
@@ -63,9 +62,7 @@ component ToastItem inherits Rectangle {
     remove-timer := Timer {
         interval: 240ms;
         running: false;
-        triggered => {
-            root.dismissed(root.data.id);
-        }
+        triggered => { root.dismissed(root.data.id); }
     }
 
     function begin-close() {
@@ -80,30 +77,45 @@ component ToastItem inherits Rectangle {
     }
 
     content := HorizontalBox {
-        padding-left: 14px;
+        padding-left: 16px;
         padding-right: 8px;
-        padding-top: 8px;
-        padding-bottom: 8px;
-        spacing: 10px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 8px;
         alignment: center;
         Text {
-            text: root.data.kind == 0 ? @tr("Settings saved") :
-                  root.data.kind == 2 ? @tr("Fix invalid settings before saving") :
+            text: root.data.kind == ToastKind.success ? @tr("Settings saved") :
+                  root.data.kind == ToastKind.validation-error ? @tr("Fix invalid settings before saving") :
                   root.data.detail == "" ? @tr("Operation failed") : @tr("Operation failed: {}", root.data.detail);
-            color: #ffffff;
+            color: #FFFFFF;
+            font-size: 14px;
+            wrap: word-wrap;
             vertical-alignment: center;
+            horizontal-stretch: 1;
+            accessible-label: root.data.kind == ToastKind.success ? @tr("Success") :
+                              root.data.kind == ToastKind.validation-error ? @tr("Validation error") : @tr("Error");
         }
-        Rectangle {
-            width: dismiss-button.preferred-width;
-            height: 48px;
-            vertical-stretch: 1;
-            dismiss-button := Button {
-                x: 0px;
-                y: (parent.height - self.preferred-height) / 2;
-                width: self.preferred-width;
-                height: self.preferred-height;
-                text: @tr("Dismiss");
+        dismiss-control := Rectangle {
+            width: 36px;
+            height: 36px;
+            background: root.dismiss-pressed ? #66FFFFFF : root.dismiss-hovered ? #33FFFFFF : transparent;
+            border-radius: 6px;
+            Text {
+                width: parent.width;
+                height: parent.height;
+                text: "×";
+                color: #FFFFFF;
+                font-size: 20px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                accessible-role: button;
+                accessible-label: @tr("Dismiss");
                 clicked => { root.begin-close(); }
+                changed has-hover => { root.dismiss-hovered = self.has-hover; }
+                changed pressed => { root.dismiss-pressed = self.pressed; }
             }
         }
     }
@@ -114,13 +126,13 @@ component ToastItem inherits Rectangle {
         width: root.width;
         height: 3px;
         clip: true;
-        background: #ffffff33;
+        background: #FFFFFF33;
         countdown-bar := Rectangle {
             x: parent.width - self.width;
             y: 0px;
             width: parent.width * root.countdown-progress;
             height: parent.height;
-            background: #ffffffcc;
+            background: #FFFFFFCC;
         }
     }
 }
@@ -136,7 +148,7 @@ export component ToastHost inherits Rectangle {
         height: self.preferred-height;
         spacing: 8px;
         for toast in root.toasts : Rectangle {
-            height: 64px;
+            height: 72px;
             toast-item := ToastItem {
                 x: (parent.width - self.width) / 2;
                 data: toast;

@@ -59,14 +59,23 @@ export component SettingsPage inherits Rectangle {
     changed default-download-directory => { root.download-directory-status = ValidationStatus.checking; root.download-directory-error-kind = 0; }
     changed proxy => { root.proxy-status = ValidationStatus.checking; root.proxy-error-kind = 0; }
 
-    background: #fafafa;
+    background: #F7F8FA;
     ScrollView {
         VerticalBox {
-            padding: 28px;
-            spacing: 10px;
-            Text { text: @tr("Settings"); font-size: 28px; font-weight: 600; }
-            Text { text: @tr("Configure yt-dlp and the download environment"); color: #666666; }
-            Rectangle { height: 12px; }
+            padding: 24px;
+            spacing: 8px;
+            Text {
+                text: @tr("Settings");
+                color: #1F2937;
+                font-size: 28px;
+                font-weight: 600;
+            }
+            Text {
+                text: @tr("Configure yt-dlp and the download environment");
+                color: #5B6472;
+                font-size: 16px;
+            }
+            Rectangle { height: 16px; }
             SettingLabel { label: @tr("yt-dlp path"); status: root.yt-dlp-status; }
             HorizontalBox {
                 spacing: 8px;

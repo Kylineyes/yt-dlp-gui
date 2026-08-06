@@ -1,7 +1,7 @@
 mod app;
 mod download;
 mod error;
-mod prompt_window;
+mod fatal_error_window;
 mod storage;
 
 slint::include_modules!();
@@ -9,33 +9,23 @@ slint::include_modules!();
 use app::settings_validation::{SettingsValidation, ValidationError, validate_settings};
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
-use prompt_window::{PromptConfirmAction, PromptController};
-use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, TimerMode, VecModel};
-use std::cell::{Cell, RefCell};
+use fatal_error_window::FatalErrorController;
+use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{
     Arc,
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicI32, AtomicU64, Ordering},
 };
 use tokio::sync::mpsc::unbounded_channel;
 
-const PAGE_WELCOME: i32 = 0;
-const PAGE_SETTINGS: i32 = 3;
-const TOAST_SUCCESS: i32 = 0;
-const TOAST_ERROR: i32 = 1;
-const TOAST_VALIDATION_ERROR: i32 = 2;
-
 struct ToastController {
     model: Rc<VecModel<ToastData>>,
-    active_page: Cell<i32>,
 }
 
 impl ToastController {
     fn new(model: Rc<VecModel<ToastData>>) -> Self {
-        Self {
-            model,
-            active_page: Cell::new(PAGE_WELCOME),
-        }
+        Self { model }
     }
 
     fn dismiss(&self, id: i32) -> bool {
@@ -48,13 +38,6 @@ impl ToastController {
             true
         } else {
             false
-        }
-    }
-
-    fn change_page(&self, page: i32) {
-        if self.active_page.get() != page {
-            self.active_page.set(page);
-            self.model.set_vec(Vec::new());
         }
     }
 }
@@ -73,14 +56,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let toast_model = Rc::new(VecModel::<ToastData>::default());
     window.set_toasts(ModelRc::from(toast_model.clone()));
     let toasts = Rc::new(ToastController::new(toast_model));
+    let next_toast_id = Arc::new(AtomicI32::new(1));
 
-    let prompt_controller = Rc::new(RefCell::new(PromptController::new(window.as_weak())));
+    let fatal_error_controller = Rc::new(RefCell::new(FatalErrorController::new(window.as_weak())));
 
-    let _event_pump = install_event_pump(&window, event_receiver, prompt_controller.clone());
-    install_callbacks(&window, command_sender.clone(), toasts);
+    let _event_pump = install_event_pump(
+        &window,
+        event_receiver,
+        fatal_error_controller.clone(),
+        next_toast_id.clone(),
+    );
+    install_callbacks(&window, command_sender.clone(), toasts, next_toast_id);
 
     window.run()?;
-    prompt_controller.borrow_mut().hide();
+    fatal_error_controller.borrow_mut().hide();
     let _ = command_sender.send(UiCommand::Shutdown);
     let _ = worker.join();
     Ok(())
@@ -89,7 +78,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn install_event_pump(
     window: &MainWindow,
     mut event_receiver: tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>,
-    prompt_controller: Rc<RefCell<PromptController>>,
+    fatal_error_controller: Rc<RefCell<FatalErrorController>>,
+    next_toast_id: Arc<AtomicI32>,
 ) -> slint::Timer {
     let timer = slint::Timer::default();
     let weak_window = window.as_weak();
@@ -101,9 +91,9 @@ fn install_event_pump(
                 return;
             };
             while let Ok(event) = event_receiver.try_recv() {
-                apply_event(&window, event, &prompt_controller);
+                apply_event(&window, event, &fatal_error_controller, &next_toast_id);
             }
-            prompt_controller.borrow_mut().ensure_native_modal();
+            fatal_error_controller.borrow_mut().ensure_native_modal();
         },
     );
     timer
@@ -112,7 +102,8 @@ fn install_event_pump(
 fn apply_event(
     window: &MainWindow,
     event: WorkerEvent,
-    prompt_controller: &Rc<RefCell<PromptController>>,
+    fatal_error_controller: &Rc<RefCell<FatalErrorController>>,
+    next_toast_id: &AtomicI32,
 ) {
     match event {
         WorkerEvent::Ready => {
@@ -120,20 +111,9 @@ fn apply_event(
             window.set_downloads_message_argument("".into());
         }
         WorkerEvent::StorageInitializationFailed { detail } => {
-            window.set_prompt_detail(detail.into());
-            let created = prompt_controller.borrow_mut().show_with_action(
-                window.get_storage_initialization_title(),
-                window.get_storage_initialization_message(),
-                PromptConfirmAction::Quit,
-            );
+            let created = fatal_error_controller.borrow_mut().show(detail);
             if created {
-                install_prompt_callback(prompt_controller.clone());
-            }
-        }
-        WorkerEvent::PromptRequested { title, message } => {
-            let created = prompt_controller.borrow_mut().show(title, message);
-            if created {
-                install_prompt_callback(prompt_controller.clone());
+                install_fatal_error_callback(fatal_error_controller.clone());
             }
         }
         WorkerEvent::SettingsLoaded(settings) => apply_settings(window, &settings),
@@ -141,7 +121,7 @@ fn apply_event(
             apply_settings(window, &settings);
             window.set_settings_message_kind(0);
             window.set_settings_message_argument("".into());
-            show_toast(window, PAGE_SETTINGS, TOAST_SUCCESS, "");
+            show_toast(window, next_toast_id, ToastKind::Success, "");
         }
         WorkerEvent::SearchCompleted(result) => {
             window.set_resource_name(result.resource_name.into());
@@ -216,22 +196,17 @@ fn apply_event(
             window.set_downloads_message_detail("".into());
         }
         WorkerEvent::Error { kind, detail } => match kind {
-            ErrorKind::General => {
-                let page = window.get_selected_page();
-                show_toast(window, page, TOAST_ERROR, &detail);
-            }
+            ErrorKind::General => show_toast(window, next_toast_id, ToastKind::Error, &detail),
         },
     }
 }
 
-fn install_prompt_callback(controller: Rc<RefCell<PromptController>>) {
+fn install_fatal_error_callback(controller: Rc<RefCell<FatalErrorController>>) {
     controller.borrow().with_window(|window| {
         let callback_controller = controller.clone();
         window.on_confirmed(move || {
-            let action = callback_controller.borrow_mut().confirm();
-            if action == PromptConfirmAction::Quit {
-                let _ = slint::quit_event_loop();
-            }
+            callback_controller.borrow_mut().hide();
+            let _ = slint::quit_event_loop();
         });
     });
 }
@@ -240,6 +215,7 @@ fn install_callbacks(
     window: &MainWindow,
     commands: tokio::sync::mpsc::UnboundedSender<UiCommand>,
     toasts: SharedToastController,
+    next_toast_id: Arc<AtomicI32>,
 ) {
     window.on_format_step_description(|description| {
         StyledText::from_markdown(description.as_str())
@@ -251,9 +227,6 @@ fn install_callbacks(
         callback_toasts.dismiss(id);
     });
 
-    let callback_toasts = toasts.clone();
-    window.on_page_changed(move |page| callback_toasts.change_page(page));
-
     let weak = window.as_weak();
     window.on_save_settings(move || {
         if let Some(window) = weak.upgrade() {
@@ -263,12 +236,18 @@ fn install_callbacks(
     });
 
     let weak = window.as_weak();
+    let callback_toast_id = next_toast_id.clone();
     window.on_change_language(move |language| {
         if let Some(window) = weak.upgrade() {
             let language = language.to_string();
             match slint::select_bundled_translation(&language) {
                 Ok(()) => window.set_language(language.into()),
-                Err(error) => show_toast(&window, PAGE_SETTINGS, TOAST_ERROR, &error.to_string()),
+                Err(error) => show_toast(
+                    &window,
+                    &callback_toast_id,
+                    ToastKind::Error,
+                    error.to_string(),
+                ),
             }
         }
     });
@@ -325,7 +304,7 @@ fn install_callbacks(
         }
     });
 
-    install_settings_validation(window, commands.clone());
+    install_settings_validation(window, commands.clone(), next_toast_id);
 
     let weak = window.as_weak();
     window.on_search_url_edited(move || {
@@ -443,11 +422,13 @@ fn install_callbacks(
 fn install_settings_validation(
     window: &MainWindow,
     commands: tokio::sync::mpsc::UnboundedSender<UiCommand>,
+    next_toast_id: Arc<AtomicI32>,
 ) {
     let revision = Arc::new(AtomicU64::new(0));
     let weak = window.as_weak();
     let callback_revision = revision.clone();
     let callback_commands = commands.clone();
+    let callback_toast_id = next_toast_id.clone();
 
     window.on_validate_settings(move |_| {
         let current_revision = callback_revision.fetch_add(1, Ordering::SeqCst) + 1;
@@ -460,6 +441,7 @@ fn install_settings_validation(
         let weak = window.as_weak();
         let revision = revision.clone();
         let commands = callback_commands.clone();
+        let toast_id = callback_toast_id.clone();
         std::thread::spawn(move || {
             let validation = validate_settings(&settings);
             let _ = slint::invoke_from_event_loop(move || {
@@ -468,14 +450,14 @@ fn install_settings_validation(
                 }
                 if let Some(window) = weak.upgrade() {
                     let should_save = window.get_pending_save();
-                    apply_validation(&window, validation);
+                    apply_validation(&window, validation, &toast_id);
                     if should_save && validation.is_valid() {
                         let settings = settings_from_window(&window);
                         if commands.send(UiCommand::SaveSettings(settings)).is_err() {
                             show_toast(
                                 &window,
-                                PAGE_SETTINGS,
-                                TOAST_ERROR,
+                                &toast_id,
+                                ToastKind::Error,
                                 "Settings command channel is closed",
                             );
                         }
@@ -489,7 +471,11 @@ fn install_settings_validation(
     window.invoke_validate_settings(-1);
 }
 
-fn apply_validation(window: &MainWindow, validation: SettingsValidation) {
+fn apply_validation(
+    window: &MainWindow,
+    validation: SettingsValidation,
+    next_toast_id: &AtomicI32,
+) {
     if window.get_pending_save() {
         if let Some(field) = validation.first_invalid_field() {
             window.set_pending_save(false);
@@ -500,7 +486,7 @@ fn apply_validation(window: &MainWindow, validation: SettingsValidation) {
                 .checked_add(1)
                 .unwrap_or(1);
             window.set_invalid_setting_revision(revision);
-            show_toast(window, PAGE_SETTINGS, TOAST_VALIDATION_ERROR, "");
+            show_toast(window, next_toast_id, ToastKind::ValidationError, "");
         } else {
             window.set_pending_save(false);
         }
@@ -534,27 +520,22 @@ fn validation_error_kind(error: ValidationError) -> i32 {
     }
 }
 
-fn show_toast(window: &MainWindow, page: i32, kind: i32, detail: &str) {
-    if window.get_selected_page() != page {
-        return;
-    }
+fn show_toast(
+    window: &MainWindow,
+    next_toast_id: &AtomicI32,
+    kind: ToastKind,
+    detail: impl Into<SharedString>,
+) {
     let model = window.get_toasts();
     let model = model
         .as_any()
         .downcast_ref::<VecModel<ToastData>>()
         .expect("Toast model should be a VecModel");
-    let next_id = model
-        .iter()
-        .map(|toast| toast.id)
-        .max()
-        .unwrap_or_default()
-        .checked_add(1)
-        .unwrap_or(1);
+    let id = next_toast_id.fetch_add(1, Ordering::Relaxed);
     model.push(ToastData {
-        id: next_id,
+        id,
         kind,
         detail: detail.into(),
-        page,
     });
 }
 

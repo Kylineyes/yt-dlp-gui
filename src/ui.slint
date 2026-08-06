@@ -1,7 +1,7 @@
 import { Button, HorizontalBox, TextEdit, VerticalBox } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
 import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
-import { ToastHost, ToastKind, ValidationStatus } from "ui/components/feedback.slint";
+import { ToastHost, ValidationStatus } from "ui/components/feedback.slint";
 import { SettingsPage } from "ui/settings-page.slint";
 import { SearchPage } from "ui/search-page.slint";
 import { DownloadsPage } from "ui/downloads-page.slint";
@@ -63,15 +63,8 @@ export component MainWindow inherits Window {
     callback start-download(int);
     callback pause-download(int);
     callback toast-dismissed(int);
-    callback page-changed(int);
     callback window-closed();
     pure callback format-step-description(string) -> styled-text;
-
-    in-out property <string> prompt-detail;
-    out property <string> storage-initialization-title: @tr("Storage initialization failed");
-    out property <string> storage-initialization-message: @tr("The application could not create or initialize its database file. Check the directory containing the application executable and make sure the current user can create and update files there.\n\nTechnical details: {}", root.prompt-detail);
-
-    changed selected-page => { root.page-changed(root.selected-page); }
 
     HorizontalBox {
         spacing: 0px;
@@ -150,42 +143,72 @@ export component MainWindow inherits Window {
     }
 }
 
-export component PromptWindow inherits Window {
-    in property <string> prompt-title;
-    in property <string> prompt-message;
+export component FatalErrorWindow inherits Window {
+    in property <string> error-log;
+    in-out property <bool> error-log-visible: false;
     callback confirmed();
 
-    title: root.prompt-title;
+    title: @tr("Storage initialization failed");
     min-width: 620px;
     max-width: 620px;
-    min-height: 250px;
-    max-height: 250px;
+    min-height: root.error-log-visible ? 520px : 320px;
+    max-height: root.error-log-visible ? 520px : 320px;
 
-    VerticalBox {
-        padding: 24px;
-        spacing: 14px;
+    Rectangle {
+        background: #FFFFFF;
 
-        Rectangle {
-            vertical-stretch: 1;
-            background: #f7f7f7;
-            border-width: 1px;
-            border-color: #dedede;
-            border-radius: 6px;
-            TextEdit {
-                width: parent.width;
-                height: parent.height;
-                text: root.prompt-message;
-                read-only: true;
+        VerticalBox {
+            padding: 24px;
+            spacing: 16px;
+
+            Text {
+                text: @tr("Storage initialization failed");
+                color: #C42B1C;
+                font-size: 20px;
+                font-weight: 600;
+            }
+            Text {
+                text: @tr("The application cannot continue because its database could not be initialized.");
+                color: #1F2937;
+                font-size: 14px;
                 wrap: word-wrap;
             }
-        }
-        HorizontalBox {
-            Rectangle { horizontal-stretch: 1; }
+            Text {
+                text: @tr("Check the directory containing the application executable and make sure the current user can create and update files there.");
+                color: #5B6472;
+                font-size: 14px;
+                wrap: word-wrap;
+            }
             Button {
+                width: self.preferred-width;
                 height: 36px;
-                text: @tr("OK");
-                primary: true;
-                clicked => { root.confirmed(); }
+                text: root.error-log-visible ? @tr("Hide error log") : @tr("Show error log");
+                clicked => { root.error-log-visible = !root.error-log-visible; }
+            }
+            if root.error-log-visible : Rectangle {
+                vertical-stretch: 1;
+                background: #F3F4F6;
+                border-width: 1px;
+                border-color: #D9DEE7;
+                border-radius: 8px;
+                TextEdit {
+                    width: parent.width - 16px;
+                    height: parent.height - 16px;
+                    x: 8px;
+                    y: 8px;
+                    text: root.error-log;
+                    read-only: true;
+                    wrap: word-wrap;
+                }
+            }
+            HorizontalBox {
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    height: 36px;
+                    text: @tr("OK");
+                    primary: true;
+                    clicked => { root.confirmed(); }
+                }
             }
         }
     }
