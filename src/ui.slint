@@ -1,7 +1,7 @@
-import { Button, HorizontalBox, TextEdit, VerticalBox } from "std-widgets.slint";
+import { Button, HorizontalBox, TextEdit, VerticalBox, Palette } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
-import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
-import { ToastHost, ToastKind, ValidationStatus } from "ui/components/feedback.slint";
+import { StreamRow, DownloadRow, ToastData, ThemeTokens } from "ui/types.slint";
+import { ToastHost } from "ui/components/feedback.slint";
 import { SettingsPage } from "ui/settings-page.slint";
 import { SearchPage } from "ui/search-page.slint";
 import { DownloadsPage } from "ui/downloads-page.slint";
@@ -19,10 +19,35 @@ export component MainWindow inherits Window {
     in-out property <string> proxy;
     in-out property <int> max-concurrency: 1;
     in-out property <string> language: "zh-CN";
-    in-out property <ValidationStatus> yt-dlp-status: ValidationStatus.checking;
-    in-out property <ValidationStatus> ffmpeg-status: ValidationStatus.checking;
-    in-out property <ValidationStatus> download-directory-status: ValidationStatus.checking;
-    in-out property <ValidationStatus> proxy-status: ValidationStatus.checking;
+    in-out property <string> theme-mode: "system";
+    property <bool> dark-theme: root.theme-mode == "dark" || (root.theme-mode == "system" && Palette.color-scheme == ColorScheme.dark);
+    property <ThemeTokens> theme: {
+        page: root.dark-theme ? #111827 : #F7F8FA,
+        sidebar: root.dark-theme ? #1F2937 : #F1F3F5,
+        card: root.dark-theme ? #273449 : #FFFFFF,
+        muted: root.dark-theme ? #374151 : #F3F4F6,
+        hover: root.dark-theme ? #374A63 : #EFF6FF,
+        selected: root.dark-theme ? #24456B : #DBEAFE,
+        border: root.dark-theme ? #4B5563 : #D9DEE7,
+        border-hover: root.dark-theme ? #60A5FA : #93C5FD,
+        border-focus: #2563EB,
+        primary: root.dark-theme ? #F9FAFB : #1F2937,
+        secondary: root.dark-theme ? #D1D5DB : #5B6472,
+        tertiary: root.dark-theme ? #9CA3AF : #7B8494,
+        disabled: root.dark-theme ? #6B7280 : #A0A8B5,
+        on-accent: #FFFFFF,
+        accent: #3B82F6,
+        accent-hover: #60A5FA,
+        accent-pressed: #93C5FD,
+        success: #22C55E,
+        success-surface: root.dark-theme ? #12351F : #F0FDF4,
+        warning: root.dark-theme ? #FBBF24 : #A16207,
+        warning-surface: root.dark-theme ? #42320B : #FEF3C7,
+        danger: root.dark-theme ? #F87171 : #C42B1C,
+        danger-surface: root.dark-theme ? #451A1A : #FEF2F2,
+        info-surface: root.dark-theme ? #172E4D : #EFF6FF,
+        shadow: #66000000
+    };
     in-out property <int> yt-dlp-error-kind: 0;
     in-out property <int> ffmpeg-error-kind: 0;
     in-out property <int> download-directory-error-kind: 0;
@@ -48,9 +73,10 @@ export component MainWindow inherits Window {
     in property <[ToastData]> toasts;
 
     callback save-settings();
+    callback validate-settings();
     callback change-language(string);
+    callback change-theme(string);
     callback reset-settings();
-    callback validate-settings(int);
     callback select-yt-dlp(string);
     callback select-ffmpeg(string);
     callback select-download-directory(string);
@@ -72,19 +98,26 @@ export component MainWindow inherits Window {
     out property <string> storage-initialization-message: @tr("The application could not create or initialize its database file. Check the directory containing the application executable and make sure the current user can create and update files there.\n\nTechnical details: {}", root.prompt-detail);
 
     changed selected-page => { root.page-changed(root.selected-page); }
+    changed theme-mode => {
+        Palette.color-scheme = root.theme-mode == "light" ? ColorScheme.light :
+                               root.theme-mode == "dark" ? ColorScheme.dark : ColorScheme.unknown;
+    }
 
     HorizontalBox {
         spacing: 0px;
         Sidebar {
+            theme: root.theme;
             selected-page <=> root.selected-page;
             refresh-downloads => { root.refresh-downloads(); }
         }
         Rectangle {
             horizontal-stretch: 1;
             if root.selected-page == 0 : WelcomePage {
+                theme: root.theme;
                 format-step-description(description) => { root.format-step-description(description) }
             }
             if root.selected-page == 1 : SearchPage {
+                theme: root.theme;
                 url <=> root.search-url;
                 output-directory <=> root.search-output-directory;
                 default-download-directory: root.default-download-directory;
@@ -101,6 +134,7 @@ export component MainWindow inherits Window {
                 create-download => { root.create-download(); }
             }
             if root.selected-page == 2 : DownloadsPage {
+                theme: root.theme;
                 downloads: root.downloads;
                 message-kind: root.downloads-message-kind;
                 message-argument: root.downloads-message-argument;
@@ -111,16 +145,14 @@ export component MainWindow inherits Window {
                 pause(id) => { root.pause-download(id); }
             }
             if root.selected-page == 3 : settings-page := SettingsPage {
+                theme: root.theme;
+                theme-mode <=> root.theme-mode;
                 yt-dlp-path <=> root.yt-dlp-path;
                 ffmpeg-path <=> root.ffmpeg-path;
                 default-download-directory <=> root.default-download-directory;
                 proxy <=> root.proxy;
                 max-concurrency <=> root.max-concurrency;
                 language <=> root.language;
-                yt-dlp-status <=> root.yt-dlp-status;
-                ffmpeg-status <=> root.ffmpeg-status;
-                download-directory-status <=> root.download-directory-status;
-                proxy-status <=> root.proxy-status;
                 yt-dlp-error-kind <=> root.yt-dlp-error-kind;
                 ffmpeg-error-kind <=> root.ffmpeg-error-kind;
                 download-directory-error-kind <=> root.download-directory-error-kind;
@@ -132,8 +164,8 @@ export component MainWindow inherits Window {
                 message-argument: root.settings-message-argument;
                 save => { root.save-settings(); }
                 change-language(language) => { root.change-language(language); }
+                change-theme(theme) => { root.change-theme(theme); }
                 reset => { root.reset-settings(); }
-                validate(field) => { root.validate-settings(field); }
                 select-yt-dlp(title) => { root.select-yt-dlp(title); }
                 select-ffmpeg(title) => { root.select-ffmpeg(title); }
                 select-download-directory(title) => { root.select-download-directory(title); }
@@ -142,6 +174,7 @@ export component MainWindow inherits Window {
     }
 
     ToastHost {
+        theme: root.theme;
         toasts: root.toasts;
         dismissed(id) => { root.toast-dismissed(id); }
         width: root.width;

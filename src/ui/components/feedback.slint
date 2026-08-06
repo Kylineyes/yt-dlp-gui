@@ -1,26 +1,11 @@
 import { Button, HorizontalBox, VerticalBox } from "std-widgets.slint";
-import { ToastData } from "../types.slint";
+import { ToastData, ThemeTokens } from "../types.slint";
 
-export enum ValidationStatus { checking, valid, invalid }
 export enum ToastKind { success, error, validation-error }
 
-export component ValidationIndicator inherits Rectangle {
-    in property <ValidationStatus> status;
-
-    width: 20px;
-    height: 20px;
-
-    Image {
-        source: root.status == ValidationStatus.valid ? @image-url("../../../assets/icons/status-valid.svg") :
-                root.status == ValidationStatus.invalid ? @image-url("../../../assets/icons/status-invalid.svg") :
-                @image-url("../../../assets/icons/status-checking.svg");
-        image-fit: contain;
-        accessible-label: root.status == ValidationStatus.valid ? @tr("Valid") :
-                          root.status == ValidationStatus.invalid ? @tr("Invalid") : @tr("Checking");
-    }
-}
 
 component ToastItem inherits Rectangle {
+    in property <ThemeTokens> theme;
     in property <ToastData> data;
     callback dismissed(int);
     private property <float> visual-opacity: 0;
@@ -34,7 +19,7 @@ component ToastItem inherits Rectangle {
     }
     height: 64px;
     width: content.preferred-width;
-    background: root.data.kind == 0 ? #107c10 : #c42b1c;
+    background: root.data.kind == 0 ? root.theme.success : root.theme.danger;
     border-radius: 7px;
     drop-shadow-blur: 8px;
     drop-shadow-color: #66000000;
@@ -90,7 +75,7 @@ component ToastItem inherits Rectangle {
             text: root.data.kind == 0 ? @tr("Settings saved") :
                   root.data.kind == 2 ? @tr("Fix invalid settings before saving") :
                   root.data.detail == "" ? @tr("Operation failed") : @tr("Operation failed: {}", root.data.detail);
-            color: #ffffff;
+            color: root.theme.on-accent;
             vertical-alignment: center;
         }
         Rectangle {
@@ -126,6 +111,7 @@ component ToastItem inherits Rectangle {
 }
 
 export component ToastHost inherits Rectangle {
+    in property <ThemeTokens> theme;
     in property <[ToastData]> toasts;
     callback dismissed(int);
 
@@ -138,6 +124,7 @@ export component ToastHost inherits Rectangle {
         for toast in root.toasts : Rectangle {
             height: 64px;
             toast-item := ToastItem {
+                theme: root.theme;
                 x: (parent.width - self.width) / 2;
                 data: toast;
                 dismissed(id) => { root.dismissed(id); }

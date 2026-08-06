@@ -1,7 +1,8 @@
 import { Button, LineEdit, ListView, VerticalBox, HorizontalBox } from "std-widgets.slint";
-import { StreamRow } from "types.slint";
+import { StreamRow, ThemeTokens } from "types.slint";
 
 export component SearchPage inherits Rectangle {
+    in property <ThemeTokens> theme;
     in-out property <string> url;
     in-out property <string> output-directory;
     in property <string> default-download-directory;
@@ -17,12 +18,12 @@ export component SearchPage inherits Rectangle {
     callback select-stream(int);
     callback create-download();
 
-    background: #fafafa;
+    background: root.theme.page;
     VerticalBox {
         padding: 28px;
         spacing: 10px;
         Text { text: @tr("Search"); font-size: 28px; font-weight: 600; }
-        Text { text: @tr("Enter a link, review available media streams, and create a download task"); color: #666666; }
+        Text { text: @tr("Enter a link, review available media streams, and create a download task"); color: root.theme.secondary; }
         HorizontalBox {
             spacing: 8px;
             LineEdit {
@@ -37,13 +38,13 @@ export component SearchPage inherits Rectangle {
         Text { text: root.resource-name; font-size: 18px; font-weight: 600; }
         Rectangle {
             border-width: 1px;
-            border-color: #dedede;
+            border-color: root.theme.border;
             border-radius: 6px;
             vertical-stretch: 1;
             ListView {
                 for stream[index] in root.streams : Rectangle {
                     height: 82px;
-                    background: stream.selected ? #e5f1fb : Math.mod(index, 2) == 0 ? #ffffff : #f7f7f7;
+                    background: stream.selected ? root.theme.selected : Math.mod(index, 2) == 0 ? root.theme.card : root.theme.muted;
                     border-radius: 4px;
                     TouchArea { clicked => { root.select-stream(index); } }
                     VerticalBox {
@@ -57,9 +58,9 @@ export component SearchPage inherits Rectangle {
                             text: stream.video-format == "" ? @tr("Audio only") :
                                   stream.audio-format == "" ? @tr("Video only") :
                                   @tr("Video: ") + stream.video-format + "  ·  " + @tr("Audio: ") + stream.audio-format;
-                            color: #555555;
+                            color: root.theme.secondary;
                         }
-                        Text { text: @tr("Size: ") + stream.estimated-size; color: #777777; }
+                        Text { text: @tr("Size: ") + stream.estimated-size; color: root.theme.tertiary; }
                     }
                 }
             }
@@ -99,7 +100,7 @@ export component SearchPage inherits Rectangle {
                   root.message-kind == 7 ? @tr("No downloadable formats were found") :
                   root.message-kind == 8 ? root.message-argument :
                   root.message-argument;
-            color: #2563eb;
+            color: root.theme.accent;
             wrap: word-wrap;
         }
     }

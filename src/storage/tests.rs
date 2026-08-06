@@ -1,6 +1,6 @@
 use super::config_keys::{ALL_CONFIG_KEYS, YT_DLP_PATH};
 use super::{DATABASE_FILE_NAME, Storage, database_path_next_to_executable};
-use crate::app::state::{AppSettings, NewDownload};
+use crate::app::state::{AppSettings, NewDownload, ThemeMode};
 use crate::error::{AppError, StorageStage};
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -157,6 +157,7 @@ fn initializes_app_config_with_default_values() {
         defaults
     );
     assert!(defaults.default_download_directory.is_empty());
+    assert_eq!(defaults.theme, ThemeMode::FollowSystem);
 }
 
 #[test]
@@ -194,6 +195,21 @@ fn initialization_preserves_existing_config_and_fills_missing_keys() {
     );
     assert_eq!(config_entry(&storage, "future_key"), ("future".into(), 7));
     assert_eq!(config_row_count(&storage), ALL_CONFIG_KEYS.len() + 1);
+}
+
+#[test]
+fn invalid_theme_value_falls_back_to_follow_system() {
+    let storage = Storage::open_or_initialize(":memory:")
+        .expect("in-memory database should initialize defaults");
+    set_config_value(&storage, super::config_keys::THEME, "unsupported");
+
+    assert_eq!(
+        storage
+            .load_settings()
+            .expect("settings should load after an invalid theme value")
+            .theme,
+        ThemeMode::FollowSystem
+    );
 }
 
 #[test]
@@ -248,6 +264,7 @@ fn initialization_is_idempotent_and_preserves_data() {
             proxy: "http://127.0.0.1:8080".into(),
             max_concurrency: 7,
             language: "en".into(),
+            theme: ThemeMode::Dark,
             ..AppSettings::default()
         };
         storage
@@ -264,6 +281,7 @@ fn initialization_is_idempotent_and_preserves_data() {
     assert_eq!(settings.max_concurrency, 7);
     assert_eq!(settings.proxy, "http://127.0.0.1:8080");
     assert_eq!(settings.language, "en");
+    assert_eq!(settings.theme, ThemeMode::Dark);
     drop(reopened);
     assert_eq!(config_entries(&database_path), stored_before_reopen);
 }

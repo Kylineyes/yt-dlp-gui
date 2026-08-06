@@ -42,9 +42,15 @@ pub enum WorkerEvent {
     SettingsLoaded(AppSettings),
     SettingsSaved(AppSettings),
     SearchCompleted(SearchResult),
-    SearchFailed { detail: String },
-    DownloadCreated { id: i64 },
-    DownloadCreateFailed { detail: String },
+    SearchFailed {
+        detail: String,
+    },
+    DownloadCreated {
+        id: i64,
+    },
+    DownloadCreateFailed {
+        detail: String,
+    },
     DownloadsLoaded(Vec<DownloadRecord>),
     DownloadStarted {
         id: i64,

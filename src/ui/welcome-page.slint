@@ -1,13 +1,15 @@
 import { VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { ThemeTokens } from "types.slint";
 
 component StepCard inherits Rectangle {
+    in property <ThemeTokens> theme;
     in property <string> step-number;
     in property <string> step-title;
     in property <styled-text> step-description;
 
-    background: #ffffff;
+    background: root.theme.card;
     border-width: 1px;
-    border-color: #dedede;
+    border-color: root.theme.border;
     border-radius: 7px;
     horizontal-stretch: 1;
 
@@ -16,28 +18,29 @@ component StepCard inherits Rectangle {
         spacing: 7px;
         Text {
             text: root.step-number;
-            color: #2563eb;
+            color: root.theme.accent;
             font-size: 14px;
             font-weight: 700;
         }
         Text {
             text: root.step-title;
-            color: #202020;
+            color: root.theme.primary;
             font-size: 18px;
             font-weight: 600;
         }
         StyledText {
             text: root.step-description;
-            default-color: #666666;
+            default-color: root.theme.secondary;
             vertical-stretch: 1;
         }
     }
 }
 
 export component WelcomePage inherits Rectangle {
+    in property <ThemeTokens> theme;
     pure callback format-step-description(string) -> styled-text;
 
-    background: #fafafa;
+    background: root.theme.page;
 
     VerticalBox {
         padding: 28px;
@@ -45,13 +48,13 @@ export component WelcomePage inherits Rectangle {
 
         Text {
             text: @tr("Welcome");
-            color: #202020;
+            color: root.theme.primary;
             font-size: 28px;
             font-weight: 600;
         }
         Text {
             text: @tr("A desktop interface for creating and managing yt-dlp download tasks");
-            color: #666666;
+            color: root.theme.secondary;
             font-size: 16px;
         }
 
@@ -60,9 +63,9 @@ export component WelcomePage inherits Rectangle {
         // Keep the product summary focused on capabilities available in this version.
         Rectangle {
             height: 104px;
-            background: #ffffff;
+            background: root.theme.card;
             border-width: 1px;
-            border-color: #dedede;
+            border-color: root.theme.border;
             border-radius: 7px;
 
             VerticalBox {
@@ -70,13 +73,13 @@ export component WelcomePage inherits Rectangle {
                 spacing: 7px;
                 Text {
                     text: @tr("What this tool does");
-                    color: #202020;
+                    color: root.theme.primary;
                     font-size: 18px;
                     font-weight: 600;
                 }
                 Text {
                     text: @tr("Configure yt-dlp, prepare and save download tasks, start downloads, and track their status in one place.");
-                    color: #555555;
+                    color: root.theme.secondary;
                     wrap: word-wrap;
                 }
             }
@@ -85,7 +88,7 @@ export component WelcomePage inherits Rectangle {
         Rectangle { height: 4px; }
         Text {
             text: @tr("How to use it");
-            color: #202020;
+            color: root.theme.primary;
             font-size: 20px;
             font-weight: 600;
         }
@@ -94,16 +97,19 @@ export component WelcomePage inherits Rectangle {
             spacing: 10px;
 
             StepCard {
+                theme: root.theme;
                 step-number: @tr("Step 1");
                 step-title: @tr("Configure");
                 step-description: root.format-step-description(@tr("Set the yt-dlp path and default download directory in **Settings**."));
             }
             StepCard {
+                theme: root.theme;
                 step-number: @tr("Step 2");
                 step-title: @tr("Choose media");
                 step-description: root.format-step-description(@tr("Open **Search**, enter a video or playlist URL, and choose a media option."));
             }
             StepCard {
+                theme: root.theme;
                 step-number: @tr("Step 3");
                 step-title: @tr("Download and track");
                 step-description: root.format-step-description(@tr("Add the task, then start and monitor it in **Download tasks**."));
@@ -115,9 +121,9 @@ export component WelcomePage inherits Rectangle {
         // The footer acknowledges both embedded libraries and external tools.
         Rectangle {
             height: 136px;
-            background: #ffffff;
+            background: root.theme.card;
             border-width: 1px;
-            border-color: #dedede;
+            border-color: root.theme.border;
             border-radius: 7px;
 
             HorizontalBox {
@@ -128,35 +134,35 @@ export component WelcomePage inherits Rectangle {
                     spacing: 5px;
                     Text {
                         text: @tr("Built with Rust and Slint");
-                        color: #202020;
+                        color: root.theme.primary;
                         font-weight: 600;
                     }
                     Text {
                         text: @tr("Powered by yt-dlp, ytd-rs, Tokio, rusqlite, SQLite, Serde, and serde_json.");
-                        color: #555555;
+                        color: root.theme.secondary;
                         wrap: word-wrap;
                     }
                     Text {
                         text: @tr("FFmpeg is used as an external tool for media post-processing when needed.");
-                        color: #666666;
+                        color: root.theme.secondary;
                         wrap: word-wrap;
                     }
                     Text {
                         text: @tr("Thanks to these projects and the open-source community.");
-                        color: #666666;
+                        color: root.theme.secondary;
                         wrap: word-wrap;
                     }
                 }
                 Rectangle {
                     width: 1px;
-                    background: #dedede;
+                    background: root.theme.border;
                 }
                 VerticalBox {
                     horizontal-stretch: 2;
                     spacing: 7px;
                     Text {
                         text: @tr("Project repository");
-                        color: #202020;
+                        color: root.theme.primary;
                         font-weight: 600;
                     }
                     Rectangle {
@@ -164,7 +170,7 @@ export component WelcomePage inherits Rectangle {
                         width: repository-url.preferred-width;
                         repository-url := Text {
                             text: @tr("https://github.com/Kylineyes/yt-dlp-gui");
-                            color: #2563eb;
+                            color: root.theme.accent;
                         }
                         TouchArea {
                             mouse-cursor: pointer;

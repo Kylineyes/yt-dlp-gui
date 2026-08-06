@@ -1,4 +1,4 @@
-use crate::app::state::AppSettings;
+use crate::app::state::{AppSettings, ThemeMode};
 
 pub(super) const YT_DLP_PATH: &str = "yt_dlp_path";
 pub(super) const FFMPEG_PATH: &str = "ffmpeg_path";
@@ -6,6 +6,7 @@ pub(super) const DEFAULT_DOWNLOAD_DIRECTORY: &str = "default_download_directory"
 pub(super) const PROXY: &str = "proxy";
 pub(super) const MAX_CONCURRENCY: &str = "max_concurrency";
 pub(super) const LANGUAGE: &str = "language";
+pub(super) const THEME: &str = "theme";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AppConfigKey {
@@ -15,15 +16,17 @@ pub(super) enum AppConfigKey {
     Proxy,
     MaxConcurrency,
     Language,
+    Theme,
 }
 
-pub(super) const ALL_CONFIG_KEYS: [AppConfigKey; 6] = [
+pub(super) const ALL_CONFIG_KEYS: [AppConfigKey; 7] = [
     AppConfigKey::YtDlpPath,
     AppConfigKey::FfmpegPath,
     AppConfigKey::DefaultDownloadDirectory,
     AppConfigKey::Proxy,
     AppConfigKey::MaxConcurrency,
     AppConfigKey::Language,
+    AppConfigKey::Theme,
 ];
 
 impl AppConfigKey {
@@ -35,6 +38,7 @@ impl AppConfigKey {
             Self::Proxy => PROXY,
             Self::MaxConcurrency => MAX_CONCURRENCY,
             Self::Language => LANGUAGE,
+            Self::Theme => THEME,
         }
     }
 
@@ -46,6 +50,7 @@ impl AppConfigKey {
             Self::Proxy => settings.proxy.clone(),
             Self::MaxConcurrency => settings.max_concurrency.to_string(),
             Self::Language => settings.language.clone(),
+            Self::Theme => settings.theme.as_str().into(),
         }
     }
 
@@ -61,6 +66,7 @@ impl AppConfigKey {
                 }
             }
             Self::Language => settings.language = value,
+            Self::Theme => settings.theme = ThemeMode::from_storage(&value),
         }
     }
 }

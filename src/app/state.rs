@@ -32,6 +32,32 @@ impl DownloadStatus {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ThemeMode {
+    Light,
+    Dark,
+    #[default]
+    FollowSystem,
+}
+
+impl ThemeMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Light => "light",
+            Self::Dark => "dark",
+            Self::FollowSystem => "system",
+        }
+    }
+
+    pub fn from_storage(value: &str) -> Self {
+        match value {
+            "light" => Self::Light,
+            "dark" => Self::Dark,
+            _ => Self::FollowSystem,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppSettings {
     pub yt_dlp_path: String,
@@ -40,6 +66,7 @@ pub struct AppSettings {
     pub proxy: String,
     pub max_concurrency: u32,
     pub language: String,
+    pub theme: ThemeMode,
 }
 
 impl Default for AppSettings {
@@ -51,6 +78,7 @@ impl Default for AppSettings {
             proxy: String::new(),
             max_concurrency: 1,
             language: "zh-CN".into(),
+            theme: ThemeMode::default(),
         }
     }
 }

@@ -1,6 +1,8 @@
 import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { ThemeTokens } from "ui/types.slint";
 
 component NavigationButton inherits Rectangle {
+    in property <ThemeTokens> theme;
     in property <string> label;
     in property <image> icon;
     in property <bool> active;
@@ -10,7 +12,7 @@ component NavigationButton inherits Rectangle {
 
     height: 40px;
     horizontal-stretch: 1;
-    background: root.pressed ? #DBEAFE : root.hovered && root.active ? #BFDBFE : root.active ? #DBEAFE : root.hovered ? #EFF6FF : transparent;
+    background: root.pressed ? root.theme.selected : root.hovered && root.active ? root.theme.selected : root.active ? root.theme.selected : root.hovered ? root.theme.hover : transparent;
     border-radius: 6px;
 
     Rectangle {
@@ -18,7 +20,7 @@ component NavigationButton inherits Rectangle {
         y: 0px;
         width: 3px;
         height: parent.height;
-        background: root.active ? #2563EB : transparent;
+        background: root.active ? root.theme.accent : transparent;
         border-radius: 2px;
     }
 
@@ -38,7 +40,7 @@ component NavigationButton inherits Rectangle {
         }
         Text {
             text: root.label;
-            color: root.pressed ? #1E40AF : root.active || root.hovered ? #1D4ED8 : #5B6472;
+            color: root.pressed ? root.theme.accent-pressed : root.active || root.hovered ? root.theme.accent : root.theme.secondary;
             font-size: 14px;
             font-weight: 600;
             vertical-alignment: center;
@@ -55,11 +57,12 @@ component NavigationButton inherits Rectangle {
 }
 
 export component Sidebar inherits Rectangle {
+    in property <ThemeTokens> theme;
     in-out property <int> selected-page;
     callback refresh-downloads();
 
     width: 224px;
-    background: #F1F3F5;
+    background: root.theme.sidebar;
     border-width: 0px;
 
     VerticalBox {
@@ -69,27 +72,30 @@ export component Sidebar inherits Rectangle {
             text: @tr("yt-dlp Integration Platform");
             font-size: 20px;
             font-weight: 600;
-            color: #1F2937;
+            color: root.theme.primary;
         }
         Text {
             text: @tr("Download manager");
             font-size: 14px;
-            color: #5B6472;
+            color: root.theme.secondary;
         }
         Rectangle { height: 16px; }
         NavigationButton {
+            theme: root.theme;
             label: @tr("Welcome");
             icon: @image-url("../assets/icons/home.svg");
             active: root.selected-page == 0;
             clicked => { root.selected-page = 0; }
         }
         NavigationButton {
+            theme: root.theme;
             label: @tr("Search");
             icon: @image-url("../assets/icons/search.svg");
             active: root.selected-page == 1;
             clicked => { root.selected-page = 1; }
         }
         NavigationButton {
+            theme: root.theme;
             label: @tr("Download tasks");
             icon: @image-url("../assets/icons/bookmark.svg");
             active: root.selected-page == 2;
@@ -99,6 +105,7 @@ export component Sidebar inherits Rectangle {
             }
         }
         NavigationButton {
+            theme: root.theme;
             label: @tr("Settings");
             icon: @image-url("../assets/icons/settings.svg");
             active: root.selected-page == 3;
