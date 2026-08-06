@@ -12,9 +12,6 @@ use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
 use fatal_error_window::FatalErrorController;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel};
 use std::cell::RefCell;
-use prompt_window::{PromptConfirmAction, PromptController};
-use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel};
-use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{
     Arc,

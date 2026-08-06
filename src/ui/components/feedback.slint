@@ -1,6 +1,6 @@
 import { Button, HorizontalBox, VerticalBox } from "std-widgets.slint";
 import { Theme } from "../theme.slint";
-import { ToastData } from "../types.slint";
+import { ToastData, ToastKind } from "../types.slint";
 
 export enum ValidationStatus { checking, valid, invalid }
 
@@ -36,7 +36,7 @@ component ToastItem inherits Rectangle {
     }
     height: 64px;
     width: content.preferred-width;
-    background: root.data.kind == 0 ? Theme.toast-success : Theme.toast-danger;
+    background: root.data.kind == ToastKind.success ? Theme.toast-success : Theme.toast-danger;
     border-radius: 7px;
     drop-shadow-blur: 8px;
     drop-shadow-color: Theme.shadow;
