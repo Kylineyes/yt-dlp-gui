@@ -22,7 +22,7 @@ export component SearchPage inherits Rectangle {
     VerticalBox {
         padding: 28px;
         spacing: 10px;
-        Text { text: @tr("Search"); font-size: 28px; font-weight: 600; }
+        Text { text: @tr("Search"); color: Theme.text-primary; font-size: 28px; font-weight: 600; }
         Text { text: @tr("Enter a link, review available media streams, and create a download task"); color: Theme.text-secondary; }
         HorizontalBox {
             spacing: 8px;
@@ -35,7 +35,7 @@ export component SearchPage inherits Rectangle {
             }
             Button { text: @tr("Search"); primary: true; enabled: !root.search-in-progress; clicked => { root.search(); } }
         }
-        Text { text: root.resource-name; font-size: 18px; font-weight: 600; }
+        Text { text: root.resource-name; color: Theme.text-primary; font-size: 18px; font-weight: 600; }
         Rectangle {
             border-width: 1px;
             border-color: Theme.border-default;
@@ -52,6 +52,7 @@ export component SearchPage inherits Rectangle {
                         spacing: 3px;
                         Text {
                             text: stream.id + "  ·  " + stream.label;
+                            color: Theme.text-primary;
                             font-weight: 600;
                         }
                         Text {
@@ -65,7 +66,7 @@ export component SearchPage inherits Rectangle {
                 }
             }
         }
-        Text { text: @tr("Download location"); font-weight: 600; }
+        Text { text: @tr("Download location"); color: Theme.text-primary; font-weight: 600; }
         HorizontalBox {
             spacing: 8px;
             LineEdit {

@@ -21,6 +21,7 @@ export component MainWindow inherits Window {
     in-out property <int> max-concurrency: 1;
     in-out property <string> language: "zh-CN";
     in-out property <string> theme-preference: "system";
+    in-out property <bool> system-dark: false;
     in-out property <ValidationStatus> yt-dlp-status: ValidationStatus.checking;
     in-out property <ValidationStatus> ffmpeg-status: ValidationStatus.checking;
     in-out property <ValidationStatus> download-directory-status: ValidationStatus.checking;
@@ -77,6 +78,8 @@ export component MainWindow inherits Window {
     changed theme-preference => {
         Palette.color-scheme = root.theme-preference == "light" ? ColorScheme.light : root.theme-preference == "dark" ? ColorScheme.dark : ColorScheme.unknown;
     }
+    init => { Theme.system-dark = root.system-dark; }
+    changed system-dark => { Theme.system-dark = root.system-dark; }
 
     HorizontalBox {
         spacing: 0px;

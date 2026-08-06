@@ -3,6 +3,7 @@ mod download;
 mod error;
 mod fatal_error_window;
 mod storage;
+mod theme;
 
 slint::include_modules!();
 
@@ -46,6 +47,7 @@ type SharedToastController = Rc<ToastController>;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = MainWindow::new()?;
+    window.set_system_dark(theme::system_is_dark());
     slint::select_bundled_translation("zh-CN")?;
     let (command_sender, command_receiver) = unbounded_channel();
     let (event_sender, event_receiver) = unbounded_channel();
@@ -67,12 +69,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         next_toast_id.clone(),
     );
     install_callbacks(&window, command_sender.clone(), toasts, next_toast_id);
+    let _system_theme_pump = install_system_theme_pump(&window);
 
     window.run()?;
     fatal_error_controller.borrow_mut().hide();
     let _ = command_sender.send(UiCommand::Shutdown);
     let _ = worker.join();
     Ok(())
+}
+
+fn install_system_theme_pump(window: &MainWindow) -> slint::Timer {
+    let timer = slint::Timer::default();
+    let weak_window = window.as_weak();
+    timer.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_millis(500),
+        move || {
+            let Some(window) = weak_window.upgrade() else {
+                return;
+            };
+            if window.get_theme_preference() == "system" {
+                window.set_system_dark(theme::system_is_dark());
+            }
+        },
+    );
+    timer
 }
 
 fn install_event_pump(

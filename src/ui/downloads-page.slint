@@ -18,7 +18,7 @@ export component DownloadsPage inherits Rectangle {
         spacing: 10px;
         HorizontalBox {
             VerticalBox {
-                Text { text: @tr("Download tasks"); font-size: 28px; font-weight: 600; }
+                Text { text: @tr("Download tasks"); color: Theme.text-primary; font-size: 28px; font-weight: 600; }
                 Text { text: @tr("Download history and current task status"); color: Theme.text-secondary; }
             }
             Rectangle { horizontal-stretch: 1; }
@@ -48,7 +48,7 @@ export component DownloadsPage inherits Rectangle {
                     padding: 13px;
                     spacing: 5px;
                     HorizontalBox {
-                        Text { text: task.name == "" ? @tr("Unnamed resource") : task.name; font-size: 17px; font-weight: 600; horizontal-stretch: 1; }
+                        Text { text: task.name == "" ? @tr("Unnamed resource") : task.name; color: Theme.text-primary; font-size: 17px; font-weight: 600; horizontal-stretch: 1; }
                         Text {
                             text: task.status == "queued" ? @tr("Queued") :
                                   task.status == "ready" ? @tr("Ready") :

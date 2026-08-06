@@ -97,13 +97,13 @@ component ToastItem inherits Rectangle {
         dismiss-control := Rectangle {
             width: 36px;
             height: 36px;
-            background: root.dismiss-pressed ? #66FFFFFF : root.dismiss-hovered ? #33FFFFFF : transparent;
+            background: root.dismiss-pressed ? Theme.text-on-solid.with-alpha(0.4) : root.dismiss-hovered ? Theme.text-on-solid.with-alpha(0.2) : transparent;
             border-radius: 6px;
             Text {
                 width: parent.width;
                 height: parent.height;
                 text: "×";
-                color: #FFFFFF;
+                color: Theme.text-on-solid;
                 font-size: 20px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
