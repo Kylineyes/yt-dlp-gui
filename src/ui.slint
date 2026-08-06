@@ -1,4 +1,4 @@
-import { Button, HorizontalBox, Palette, TextEdit, VerticalBox } from "std-widgets.slint";
+import { Button, HorizontalBox, TextEdit, VerticalBox } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
 import { Theme } from "ui/theme.slint";
 import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
@@ -74,10 +74,6 @@ export component MainWindow inherits Window {
     out property <string> storage-initialization-title: @tr("Storage initialization failed");
     out property <string> storage-initialization-message: @tr("The application could not create or initialize its database file. Check the directory containing the application executable and make sure the current user can create and update files there.\n\nTechnical details: {}", root.prompt-detail);
 
-    changed selected-page => { root.page-changed(root.selected-page); }
-    changed theme-preference => {
-        Palette.color-scheme = root.theme-preference == "dark" ? ColorScheme.dark : root.theme-preference == "light" ? ColorScheme.light : ColorScheme.unknown;
-    }
 
     HorizontalBox {
         spacing: 0px;
@@ -176,7 +172,7 @@ export component FatalErrorWindow inherits Window {
     max-height: root.error-log-visible ? 520px : 320px;
 
     Rectangle {
-        background: #FFFFFF;
+        background: Theme.surface-page;
 
         VerticalBox {
             padding: 24px;
@@ -184,31 +180,20 @@ export component FatalErrorWindow inherits Window {
 
             Text {
                 text: @tr("Storage initialization failed");
-                color: #C42B1C;
+                color: Theme.danger;
                 font-size: 20px;
                 font-weight: 600;
             }
             Text {
                 text: @tr("The application cannot continue because its database could not be initialized.");
-                color: #1F2937;
+                color: Theme.text-primary;
                 font-size: 14px;
                 wrap: word-wrap;
             }
             Text {
                 text: @tr("Check the directory containing the application executable and make sure the current user can create and update files there.");
-                color: #5B6472;
+                color: Theme.text-secondary;
                 font-size: 14px;
-        Rectangle {
-            vertical-stretch: 1;
-            background: Theme.surface-muted;
-            border-width: 1px;
-            border-color: Theme.border-default;
-            border-radius: 6px;
-            TextEdit {
-                width: parent.width;
-                height: parent.height;
-                text: root.prompt-message;
-                read-only: true;
                 wrap: word-wrap;
             }
             Button {
@@ -219,9 +204,9 @@ export component FatalErrorWindow inherits Window {
             }
             if root.error-log-visible : Rectangle {
                 vertical-stretch: 1;
-                background: #F3F4F6;
+                background: Theme.surface-muted;
                 border-width: 1px;
-                border-color: #D9DEE7;
+                border-color: Theme.border-default;
                 border-radius: 8px;
                 TextEdit {
                     width: parent.width - 16px;
