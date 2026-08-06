@@ -1,61 +1,30 @@
-use crate::{MainWindow, PromptWindow};
+use crate::{FatalErrorWindow, MainWindow};
 use slint::{CloseRequestResponse, ComponentHandle, SharedString, Weak};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PromptConfirmAction {
-    Dismiss,
-    Quit,
-}
-
-/// Owns the single strong-prompt window and its native owner relationship.
-pub(crate) struct PromptController {
-    window: Option<PromptWindow>,
+/// Owns the fatal error window and its native owner relationship.
+pub(crate) struct FatalErrorController {
+    window: Option<FatalErrorWindow>,
     main_window: Weak<MainWindow>,
-    confirm_action: PromptConfirmAction,
     #[cfg(windows)]
     native: Option<windows_native::NativeModal>,
 }
 
-impl PromptController {
+impl FatalErrorController {
     pub(crate) fn new(main_window: Weak<MainWindow>) -> Self {
         Self {
             window: None,
             main_window,
-            confirm_action: PromptConfirmAction::Dismiss,
             #[cfg(windows)]
             native: None,
         }
     }
 
-    pub(crate) fn show(
-        &mut self,
-        title: impl Into<SharedString>,
-        message: impl Into<SharedString>,
-    ) -> bool {
-        if self.confirm_action == PromptConfirmAction::Quit && self.window.is_some() {
-            #[cfg(windows)]
-            if let Some(native) = &self.native {
-                native.activate_and_flash();
-            }
-            return false;
-        }
-        self.show_with_action(title, message, PromptConfirmAction::Dismiss)
-    }
-
-    /// Shows the prompt and reports whether a new window was created.
-    pub(crate) fn show_with_action(
-        &mut self,
-        title: impl Into<SharedString>,
-        message: impl Into<SharedString>,
-        action: PromptConfirmAction,
-    ) -> bool {
-        let title = title.into();
-        let message = message.into();
-        self.confirm_action = action;
-
+    /// Shows the fatal storage error and reports whether a window was created.
+    pub(crate) fn show(&mut self, error_log: impl Into<SharedString>) -> bool {
+        let error_log = error_log.into();
         if let Some(window) = &self.window {
-            window.set_prompt_title(title.clone());
-            window.set_prompt_message(message.clone());
+            window.set_error_log(error_log.clone());
+            window.set_error_log_visible(false);
             if window.show().is_ok() {
                 #[cfg(windows)]
                 if let Some(native) = &self.native {
@@ -64,30 +33,22 @@ impl PromptController {
                 return false;
             }
             self.hide();
-            self.confirm_action = action;
         }
 
-        let Ok(window) = PromptWindow::new() else {
+        let Ok(window) = FatalErrorWindow::new() else {
             return false;
         };
-        window.set_prompt_title(title);
-        window.set_prompt_message(message);
+        window.set_error_log(error_log);
+        window.set_error_log_visible(false);
         window
             .window()
             .on_close_requested(|| CloseRequestResponse::KeepWindowShown);
         if window.show().is_err() {
-            self.confirm_action = PromptConfirmAction::Dismiss;
             return false;
         }
         self.window = Some(window);
         self.ensure_native_modal();
         true
-    }
-
-    pub(crate) fn confirm(&mut self) -> PromptConfirmAction {
-        let action = self.confirm_action;
-        self.hide();
-        action
     }
 
     pub(crate) fn ensure_native_modal(&mut self) {
@@ -105,10 +66,9 @@ impl PromptController {
         if let Some(window) = self.window.take() {
             let _ = window.hide();
         }
-        self.confirm_action = PromptConfirmAction::Dismiss;
     }
 
-    pub(crate) fn with_window(&self, callback: impl FnOnce(&PromptWindow)) {
+    pub(crate) fn with_window(&self, callback: impl FnOnce(&FatalErrorWindow)) {
         if let Some(window) = self.window.as_ref() {
             callback(window);
         }
@@ -116,10 +76,10 @@ impl PromptController {
 
     #[cfg(windows)]
     fn initialize_native_modal(&mut self) {
-        let (Some(main), Some(prompt)) = (self.main_window.upgrade(), self.window.as_ref()) else {
+        let (Some(main), Some(window)) = (self.main_window.upgrade(), self.window.as_ref()) else {
             return;
         };
-        self.native = windows_native::NativeModal::attach(&main, prompt);
+        self.native = windows_native::NativeModal::attach(&main, window);
     }
 }
 
@@ -146,9 +106,9 @@ mod windows_native {
     }
 
     impl NativeModal {
-        pub(super) fn attach(main: &MainWindow, prompt: &PromptWindow) -> Option<Self> {
+        pub(super) fn attach(main: &MainWindow, dialog: &FatalErrorWindow) -> Option<Self> {
             let owner = hwnd(main.window())?;
-            let dialog = hwnd(prompt.window())?;
+            let dialog = hwnd(dialog.window())?;
             let original_owner = unsafe { GetWindowLongPtrW(dialog, GWLP_HWNDPARENT) };
             let original_style = unsafe { GetWindowLongPtrW(dialog, GWL_STYLE) };
             let owner_was_enabled = unsafe { IsWindowEnabled(owner).as_bool() };
@@ -269,15 +229,5 @@ mod windows_native {
             RawWindowHandle::Win32(handle) => Some(HWND(handle.hwnd.get() as *mut _)),
             _ => None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn prompt_confirm_actions_are_distinct() {
-        assert_ne!(PromptConfirmAction::Dismiss, PromptConfirmAction::Quit);
     }
 }
