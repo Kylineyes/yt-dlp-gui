@@ -5,16 +5,51 @@ import { ValidationIndicator, ValidationStatus } from "components/feedback.slint
 component SettingLabel inherits HorizontalBox {
     in property <string> label;
     in property <ValidationStatus> status;
-
     spacing: 8px;
     ValidationIndicator { status: root.status; }
-    Text {
-        text: root.label;
-        color: Theme.text-primary;
-        font-size: 14px;
-        font-weight: 600;
-        vertical-alignment: center;
+    Text { text: root.label; color: Theme.text-primary; font-size: 14px; font-weight: 600; vertical-alignment: center; }
+}
+
+component SettingsInput inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder-text;
+    height: 36px;
+    background: Theme.surface-card;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.border-focus : Theme.border-default;
+    border-radius: 6px;
+    input := LineEdit {
+        x: 1px; y: 1px; width: parent.width - 2px; height: parent.height - 2px;
+        text <=> root.text; placeholder-text: root.placeholder-text;
     }
+    public function focus-field() { input.focus(); }
+    public function select-field() { input.select-all(); }
+}
+
+component SettingsCard inherits Rectangle {
+    in property <string> title;
+    horizontal-stretch: 1;
+    background: Theme.surface-card;
+    border-width: 1px;
+    border-color: Theme.border-default;
+    border-radius: 8px;
+    card-content := VerticalBox {
+        width: parent.width; height: self.preferred-height; padding: 16px; spacing: 16px;
+        Text { text: root.title; color: Theme.text-primary; font-size: 16px; font-weight: 600; }
+        @children
+    }
+    height: card-content.preferred-height;
+}
+
+component SettingsError inherits Rectangle {
+    in property <string> text;
+    background: Theme.danger-surface;
+    border-radius: 6px;
+    error-content := HorizontalBox {
+        width: parent.width; height: self.preferred-height; padding: 8px;
+        Text { text: root.text; color: Theme.danger; font-size: 12px; wrap: word-wrap; horizontal-stretch: 1; vertical-alignment: center; }
+    }
+    height: error-content.preferred-height;
 }
 
 export component SettingsPage inherits Rectangle {
@@ -48,21 +83,11 @@ export component SettingsPage inherits Rectangle {
     callback select-download-directory(string);
 
     public function focus-invalid-field(field: int) {
-        if (field == 0) {
-            yt-dlp-input.focus();
-            yt-dlp-input.select-all();
-        } else if (field == 1) {
-            ffmpeg-input.focus();
-            ffmpeg-input.select-all();
-        } else if (field == 2) {
-            download-directory-input.focus();
-            download-directory-input.select-all();
-        } else {
-            proxy-input.focus();
-            proxy-input.select-all();
-        }
+        if (field == 0) { yt-dlp-input.focus-field(); yt-dlp-input.select-field(); }
+        else if (field == 1) { ffmpeg-input.focus-field(); ffmpeg-input.select-field(); }
+        else if (field == 2) { download-directory-input.focus-field(); download-directory-input.select-field(); }
+        else { proxy-input.focus-field(); proxy-input.select-field(); }
     }
-
     changed invalid-revision => { root.focus-invalid-field(root.invalid-field); }
     changed yt-dlp-path => { root.yt-dlp-status = ValidationStatus.checking; root.yt-dlp-error-kind = 0; }
     changed ffmpeg-path => { root.ffmpeg-status = ValidationStatus.checking; root.ffmpeg-error-kind = 0; }
@@ -72,137 +97,76 @@ export component SettingsPage inherits Rectangle {
     background: Theme.surface-page;
     ScrollView {
         VerticalBox {
-            padding: 24px;
-            spacing: 16px;
-            Text {
-                text: @tr("Settings");
-                color: Theme.text-primary;
-                font-size: 28px;
-                font-weight: 600;
-            }
-            Text {
-                text: @tr("Configure yt-dlp and the download environment");
-                color: Theme.text-secondary;
-                font-size: 16px;
-            }
-
+            padding: 24px; spacing: 24px;
             VerticalBox {
                 spacing: 8px;
-                SettingLabel { label: @tr("yt-dlp path"); status: root.yt-dlp-status; }
+                Text { text: @tr("Settings"); color: Theme.text-primary; font-size: 28px; font-weight: 600; }
+                Text { text: @tr("Configure yt-dlp and the download environment"); color: Theme.text-secondary; font-size: 16px; wrap: word-wrap; }
+            }
+            SettingsCard {
+                title: @tr("Required tool environment configuration");
+                VerticalBox {
+                    spacing: 16px;
+                    SettingLabel { label: @tr("yt-dlp path"); status: root.yt-dlp-status; }
+                    HorizontalBox {
+                        spacing: 8px;
+                        yt-dlp-input := SettingsInput { placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH"); text <=> root.yt-dlp-path; horizontal-stretch: 1; }
+                        Button { height: 36px; text: @tr("Browse…"); clicked => { root.select-yt-dlp(@tr("Select yt-dlp executable")); } }
+                    }
+                    if root.yt-dlp-error-kind != 0 : SettingsError { text: root.yt-dlp-error-kind == 1 ? @tr("Remove leading or trailing whitespace") : root.yt-dlp-error-kind == 2 ? @tr("Path does not exist or is not a file") : @tr("The executable could not be started"); }
+                    SettingLabel { label: @tr("FFmpeg path"); status: root.ffmpeg-status; }
+                    HorizontalBox {
+                        spacing: 8px;
+                        ffmpeg-input := SettingsInput { placeholder-text: @tr("Enter ffmpeg.exe or its directory"); text <=> root.ffmpeg-path; horizontal-stretch: 1; }
+                        Button { height: 36px; text: @tr("Browse…"); clicked => { root.select-ffmpeg(@tr("Select FFmpeg executable")); } }
+                    }
+                    if root.ffmpeg-error-kind != 0 : SettingsError { text: root.ffmpeg-error-kind == 1 ? @tr("Remove leading or trailing whitespace") : root.ffmpeg-error-kind == 2 ? @tr("Path does not exist or is not a file") : @tr("The executable could not be started"); }
+                }
+            }
+            SettingsCard {
+                title: @tr("Download defaults");
+                VerticalBox {
+                    spacing: 16px;
+                    SettingLabel { label: @tr("Default download directory"); status: root.download-directory-status; }
+                    HorizontalBox {
+                        spacing: 8px;
+                        download-directory-input := SettingsInput { placeholder-text: @tr("For example: C:/Users/Username/Downloads"); text <=> root.default-download-directory; horizontal-stretch: 1; }
+                        Button { height: 36px; text: @tr("Browse…"); clicked => { root.select-download-directory(@tr("Select download directory")); } }
+                    }
+                    if root.download-directory-error-kind != 0 : SettingsError { text: root.download-directory-error-kind == 1 ? @tr("Remove leading or trailing whitespace") : @tr("Download directory does not exist or is not a directory"); }
+                    SettingLabel { label: @tr("Download proxy"); status: root.proxy-status; }
+                    proxy-input := SettingsInput { placeholder-text: @tr("For example: http://127.0.0.1:7890"); text <=> root.proxy; horizontal-stretch: 1; }
+                    if root.proxy-error-kind != 0 : SettingsError { text: @tr("Remove leading or trailing whitespace"); }
+                }
+            }
+            SettingsCard {
+                title: @tr("General");
+                VerticalBox {
+                    spacing: 8px;
+                    Text { text: @tr("Language"); color: Theme.text-primary; font-size: 14px; font-weight: 600; }
+                    ComboBox { height: 36px; model: [@tr("Simplified Chinese"), @tr("English")]; current-index: root.language == "en" ? 1 : 0; selected(value) => { root.language = self.current-index == 1 ? "en" : "zh-CN"; root.change-language(root.language); } }
+                    Text { text: @tr("Theme"); color: Theme.text-primary; font-size: 14px; font-weight: 600; }
+                    ComboBox { height: 36px; model: [@tr("Follow system"), @tr("Light"), @tr("Dark")]; current-index: root.theme-preference == "light" ? 1 : root.theme-preference == "dark" ? 2 : 0; selected(value) => { root.theme-preference = self.current-index == 1 ? "light" : self.current-index == 2 ? "dark" : "system"; root.change-theme-preference(root.theme-preference); } }
+                }
+            }
+            SettingsCard {
+                title: @tr("Concurrency");
+                VerticalBox {
+                    spacing: 12px;
+                    Text { text: @tr("Maximum concurrent downloads"); color: Theme.text-primary; font-size: 14px; font-weight: 600; }
+                    SpinBox { height: 36px; minimum: 1; maximum: 16; value <=> root.max-concurrency; }
+                    Rectangle { height: 52px; background: Theme.warning-surface; border-radius: 6px; HorizontalBox { padding: 8px; Text { text: @tr("This version saves the concurrency setting, but downloads still run one at a time."); color: Theme.warning; font-size: 14px; wrap: word-wrap; horizontal-stretch: 1; vertical-alignment: center; } } }
+                }
+            }
+            VerticalBox {
+                spacing: 12px;
                 HorizontalBox {
                     spacing: 8px;
-                    yt-dlp-input := LineEdit {
-                        placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH");
-                        text <=> root.yt-dlp-path;
-                        horizontal-stretch: 1;
-                        changed has-focus => { if (!self.has-focus) { root.validate(); } }
-                    }
-                    Button { text: @tr("Browse…"); clicked => { root.select-yt-dlp(@tr("Select yt-dlp executable")); } }
+                    Button { height: 36px; text: @tr("Save settings"); primary: true; enabled: !root.pending-save; clicked => { root.save(); } }
+                    Button { height: 36px; text: @tr("Restore defaults"); clicked => { root.reset(); } }
+                    Rectangle { horizontal-stretch: 1; }
                 }
-                if root.yt-dlp-error-kind != 0 : Text {
-                    text: root.yt-dlp-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
-                          root.yt-dlp-error-kind == 2 ? @tr("Path does not exist or is not a file") :
-                          @tr("The executable could not be started");
-                    color: Theme.danger;
-                    font-size: 12px;
-                }
-            }
-
-            VerticalBox {
-                spacing: 8px;
-                SettingLabel { label: @tr("FFmpeg path"); status: root.ffmpeg-status; }
-                HorizontalBox {
-                    spacing: 8px;
-                    ffmpeg-input := LineEdit {
-                        placeholder-text: @tr("Enter ffmpeg.exe or its directory");
-                        text <=> root.ffmpeg-path;
-                        horizontal-stretch: 1;
-                        changed has-focus => { if (!self.has-focus) { root.validate(); } }
-                    }
-                    Button { text: @tr("Browse…"); clicked => { root.select-ffmpeg(@tr("Select FFmpeg executable")); } }
-                }
-                if root.ffmpeg-error-kind != 0 : Text {
-                    text: root.ffmpeg-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
-                          root.ffmpeg-error-kind == 2 ? @tr("Path does not exist or is not a file") :
-                          @tr("The executable could not be started");
-                    color: Theme.danger;
-                    font-size: 12px;
-                }
-            }
-
-            VerticalBox {
-                spacing: 8px;
-                SettingLabel { label: @tr("Default download directory"); status: root.download-directory-status; }
-                HorizontalBox {
-                    spacing: 8px;
-                    download-directory-input := LineEdit {
-                        placeholder-text: @tr("For example: C:/Users/Username/Downloads");
-                        text <=> root.default-download-directory;
-                        horizontal-stretch: 1;
-                        changed has-focus => { if (!self.has-focus) { root.validate(); } }
-                    }
-                    Button { text: @tr("Browse…"); clicked => { root.select-download-directory(@tr("Select download directory")); } }
-                }
-                if root.download-directory-error-kind != 0 : Text {
-                    text: root.download-directory-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
-                          @tr("Download directory does not exist or is not a directory");
-                    color: Theme.danger;
-                    font-size: 12px;
-                }
-            }
-
-            VerticalBox {
-                spacing: 8px;
-                SettingLabel { label: @tr("Download proxy"); status: root.proxy-status; }
-                proxy-input := LineEdit {
-                    placeholder-text: @tr("For example: http://127.0.0.1:7890");
-                    text <=> root.proxy;
-                    changed has-focus => { if (!self.has-focus) { root.validate(); } }
-                }
-                if root.proxy-error-kind != 0 : Text {
-                    text: @tr("Remove leading or trailing whitespace");
-                    color: Theme.danger;
-                    font-size: 12px;
-                }
-            }
-
-            Text { text: @tr("Language"); color: Theme.text-primary; font-size: 14px; font-weight: 600; }
-            ComboBox {
-                model: [@tr("Simplified Chinese"), @tr("English")];
-                current-index: root.language == "en" ? 1 : 0;
-                selected(value) => {
-                    root.language = self.current-index == 1 ? "en" : "zh-CN";
-                    root.change-language(root.language);
-                }
-            }
-            Text { text: @tr("Appearance"); color: Theme.text-primary; font-size: 14px; font-weight: 600; }
-            ComboBox {
-                model: [@tr("Follow system"), @tr("Light"), @tr("Dark")];
-                current-index: root.theme-preference == "light" ? 1 : root.theme-preference == "dark" ? 2 : 0;
-                selected(value) => {
-                    root.theme-preference = self.current-index == 1 ? "light" : self.current-index == 2 ? "dark" : "system";
-                    root.change-theme-preference(root.theme-preference);
-                }
-            }
-            Text { text: @tr("Maximum concurrent downloads"); color: Theme.text-primary; font-size: 14px; font-weight: 600; }
-            SpinBox { minimum: 1; maximum: 16; value <=> root.max-concurrency; }
-            Text {
-                text: @tr("This version saves the concurrency setting, but downloads still run one at a time.");
-                color: Theme.warning;
-                font-size: 14px;
-                wrap: word-wrap;
-            }
-            HorizontalBox {
-                spacing: 8px;
-                Button { text: @tr("Save settings"); primary: true; enabled: !root.pending-save; clicked => { root.save(); } }
-                Button { text: @tr("Restore defaults"); clicked => { root.reset(); } }
-                Rectangle { horizontal-stretch: 1; }
-            }
-            Text {
-                text: root.message-kind == 2 ? @tr("Defaults restored; click Save settings") : root.message-argument;
-                color: Theme.accent;
-                font-size: 14px;
-                wrap: word-wrap;
+                if root.message-kind != 0 : Rectangle { height: 64px; background: Theme.info-surface; border-radius: 6px; HorizontalBox { padding: 8px; Text { text: root.message-kind == 2 ? @tr("Defaults restored; click Save settings") : root.message-argument; color: Theme.accent; font-size: 14px; wrap: word-wrap; horizontal-stretch: 1; vertical-alignment: center; } } }
             }
         }
     }
