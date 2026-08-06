@@ -1,5 +1,6 @@
 import { Button, ListView, ProgressIndicator, VerticalBox, HorizontalBox } from "std-widgets.slint";
-import { DownloadRow, ThemeTokens } from "types.slint";
+import { Theme } from "theme.slint";
+import { DownloadRow } from "types.slint";
 
 export component DownloadsPage inherits Rectangle {
     in property <ThemeTokens> theme;
@@ -12,14 +13,14 @@ export component DownloadsPage inherits Rectangle {
     callback start(int);
     callback pause(int);
 
-    background: root.theme.page;
+    background: Theme.surface-page;
     VerticalBox {
         padding: 28px;
         spacing: 10px;
         HorizontalBox {
             VerticalBox {
                 Text { text: @tr("Download tasks"); font-size: 28px; font-weight: 600; }
-                Text { text: @tr("Download history and current task status"); color: root.theme.secondary; }
+                Text { text: @tr("Download history and current task status"); color: Theme.text-secondary; }
             }
             Rectangle { horizontal-stretch: 1; }
             Button { text: @tr("Refresh"); clicked => { root.refresh(); } }
@@ -34,15 +35,15 @@ export component DownloadsPage inherits Rectangle {
                   root.message-kind == 7 ? @tr("Task {} cannot be paused yet; the app will not fake a paused state", root.message-task-id) :
                   root.message-kind == 8 ? @tr("Task added to the download list") :
                   root.message-argument;
-            color: root.theme.accent;
+            color: Theme.accent;
             wrap: word-wrap;
         }
         ListView {
             for task in root.downloads : Rectangle {
                 height: 194px;
-                background: root.theme.card;
+                background: Theme.surface-card;
                 border-width: 1px;
-                border-color: root.theme.border;
+                border-color: Theme.border-default;
                 border-radius: 7px;
                 VerticalBox {
                     padding: 13px;
@@ -56,21 +57,21 @@ export component DownloadsPage inherits Rectangle {
                                   task.status == "paused" ? @tr("Pause") :
                                   task.status == "completed" ? @tr("Completed") :
                                   @tr("Failed");
-                            color: task.status == "failed" ? root.theme.danger : task.status == "completed" ? root.theme.success : root.theme.accent;
+                            color: task.status == "failed" ? Theme.danger : task.status == "completed" ? Theme.success : Theme.accent;
                             font-weight: 600;
                         }
                     }
-                    Text { text: task.url; color: root.theme.secondary; }
-                    Text { text: @tr("Format: {}", task.format-text); color: root.theme.secondary; }
-                    Text { text: @tr("Location: {}", task.output-directory); color: root.theme.secondary; }
-                    Text { text: @tr("Started: {}    Completed: {}", task.started-at, task.completed-at); color: root.theme.tertiary; }
+                    Text { text: task.url; color: Theme.text-secondary; }
+                    Text { text: @tr("Format: {}", task.format-text); color: Theme.text-secondary; }
+                    Text { text: @tr("Location: {}", task.output-directory); color: Theme.text-secondary; }
+                    Text { text: @tr("Started: {}    Completed: {}", task.started-at, task.completed-at); color: Theme.text-tertiary; }
                     ProgressIndicator { progress: task.progress; }
-                    Text { text: @tr("Size: {}", task.size-text); color: root.theme.secondary; }
+                    Text { text: @tr("Size: {}", task.size-text); color: Theme.text-secondary; }
                     HorizontalBox {
                         spacing: 8px;
                         Button { text: @tr("Start"); enabled: task.status == "queued" || task.status == "ready" || task.status == "failed"; clicked => { root.start(task.id); } }
                         Button { text: @tr("Pause"); enabled: task.status == "running"; clicked => { root.pause(task.id); } }
-                        Text { text: task.error-message; color: root.theme.danger; horizontal-stretch: 1; }
+                        Text { text: task.error-message; color: Theme.danger; horizontal-stretch: 1; }
                     }
                 }
             }

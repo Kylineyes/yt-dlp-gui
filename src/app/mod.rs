@@ -31,14 +31,7 @@ pub enum ErrorKind {
 #[derive(Debug)]
 pub enum WorkerEvent {
     Ready,
-    StorageInitializationFailed {
-        detail: String,
-    },
-    #[allow(dead_code)]
-    PromptRequested {
-        title: String,
-        message: String,
-    },
+    StorageInitializationFailed { detail: String },
     SettingsLoaded(AppSettings),
     SettingsSaved(AppSettings),
     SearchCompleted(SearchResult),
@@ -52,40 +45,12 @@ pub enum WorkerEvent {
         detail: String,
     },
     DownloadsLoaded(Vec<DownloadRecord>),
-    DownloadStarted {
-        id: i64,
-    },
-    LogLine {
-        id: i64,
-        line: String,
-    },
-    DownloadFinished {
-        id: i64,
-    },
-    DownloadFailed {
-        id: i64,
-        message: String,
-    },
-    Notice {
-        kind: NoticeKind,
-        argument: String,
-    },
-    Error {
-        kind: ErrorKind,
-        detail: String,
-    },
-}
-
-#[allow(dead_code)]
-pub fn request_prompt(
-    events: &UnboundedSender<WorkerEvent>,
-    title: impl Into<String>,
-    message: impl Into<String>,
-) {
-    let _ = events.send(WorkerEvent::PromptRequested {
-        title: title.into(),
-        message: message.into(),
-    });
+    DownloadStarted { id: i64 },
+    LogLine { id: i64, line: String },
+    DownloadFinished { id: i64 },
+    DownloadFailed { id: i64, message: String },
+    Notice { kind: NoticeKind, argument: String },
+    Error { kind: ErrorKind, detail: String },
 }
 
 pub fn spawn_worker(
@@ -343,20 +308,6 @@ mod tests {
     use crate::error::{AppError, StorageStage};
     use std::path::PathBuf;
     use tokio::sync::mpsc::error::TryRecvError;
-
-    #[test]
-    fn prompt_request_preserves_title_and_message() {
-        let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
-        request_prompt(&events, "Download failed", "The output path is unavailable");
-
-        match receiver.try_recv().expect("Expected a prompt request") {
-            WorkerEvent::PromptRequested { title, message } => {
-                assert_eq!(title, "Download failed");
-                assert_eq!(message, "The output path is unavailable");
-            }
-            other => panic!("Expected a prompt request event, got {other:?}"),
-        }
-    }
 
     #[test]
     fn storage_initialization_failure_sends_dedicated_event() {

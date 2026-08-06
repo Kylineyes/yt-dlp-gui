@@ -1,7 +1,8 @@
-import { Button, HorizontalBox, TextEdit, VerticalBox, Palette } from "std-widgets.slint";
+import { Button, HorizontalBox, Palette, TextEdit, VerticalBox } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
-import { StreamRow, DownloadRow, ToastData, ThemeTokens } from "ui/types.slint";
-import { ToastHost } from "ui/components/feedback.slint";
+import { Theme } from "ui/theme.slint";
+import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
+import { ToastHost, ValidationStatus } from "ui/components/feedback.slint";
 import { SettingsPage } from "ui/settings-page.slint";
 import { SearchPage } from "ui/search-page.slint";
 import { DownloadsPage } from "ui/downloads-page.slint";
@@ -19,35 +20,12 @@ export component MainWindow inherits Window {
     in-out property <string> proxy;
     in-out property <int> max-concurrency: 1;
     in-out property <string> language: "zh-CN";
-    in-out property <string> theme-mode: "system";
-    property <bool> dark-theme: root.theme-mode == "dark" || (root.theme-mode == "system" && Palette.color-scheme == ColorScheme.dark);
-    property <ThemeTokens> theme: {
-        page: root.dark-theme ? #111827 : #F7F8FA,
-        sidebar: root.dark-theme ? #1F2937 : #F1F3F5,
-        card: root.dark-theme ? #273449 : #FFFFFF,
-        muted: root.dark-theme ? #374151 : #F3F4F6,
-        hover: root.dark-theme ? #374A63 : #EFF6FF,
-        selected: root.dark-theme ? #24456B : #DBEAFE,
-        border: root.dark-theme ? #4B5563 : #D9DEE7,
-        border-hover: root.dark-theme ? #60A5FA : #93C5FD,
-        border-focus: #2563EB,
-        primary: root.dark-theme ? #F9FAFB : #1F2937,
-        secondary: root.dark-theme ? #D1D5DB : #5B6472,
-        tertiary: root.dark-theme ? #9CA3AF : #7B8494,
-        disabled: root.dark-theme ? #6B7280 : #A0A8B5,
-        on-accent: #FFFFFF,
-        accent: #3B82F6,
-        accent-hover: #60A5FA,
-        accent-pressed: #93C5FD,
-        success: #22C55E,
-        success-surface: root.dark-theme ? #12351F : #F0FDF4,
-        warning: root.dark-theme ? #FBBF24 : #A16207,
-        warning-surface: root.dark-theme ? #42320B : #FEF3C7,
-        danger: root.dark-theme ? #F87171 : #C42B1C,
-        danger-surface: root.dark-theme ? #451A1A : #FEF2F2,
-        info-surface: root.dark-theme ? #172E4D : #EFF6FF,
-        shadow: #66000000
-    };
+    in-out property <string> theme-preference: "system";
+
+    in-out property <ValidationStatus> yt-dlp-status: ValidationStatus.checking;
+    in-out property <ValidationStatus> ffmpeg-status: ValidationStatus.checking;
+    in-out property <ValidationStatus> download-directory-status: ValidationStatus.checking;
+    in-out property <ValidationStatus> proxy-status: ValidationStatus.checking;
     in-out property <int> yt-dlp-error-kind: 0;
     in-out property <int> ffmpeg-error-kind: 0;
     in-out property <int> download-directory-error-kind: 0;
@@ -75,7 +53,7 @@ export component MainWindow inherits Window {
     callback save-settings();
     callback validate-settings();
     callback change-language(string);
-    callback change-theme(string);
+    callback change-theme-preference(string);
     callback reset-settings();
     callback select-yt-dlp(string);
     callback select-ffmpeg(string);
@@ -89,7 +67,6 @@ export component MainWindow inherits Window {
     callback start-download(int);
     callback pause-download(int);
     callback toast-dismissed(int);
-    callback page-changed(int);
     callback window-closed();
     pure callback format-step-description(string) -> styled-text;
 
@@ -98,9 +75,8 @@ export component MainWindow inherits Window {
     out property <string> storage-initialization-message: @tr("The application could not create or initialize its database file. Check the directory containing the application executable and make sure the current user can create and update files there.\n\nTechnical details: {}", root.prompt-detail);
 
     changed selected-page => { root.page-changed(root.selected-page); }
-    changed theme-mode => {
-        Palette.color-scheme = root.theme-mode == "light" ? ColorScheme.light :
-                               root.theme-mode == "dark" ? ColorScheme.dark : ColorScheme.unknown;
+    changed theme-preference => {
+        Palette.color-scheme = root.theme-preference == "dark" ? ColorScheme.dark : root.theme-preference == "light" ? ColorScheme.light : ColorScheme.unknown;
     }
 
     HorizontalBox {
@@ -153,6 +129,11 @@ export component MainWindow inherits Window {
                 proxy <=> root.proxy;
                 max-concurrency <=> root.max-concurrency;
                 language <=> root.language;
+                theme-preference <=> root.theme-preference;
+                yt-dlp-status <=> root.yt-dlp-status;
+                ffmpeg-status <=> root.ffmpeg-status;
+                download-directory-status <=> root.download-directory-status;
+                proxy-status <=> root.proxy-status;
                 yt-dlp-error-kind <=> root.yt-dlp-error-kind;
                 ffmpeg-error-kind <=> root.ffmpeg-error-kind;
                 download-directory-error-kind <=> root.download-directory-error-kind;
@@ -164,7 +145,7 @@ export component MainWindow inherits Window {
                 message-argument: root.settings-message-argument;
                 save => { root.save-settings(); }
                 change-language(language) => { root.change-language(language); }
-                change-theme(theme) => { root.change-theme(theme); }
+                change-theme-preference(preference) => { root.change-theme-preference(preference); }
                 reset => { root.reset-settings(); }
                 select-yt-dlp(title) => { root.select-yt-dlp(title); }
                 select-ffmpeg(title) => { root.select-ffmpeg(title); }
@@ -183,26 +164,45 @@ export component MainWindow inherits Window {
     }
 }
 
-export component PromptWindow inherits Window {
-    in property <string> prompt-title;
-    in property <string> prompt-message;
+export component FatalErrorWindow inherits Window {
+    in property <string> error-log;
+    in-out property <bool> error-log-visible: false;
     callback confirmed();
 
-    title: root.prompt-title;
+    title: @tr("Storage initialization failed");
     min-width: 620px;
     max-width: 620px;
-    min-height: 250px;
-    max-height: 250px;
+    min-height: root.error-log-visible ? 520px : 320px;
+    max-height: root.error-log-visible ? 520px : 320px;
 
-    VerticalBox {
-        padding: 24px;
-        spacing: 14px;
+    Rectangle {
+        background: #FFFFFF;
 
+        VerticalBox {
+            padding: 24px;
+            spacing: 16px;
+
+            Text {
+                text: @tr("Storage initialization failed");
+                color: #C42B1C;
+                font-size: 20px;
+                font-weight: 600;
+            }
+            Text {
+                text: @tr("The application cannot continue because its database could not be initialized.");
+                color: #1F2937;
+                font-size: 14px;
+                wrap: word-wrap;
+            }
+            Text {
+                text: @tr("Check the directory containing the application executable and make sure the current user can create and update files there.");
+                color: #5B6472;
+                font-size: 14px;
         Rectangle {
             vertical-stretch: 1;
-            background: #f7f7f7;
+            background: Theme.surface-muted;
             border-width: 1px;
-            border-color: #dedede;
+            border-color: Theme.border-default;
             border-radius: 6px;
             TextEdit {
                 width: parent.width;
@@ -211,14 +211,36 @@ export component PromptWindow inherits Window {
                 read-only: true;
                 wrap: word-wrap;
             }
-        }
-        HorizontalBox {
-            Rectangle { horizontal-stretch: 1; }
             Button {
+                width: self.preferred-width;
                 height: 36px;
-                text: @tr("OK");
-                primary: true;
-                clicked => { root.confirmed(); }
+                text: root.error-log-visible ? @tr("Hide error log") : @tr("Show error log");
+                clicked => { root.error-log-visible = !root.error-log-visible; }
+            }
+            if root.error-log-visible : Rectangle {
+                vertical-stretch: 1;
+                background: #F3F4F6;
+                border-width: 1px;
+                border-color: #D9DEE7;
+                border-radius: 8px;
+                TextEdit {
+                    width: parent.width - 16px;
+                    height: parent.height - 16px;
+                    x: 8px;
+                    y: 8px;
+                    text: root.error-log;
+                    read-only: true;
+                    wrap: word-wrap;
+                }
+            }
+            HorizontalBox {
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    height: 36px;
+                    text: @tr("OK");
+                    primary: true;
+                    clicked => { root.confirmed(); }
+                }
             }
         }
     }

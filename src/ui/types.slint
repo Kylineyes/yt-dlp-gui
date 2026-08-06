@@ -36,11 +36,12 @@ export struct StreamRow {
     selected: bool,
 }
 
+export enum ToastKind { success, error, validation-error }
+
 export struct ToastData {
     id: int,
-    kind: int,
+    kind: ToastKind,
     detail: string,
-    page: int,
 }
 
 export struct DownloadRow {

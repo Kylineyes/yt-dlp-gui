@@ -54,15 +54,17 @@ msgstr "界面语言"
 
 msgid "Theme"
 msgstr "主题"
+msgid "Appearance"
+msgstr "外观"
+
+msgid "Follow system"
+msgstr "跟随系统"
 
 msgid "Light"
 msgstr "浅色"
 
 msgid "Dark"
 msgstr "深色"
-
-msgid "Follow system"
-msgstr "跟随系统"
 
 msgid "Simplified Chinese"
 msgstr "简体中文"
@@ -297,6 +299,10 @@ msgstr "项目仓库"
 
 msgid "https://github.com/Kylineyes/yt-dlp-gui"
 msgstr "https://github.com/Kylineyes/yt-dlp-gui"
+
+msgid "Open the yt-dlp GUI project repository"
+msgstr "打开 yt-dlp GUI 项目仓库"
+
 msgid "yt-dlp Integration Platform"
 msgstr "yt-dlp 集成平台"
 
@@ -342,19 +348,29 @@ msgstr "无法启动该可执行文件"
 msgid "Download directory does not exist or is not a directory"
 msgstr "下载目录不存在或不是目录"
 
+msgid "Success"
+msgstr "成功"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Validation error"
+msgstr "校验错误"
+
 msgid "Storage initialization failed"
 msgstr "存储初始化失败"
 
-msgid ""
-"The application could not create or initialize its database file. Check the "
-"directory containing the application executable and make sure the current "
-"user can create and update files there.\n"
-"\n"
-"Technical details: {}"
-msgstr ""
-"应用程序无法创建或初始化数据库文件。请检查应用程序可执行文件所在目录，并确认当前用户可以在该目录中创建和更新文件。\n"
-"\n"
-"技术详情：{}"
+msgid "The application cannot continue because its database could not be initialized."
+msgstr "应用程序无法继续运行，因为其数据库无法初始化。"
+
+msgid "Check the directory containing the application executable and make sure the current user can create and update files there."
+msgstr "请检查应用程序可执行文件所在目录，并确认当前用户可以在该目录中创建和更新文件。"
+
+msgid "Show error log"
+msgstr "显示错误日志"
+
+msgid "Hide error log"
+msgstr "隐藏错误日志"
 
 msgid "OK"
 msgstr "确定"

@@ -1,5 +1,6 @@
 import { Button, ComboBox, LineEdit, ScrollView, SpinBox, VerticalBox, HorizontalBox } from "std-widgets.slint";
-import { ThemeTokens } from "types.slint";
+import { Theme } from "theme.slint";
+import { ValidationIndicator, ValidationStatus } from "components/feedback.slint";
 
 component SettingsLabel inherits Text {
     in property <ThemeTokens> theme;
@@ -99,6 +100,11 @@ export component SettingsPage inherits Rectangle {
     in-out property <string> proxy;
     in-out property <int> max-concurrency;
     in-out property <string> language;
+    in-out property <string> theme-preference: "system";
+    in-out property <ValidationStatus> yt-dlp-status;
+    in-out property <ValidationStatus> ffmpeg-status;
+    in-out property <ValidationStatus> download-directory-status;
+    in-out property <ValidationStatus> proxy-status;
     in property <int> invalid-field: -1;
     in property <int> invalid-revision;
     in-out property <bool> pending-save;
@@ -111,7 +117,8 @@ export component SettingsPage inherits Rectangle {
     callback save();
     callback reset();
     callback change-language(string);
-    callback change-theme(string);
+    callback change-theme-preference(string);
+    callback validate(int);
     callback select-yt-dlp(string);
     callback select-ffmpeg(string);
     callback select-download-directory(string);
@@ -137,13 +144,16 @@ export component SettingsPage inherits Rectangle {
     changed default-download-directory => { root.download-directory-error-kind = 0; }
     changed proxy => { root.proxy-error-kind = 0; }
 
-    background: root.theme.page;
+    background: Theme.surface-page;
     ScrollView {
         VerticalBox {
-            padding: 24px;
-            spacing: 24px;
-
-            VerticalBox {
+            padding: 28px;
+            spacing: 10px;
+            Text { text: @tr("Settings"); font-size: 28px; font-weight: 600; }
+            Text { text: @tr("Configure yt-dlp and the download environment"); color: Theme.text-secondary; }
+            Rectangle { height: 12px; }
+            SettingLabel { label: @tr("yt-dlp path"); status: root.yt-dlp-status; }
+            HorizontalBox {
                 spacing: 8px;
                 Text {
                     text: @tr("Settings");
@@ -151,12 +161,30 @@ export component SettingsPage inherits Rectangle {
                     font-size: 28px;
                     font-weight: 600;
                 }
-                Text {
-                    text: @tr("Configure yt-dlp and the download environment");
-                    color: #5B6472;
-                    font-size: 16px;
-                    wrap: word-wrap;
+                Button { text: @tr("Browse…"); clicked => { root.select-yt-dlp(@tr("Select yt-dlp executable")); } }
+            }
+            if root.yt-dlp-error-kind != 0 : Text {
+                text: root.yt-dlp-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
+                      root.yt-dlp-error-kind == 2 ? @tr("Path does not exist or is not a file") :
+                      @tr("The executable could not be started");
+                color: Theme.danger;
+            }
+            SettingLabel { label: @tr("FFmpeg path"); status: root.ffmpeg-status; }
+            HorizontalBox {
+                spacing: 8px;
+                ffmpeg-input := LineEdit {
+                    placeholder-text: @tr("Enter ffmpeg.exe or its directory");
+                    text <=> root.ffmpeg-path;
+                    horizontal-stretch: 1;
+                    changed has-focus => { if (!self.has-focus) { root.validate(1); } }
                 }
+                Button { text: @tr("Browse…"); clicked => { root.select-ffmpeg(@tr("Select FFmpeg executable")); } }
+            }
+            if root.ffmpeg-error-kind != 0 : Text {
+                text: root.ffmpeg-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
+                      root.ffmpeg-error-kind == 2 ? @tr("Path does not exist or is not a file") :
+                      @tr("The executable could not be started");
+                color: Theme.danger;
             }
 
             SettingsCard {
@@ -208,46 +236,22 @@ export component SettingsPage inherits Rectangle {
                               @tr("The executable could not be started");
                     }
                 }
+                Button { text: @tr("Browse…"); clicked => { root.select-download-directory(@tr("Select download directory")); } }
             }
-
-            SettingsCard {
-                theme: root.theme;
-                title: @tr("Download defaults");
-                VerticalBox {
-                    spacing: 16px;
-                    SettingsLabel { theme: root.theme; text: @tr("Default download directory"); }
-                    HorizontalBox {
-                        spacing: 8px;
-                        download-directory-input := SettingsInput {
-                            theme: root.theme;
-                            placeholder-text: @tr("For example: C:/Users/Username/Downloads");
-                            text <=> root.default-download-directory;
-                            horizontal-stretch: 1;
-                        }
-                        Button {
-                            height: 36px;
-                            text: @tr("Browse…");
-                            clicked => { root.select-download-directory(@tr("Select download directory")); }
-                        }
-                    }
-                    if root.download-directory-error-kind != 0 : SettingsError {
-                        theme: root.theme;
-                        text: root.download-directory-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
-                              @tr("Download directory does not exist or is not a directory");
-                    }
-
-                    SettingsLabel { theme: root.theme; text: @tr("Download proxy"); }
-                    proxy-input := SettingsInput {
-                        theme: root.theme;
-                        placeholder-text: @tr("For example: http://127.0.0.1:7890");
-                        text <=> root.proxy;
-                        horizontal-stretch: 1;
-                    }
-                    if root.proxy-error-kind != 0 : SettingsError {
-                        theme: root.theme;
-                        text: @tr("Remove leading or trailing whitespace");
-                    }
-                }
+            if root.download-directory-error-kind != 0 : Text {
+                text: root.download-directory-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
+                      @tr("Download directory does not exist or is not a directory");
+                color: Theme.danger;
+            }
+            SettingLabel { label: @tr("Download proxy"); status: root.proxy-status; }
+            proxy-input := LineEdit {
+                placeholder-text: @tr("For example: http://127.0.0.1:7890");
+                text <=> root.proxy;
+                changed has-focus => { if (!self.has-focus) { root.validate(3); } }
+            }
+            if root.proxy-error-kind != 0 : Text {
+                text: @tr("Remove leading or trailing whitespace");
+                color: Theme.danger;
             }
 
             SettingsCard {
@@ -277,72 +281,28 @@ export component SettingsPage inherits Rectangle {
                     }
                 }
             }
-
-            SettingsCard {
-                theme: root.theme;
-                title: @tr("Concurrency");
-                VerticalBox {
-                    spacing: 12px;
-                    SettingsLabel { theme: root.theme; text: @tr("Maximum concurrent downloads"); }
-                    SpinBox {
-                        height: 36px;
-                        minimum: 1;
-                        maximum: 16;
-                        value <=> root.max-concurrency;
-                    }
-                    Rectangle {
-                        height: 52px;
-                        background: root.theme.warning-surface;
-                        border-radius: 6px;
-                        HorizontalBox {
-                            padding: 8px;
-                            Text {
-                                text: @tr("This version saves the concurrency setting, but downloads still run one at a time.");
-                                color: root.theme.warning;
-                                font-size: 14px;
-                                wrap: word-wrap;
-                                horizontal-stretch: 1;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
+            Text { text: @tr("Appearance"); font-weight: 600; }
+            ComboBox {
+                model: [@tr("Follow system"), @tr("Light"), @tr("Dark")];
+                current-index: root.theme-preference == "light" ? 1 : root.theme-preference == "dark" ? 2 : 0;
+                selected(value) => {
+                    root.theme-preference = self.current-index == 1 ? "light" : self.current-index == 2 ? "dark" : "system";
+                    root.change-theme-preference(root.theme-preference);
                 }
             }
-
-            VerticalBox {
-                spacing: 12px;
-                HorizontalBox {
-                    spacing: 8px;
-                    Button {
-                        height: 36px;
-                        text: @tr("Save settings");
-                        primary: true;
-                        enabled: !root.pending-save;
-                        clicked => { root.save(); }
-                    }
-                    Button {
-                        height: 36px;
-                        text: @tr("Restore defaults");
-                        clicked => { root.reset(); }
-                    }
-                    Rectangle { horizontal-stretch: 1; }
-                }
-                if root.message-kind != 0 : Rectangle {
-                    height: 64px;
-                    background: root.theme.info-surface;
-                    border-radius: 6px;
-                    HorizontalBox {
-                        padding: 8px;
-                        Text {
-                            text: root.message-kind == 2 ? @tr("Defaults restored; click Save settings") : root.message-argument;
-                            color: root.theme.accent;
-                            font-size: 14px;
-                            wrap: word-wrap;
-                            horizontal-stretch: 1;
-                            vertical-alignment: center;
-                        }
-                    }
-                }
+            Text { text: @tr("Maximum concurrent downloads"); font-weight: 600; }
+            SpinBox { minimum: 1; maximum: 16; value <=> root.max-concurrency; }
+            Text { text: @tr("This version saves the concurrency setting, but downloads still run one at a time."); color: Theme.warning; wrap: word-wrap; }
+            HorizontalBox {
+                spacing: 8px;
+                Button { text: @tr("Save settings"); primary: true; enabled: !root.pending-save; clicked => { root.save(); } }
+                Button { text: @tr("Restore defaults"); clicked => { root.reset(); } }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            Text {
+                text: root.message-kind == 2 ? @tr("Defaults restored; click Save settings") : root.message-argument;
+                color: Theme.accent;
+                wrap: word-wrap;
             }
         }
     }
