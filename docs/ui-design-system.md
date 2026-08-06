@@ -63,6 +63,10 @@ Rules:
 
 ## Color tokens
 
+### Theme modes
+
+The application supports Light, Dark, and Follow system appearance preferences. Follow system delegates the active color scheme to Slint's platform integration. All custom Slint surfaces and text must consume the active `ThemeTokens` roles rather than hardcoding a light-mode color; standard widgets also follow `Palette.color-scheme`.
+
 ### Surfaces and borders
 
 | Token | Value | Use |

@@ -1,4 +1,4 @@
-use crate::app::state::AppSettings;
+use crate::app::state::{AppSettings, ThemeMode};
 
 pub(super) const YT_DLP_PATH: &str = "yt_dlp_path";
 pub(super) const FFMPEG_PATH: &str = "ffmpeg_path";

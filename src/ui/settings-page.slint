@@ -2,16 +2,98 @@ import { Button, ComboBox, LineEdit, ScrollView, SpinBox, VerticalBox, Horizonta
 import { Theme } from "theme.slint";
 import { ValidationIndicator, ValidationStatus } from "components/feedback.slint";
 
-component SettingLabel inherits HorizontalBox {
-    in property <string> label;
-    in property <ValidationStatus> status;
+component SettingsLabel inherits Text {
+    in property <ThemeTokens> theme;
+    color: root.theme.primary;
+    font-size: 14px;
+    font-weight: 600;
+    vertical-alignment: center;
+}
 
-    spacing: 8px;
-    ValidationIndicator { status: root.status; }
-    Text { text: root.label; font-weight: 600; vertical-alignment: center; }
+component SettingsInput inherits Rectangle {
+    in property <ThemeTokens> theme;
+    in-out property <string> text;
+    in property <string> placeholder-text;
+
+    height: 36px;
+    background: root.theme.card;
+    border-width: 1px;
+    border-color: input.has-focus ? root.theme.border-focus : root.theme.border;
+    border-radius: 6px;
+
+    input := LineEdit {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: parent.height - 2px;
+        text <=> root.text;
+        placeholder-text: root.placeholder-text;
+    }
+
+    public function focus-field() {
+        input.focus();
+    }
+
+    public function select-field() {
+        input.select-all();
+    }
+}
+
+component SettingsCard inherits Rectangle {
+    in property <ThemeTokens> theme;
+    in property <string> title;
+
+    horizontal-stretch: 1;
+    background: root.theme.card;
+    border-width: 1px;
+    border-color: root.theme.border;
+    border-radius: 8px;
+
+    card-content := VerticalBox {
+        width: parent.width;
+        height: self.preferred-height;
+        padding: 16px;
+        spacing: 16px;
+        Text {
+            text: root.title;
+            color: root.theme.primary;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        @children
+    }
+    height: card-content.preferred-height;
+}
+
+component SettingsError inherits Rectangle {
+    in property <ThemeTokens> theme;
+    in property <string> text;
+
+    background: root.theme.danger-surface;
+    border-radius: 6px;
+
+    error-content := HorizontalBox {
+        width: parent.width;
+        height: self.preferred-height;
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        Text {
+            text: root.text;
+            color: root.theme.danger;
+            font-size: 12px;
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+    }
+    height: error-content.preferred-height;
 }
 
 export component SettingsPage inherits Rectangle {
+    in property <ThemeTokens> theme;
+    in-out property <string> theme-mode: "system";
     in-out property <string> yt-dlp-path;
     in-out property <string> ffmpeg-path;
     in-out property <string> default-download-directory;
@@ -42,25 +124,25 @@ export component SettingsPage inherits Rectangle {
     callback select-download-directory(string);
     public function focus-invalid-field(field: int) {
         if (field == 0) {
-            yt-dlp-input.focus();
-            yt-dlp-input.select-all();
+            yt-dlp-input.focus-field();
+            yt-dlp-input.select-field();
         } else if (field == 1) {
-            ffmpeg-input.focus();
-            ffmpeg-input.select-all();
+            ffmpeg-input.focus-field();
+            ffmpeg-input.select-field();
         } else if (field == 2) {
-            download-directory-input.focus();
-            download-directory-input.select-all();
+            download-directory-input.focus-field();
+            download-directory-input.select-field();
         } else {
-            proxy-input.focus();
-            proxy-input.select-all();
+            proxy-input.focus-field();
+            proxy-input.select-field();
         }
     }
 
     changed invalid-revision => { root.focus-invalid-field(root.invalid-field); }
-    changed yt-dlp-path => { root.yt-dlp-status = ValidationStatus.checking; root.yt-dlp-error-kind = 0; }
-    changed ffmpeg-path => { root.ffmpeg-status = ValidationStatus.checking; root.ffmpeg-error-kind = 0; }
-    changed default-download-directory => { root.download-directory-status = ValidationStatus.checking; root.download-directory-error-kind = 0; }
-    changed proxy => { root.proxy-status = ValidationStatus.checking; root.proxy-error-kind = 0; }
+    changed yt-dlp-path => { root.yt-dlp-error-kind = 0; }
+    changed ffmpeg-path => { root.ffmpeg-error-kind = 0; }
+    changed default-download-directory => { root.download-directory-error-kind = 0; }
+    changed proxy => { root.proxy-error-kind = 0; }
 
     background: Theme.surface-page;
     ScrollView {
@@ -73,11 +155,11 @@ export component SettingsPage inherits Rectangle {
             SettingLabel { label: @tr("yt-dlp path"); status: root.yt-dlp-status; }
             HorizontalBox {
                 spacing: 8px;
-                yt-dlp-input := LineEdit {
-                    placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH");
-                    text <=> root.yt-dlp-path;
-                    horizontal-stretch: 1;
-                    changed has-focus => { if (!self.has-focus) { root.validate(0); } }
+                Text {
+                    text: @tr("Settings");
+                    color: root.theme.primary;
+                    font-size: 28px;
+                    font-weight: 600;
                 }
                 Button { text: @tr("Browse…"); clicked => { root.select-yt-dlp(@tr("Select yt-dlp executable")); } }
             }
@@ -104,14 +186,55 @@ export component SettingsPage inherits Rectangle {
                       @tr("The executable could not be started");
                 color: Theme.danger;
             }
-            SettingLabel { label: @tr("Default download directory"); status: root.download-directory-status; }
-            HorizontalBox {
-                spacing: 8px;
-                download-directory-input := LineEdit {
-                    placeholder-text: @tr("For example: C:/Users/Username/Downloads");
-                    text <=> root.default-download-directory;
-                    horizontal-stretch: 1;
-                    changed has-focus => { if (!self.has-focus) { root.validate(2); } }
+
+            SettingsCard {
+                theme: root.theme;
+                title: @tr("Required tool environment configuration");
+                VerticalBox {
+                    spacing: 16px;
+                    SettingsLabel { theme: root.theme; text: @tr("yt-dlp path"); }
+                    HorizontalBox {
+                        spacing: 8px;
+                        yt-dlp-input := SettingsInput {
+                            theme: root.theme;
+                            placeholder-text: @tr("Leave empty to find yt-dlp.exe on PATH");
+                            text <=> root.yt-dlp-path;
+                            horizontal-stretch: 1;
+                        }
+                        Button {
+                            height: 36px;
+                            text: @tr("Browse…");
+                            clicked => { root.select-yt-dlp(@tr("Select yt-dlp executable")); }
+                        }
+                    }
+                    if root.yt-dlp-error-kind != 0 : SettingsError {
+                        theme: root.theme;
+                        text: root.yt-dlp-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
+                              root.yt-dlp-error-kind == 2 ? @tr("Path does not exist or is not a file") :
+                              @tr("The executable could not be started");
+                    }
+
+                    SettingsLabel { theme: root.theme; text: @tr("FFmpeg path"); }
+                    HorizontalBox {
+                        spacing: 8px;
+                        ffmpeg-input := SettingsInput {
+                            theme: root.theme;
+                            placeholder-text: @tr("Enter ffmpeg.exe or its directory");
+                            text <=> root.ffmpeg-path;
+                            horizontal-stretch: 1;
+                        }
+                        Button {
+                            height: 36px;
+                            text: @tr("Browse…");
+                            clicked => { root.select-ffmpeg(@tr("Select FFmpeg executable")); }
+                        }
+                    }
+                    if root.ffmpeg-error-kind != 0 : SettingsError {
+                        theme: root.theme;
+                        text: root.ffmpeg-error-kind == 1 ? @tr("Remove leading or trailing whitespace") :
+                              root.ffmpeg-error-kind == 2 ? @tr("Path does not exist or is not a file") :
+                              @tr("The executable could not be started");
+                    }
                 }
                 Button { text: @tr("Browse…"); clicked => { root.select-download-directory(@tr("Select download directory")); } }
             }
@@ -130,13 +253,32 @@ export component SettingsPage inherits Rectangle {
                 text: @tr("Remove leading or trailing whitespace");
                 color: Theme.danger;
             }
-            Text { text: @tr("Language"); font-weight: 600; }
-            ComboBox {
-                model: [@tr("Simplified Chinese"), @tr("English")];
-                current-index: root.language == "en" ? 1 : 0;
-                selected(value) => {
-                    root.language = self.current-index == 1 ? "en" : "zh-CN";
-                    root.change-language(root.language);
+
+            SettingsCard {
+                theme: root.theme;
+                title: @tr("General");
+                VerticalBox {
+                    spacing: 8px;
+                    SettingsLabel { theme: root.theme; text: @tr("Language"); }
+                    ComboBox {
+                        height: 36px;
+                        model: [@tr("Simplified Chinese"), @tr("English")];
+                        current-index: root.language == "en" ? 1 : 0;
+                        selected(value) => {
+                            root.language = self.current-index == 1 ? "en" : "zh-CN";
+                            root.change-language(root.language);
+                        }
+                    }
+                    SettingsLabel { theme: root.theme; text: @tr("Theme"); }
+                    ComboBox {
+                        height: 36px;
+                        model: [@tr("Light"), @tr("Dark"), @tr("Follow system")];
+                        current-index: root.theme-mode == "light" ? 0 : root.theme-mode == "dark" ? 1 : 2;
+                        selected(value) => {
+                            root.theme-mode = self.current-index == 0 ? "light" : self.current-index == 1 ? "dark" : "system";
+                            root.change-theme(root.theme-mode);
+                        }
+                    }
                 }
             }
             Text { text: @tr("Appearance"); font-weight: 600; }

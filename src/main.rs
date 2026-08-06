@@ -234,7 +234,7 @@ fn install_callbacks(
     window.on_save_settings(move || {
         if let Some(window) = weak.upgrade() {
             window.set_pending_save(true);
-            window.invoke_validate_settings(-1);
+            window.invoke_validate_settings();
         }
     });
 
@@ -278,7 +278,7 @@ fn install_callbacks(
             && let Some(path) = rfd::FileDialog::new().set_title(title.as_str()).pick_file()
         {
             window.set_yt_dlp_path(path.to_string_lossy().into_owned().into());
-            window.invoke_validate_settings(0);
+            window.set_yt_dlp_error_kind(0);
         }
     });
 
@@ -288,7 +288,7 @@ fn install_callbacks(
             && let Some(path) = rfd::FileDialog::new().set_title(title.as_str()).pick_file()
         {
             window.set_ffmpeg_path(path.to_string_lossy().into_owned().into());
-            window.invoke_validate_settings(1);
+            window.set_ffmpeg_error_kind(0);
         }
     });
 
@@ -300,7 +300,7 @@ fn install_callbacks(
                 .pick_folder()
         {
             window.set_default_download_directory(path.to_string_lossy().into_owned().into());
-            window.invoke_validate_settings(2);
+            window.set_download_directory_error_kind(0);
         }
     });
 
@@ -441,7 +441,7 @@ fn install_settings_validation(
     let callback_commands = commands.clone();
     let callback_toast_id = next_toast_id.clone();
 
-    window.on_validate_settings(move |_| {
+    window.on_validate_settings(move || {
         let current_revision = callback_revision.fetch_add(1, Ordering::SeqCst) + 1;
         let weak = weak.clone();
         let revision = callback_revision.clone();
@@ -477,9 +477,6 @@ fn install_settings_validation(
             });
         });
     });
-
-    // The callback owns a clone; this initial invocation validates values loaded at startup.
-    window.invoke_validate_settings(-1);
 }
 
 fn apply_validation(
@@ -502,24 +499,12 @@ fn apply_validation(
             window.set_pending_save(false);
         }
     }
-    window.set_yt_dlp_status(validation_status(validation.yt_dlp_error));
-    window.set_ffmpeg_status(validation_status(validation.ffmpeg_error));
-    window.set_download_directory_status(validation_status(validation.download_directory_error));
-    window.set_proxy_status(validation_status(validation.proxy_error));
     window.set_yt_dlp_error_kind(validation_error_kind(validation.yt_dlp_error));
     window.set_ffmpeg_error_kind(validation_error_kind(validation.ffmpeg_error));
     window.set_download_directory_error_kind(validation_error_kind(
         validation.download_directory_error,
     ));
     window.set_proxy_error_kind(validation_error_kind(validation.proxy_error));
-}
-
-fn validation_status(error: ValidationError) -> ValidationStatus {
-    if error == ValidationError::None {
-        ValidationStatus::Valid
-    } else {
-        ValidationStatus::Invalid
-    }
 }
 
 fn validation_error_kind(error: ValidationError) -> i32 {
@@ -573,7 +558,6 @@ fn apply_settings(window: &MainWindow, settings: &AppSettings) {
     if slint::select_bundled_translation(&settings.language).is_ok() {
         window.set_language(settings.language.clone().into());
     }
-    window.invoke_validate_settings(-1);
 }
 
 fn stream_to_row(stream: &MediaStream, selected: bool) -> StreamRow {

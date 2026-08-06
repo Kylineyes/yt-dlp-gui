@@ -2,6 +2,7 @@ import { VerticalBox, HorizontalBox } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 
 component StepCard inherits Rectangle {
+    in property <ThemeTokens> theme;
     in property <string> step-number;
     in property <string> step-title;
     in property <styled-text> step-description;
@@ -37,6 +38,7 @@ component StepCard inherits Rectangle {
 }
 
 export component WelcomePage inherits Rectangle {
+    in property <ThemeTokens> theme;
     pure callback format-step-description(string) -> styled-text;
 
     background: Theme.surface-page;

@@ -13,6 +13,18 @@ msgstr "设置"
 msgid "Configure yt-dlp and the download environment"
 msgstr "配置 yt-dlp 及下载环境"
 
+msgid "Required tool environment configuration"
+msgstr "所需工具环境配置"
+
+msgid "Download defaults"
+msgstr "下载默认设置"
+
+msgid "General"
+msgstr "常规"
+
+msgid "Concurrency"
+msgstr "并发设置"
+
 msgid "yt-dlp path"
 msgstr "yt-dlp 路径"
 
@@ -40,6 +52,8 @@ msgstr "例如：http://127.0.0.1:7890"
 msgid "Language"
 msgstr "界面语言"
 
+msgid "Theme"
+msgstr "主题"
 msgid "Appearance"
 msgstr "外观"
 
@@ -306,15 +320,6 @@ msgstr "选择 FFmpeg 可执行文件"
 
 msgid "Select download directory"
 msgstr "选择下载目录"
-
-msgid "Valid"
-msgstr "有效"
-
-msgid "Invalid"
-msgstr "无效"
-
-msgid "Checking"
-msgstr "检查中"
 
 msgid "Settings saved"
 msgstr "设置已保存"

@@ -3,6 +3,7 @@ import { Theme } from "theme.slint";
 import { StreamRow } from "types.slint";
 
 export component SearchPage inherits Rectangle {
+    in property <ThemeTokens> theme;
     in-out property <string> url;
     in-out property <string> output-directory;
     in property <string> default-download-directory;
