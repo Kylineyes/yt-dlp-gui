@@ -21,7 +21,6 @@ export component MainWindow inherits Window {
     in-out property <int> max-concurrency: 1;
     in-out property <string> language: "zh-CN";
     in-out property <string> theme-preference: "system";
-
     in-out property <ValidationStatus> yt-dlp-status: ValidationStatus.checking;
     in-out property <ValidationStatus> ffmpeg-status: ValidationStatus.checking;
     in-out property <ValidationStatus> download-directory-status: ValidationStatus.checking;
@@ -49,6 +48,7 @@ export component MainWindow inherits Window {
     in property <int> downloads-message-task-id;
     in property <string> downloads-message-detail;
     in property <[ToastData]> toasts;
+    in-out property <string> prompt-detail;
 
     callback save-settings();
     callback validate-settings();
@@ -70,7 +70,6 @@ export component MainWindow inherits Window {
     callback window-closed();
     pure callback format-step-description(string) -> styled-text;
 
-    in-out property <string> prompt-detail;
     out property <string> storage-initialization-title: @tr("Storage initialization failed");
     out property <string> storage-initialization-message: @tr("The application could not create or initialize its database file. Check the directory containing the application executable and make sure the current user can create and update files there.\n\nTechnical details: {}", root.prompt-detail);
 
@@ -78,18 +77,15 @@ export component MainWindow inherits Window {
     HorizontalBox {
         spacing: 0px;
         Sidebar {
-            theme: root.theme;
             selected-page <=> root.selected-page;
             refresh-downloads => { root.refresh-downloads(); }
         }
         Rectangle {
             horizontal-stretch: 1;
             if root.selected-page == 0 : WelcomePage {
-                theme: root.theme;
-                format-step-description(description) => { root.format-step-description(description) }
+                format-step-description(description) => { root.format-step-description(description); }
             }
             if root.selected-page == 1 : SearchPage {
-                theme: root.theme;
                 url <=> root.search-url;
                 output-directory <=> root.search-output-directory;
                 default-download-directory: root.default-download-directory;
@@ -106,7 +102,6 @@ export component MainWindow inherits Window {
                 create-download => { root.create-download(); }
             }
             if root.selected-page == 2 : DownloadsPage {
-                theme: root.theme;
                 downloads: root.downloads;
                 message-kind: root.downloads-message-kind;
                 message-argument: root.downloads-message-argument;
@@ -116,9 +111,7 @@ export component MainWindow inherits Window {
                 start(id) => { root.start-download(id); }
                 pause(id) => { root.pause-download(id); }
             }
-            if root.selected-page == 3 : settings-page := SettingsPage {
-                theme: root.theme;
-                theme-mode <=> root.theme-mode;
+            if root.selected-page == 3 : SettingsPage {
                 yt-dlp-path <=> root.yt-dlp-path;
                 ffmpeg-path <=> root.ffmpeg-path;
                 default-download-directory <=> root.default-download-directory;
@@ -143,6 +136,7 @@ export component MainWindow inherits Window {
                 change-language(language) => { root.change-language(language); }
                 change-theme-preference(preference) => { root.change-theme-preference(preference); }
                 reset => { root.reset-settings(); }
+                validate => { root.validate-settings(); }
                 select-yt-dlp(title) => { root.select-yt-dlp(title); }
                 select-ffmpeg(title) => { root.select-ffmpeg(title); }
                 select-download-directory(title) => { root.select-download-directory(title); }
@@ -151,7 +145,6 @@ export component MainWindow inherits Window {
     }
 
     ToastHost {
-        theme: root.theme;
         toasts: root.toasts;
         dismissed(id) => { root.toast-dismissed(id); }
         width: root.width;
@@ -177,7 +170,6 @@ export component FatalErrorWindow inherits Window {
         VerticalBox {
             padding: 24px;
             spacing: 16px;
-
             Text {
                 text: @tr("Storage initialization failed");
                 color: Theme.danger;

@@ -2,7 +2,6 @@ import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 import { Theme } from "ui/theme.slint";
 
 component NavigationButton inherits Rectangle {
-    in property <ThemeTokens> theme;
     in property <string> label;
     in property <image> icon;
     in property <bool> active;
@@ -57,7 +56,6 @@ component NavigationButton inherits Rectangle {
 }
 
 export component Sidebar inherits Rectangle {
-    in property <ThemeTokens> theme;
     in-out property <int> selected-page;
     callback refresh-downloads();
 
@@ -81,21 +79,18 @@ export component Sidebar inherits Rectangle {
         }
         Rectangle { height: 16px; }
         NavigationButton {
-            theme: root.theme;
             label: @tr("Welcome");
             icon: Theme.dark ? @image-url("../assets/icons/home-dark.svg") : @image-url("../assets/icons/home.svg");
             active: root.selected-page == 0;
             clicked => { root.selected-page = 0; }
         }
         NavigationButton {
-            theme: root.theme;
             label: @tr("Search");
             icon: Theme.dark ? @image-url("../assets/icons/search-dark.svg") : @image-url("../assets/icons/search.svg");
             active: root.selected-page == 1;
             clicked => { root.selected-page = 1; }
         }
         NavigationButton {
-            theme: root.theme;
             label: @tr("Download tasks");
             icon: Theme.dark ? @image-url("../assets/icons/bookmark-dark.svg") : @image-url("../assets/icons/bookmark.svg");
             active: root.selected-page == 2;
@@ -105,7 +100,6 @@ export component Sidebar inherits Rectangle {
             }
         }
         NavigationButton {
-            theme: root.theme;
             label: @tr("Settings");
             icon: Theme.dark ? @image-url("../assets/icons/settings-dark.svg") : @image-url("../assets/icons/settings.svg");
             active: root.selected-page == 3;

@@ -3,7 +3,6 @@ import { Theme } from "theme.slint";
 import { DownloadRow } from "types.slint";
 
 export component DownloadsPage inherits Rectangle {
-    in property <ThemeTokens> theme;
     in property <[DownloadRow]> downloads;
     in property <int> message-kind;
     in property <string> message-argument;

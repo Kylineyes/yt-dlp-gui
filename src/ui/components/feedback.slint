@@ -4,9 +4,22 @@ import { ToastData, ToastKind } from "../types.slint";
 
 export enum ValidationStatus { checking, valid, invalid }
 
+export component ValidationIndicator inherits Rectangle {
+    in property <ValidationStatus> status;
+
+    width: 20px;
+    height: 20px;
+    Image {
+        source: root.status == ValidationStatus.valid ? @image-url("../../../assets/icons/status-valid.svg") :
+                root.status == ValidationStatus.invalid ? @image-url("../../../assets/icons/status-invalid.svg") :
+                @image-url("../../../assets/icons/status-checking.svg");
+        image-fit: contain;
+        accessible-label: root.status == ValidationStatus.valid ? @tr("Valid") :
+                          root.status == ValidationStatus.invalid ? @tr("Invalid") : @tr("Checking");
+    }
+}
 
 component ToastItem inherits Rectangle {
-    in property <ThemeTokens> theme;
     in property <ToastData> data;
     callback dismissed(int);
     private property <float> visual-opacity: 0;
@@ -124,7 +137,6 @@ component ToastItem inherits Rectangle {
 }
 
 export component ToastHost inherits Rectangle {
-    in property <ThemeTokens> theme;
     in property <[ToastData]> toasts;
     callback dismissed(int);
 
@@ -137,7 +149,6 @@ export component ToastHost inherits Rectangle {
         for toast in root.toasts : Rectangle {
             height: 72px;
             toast-item := ToastItem {
-                theme: root.theme;
                 x: (parent.width - self.width) / 2;
                 data: toast;
                 dismissed(id) => { root.dismissed(id); }
