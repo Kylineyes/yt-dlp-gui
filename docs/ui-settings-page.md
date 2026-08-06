@@ -41,6 +41,7 @@ Use the common form label, control height, spacing, error, and focus tokens. Do 
 - Save is disabled while `pending-save` is true. Rust validates all settings and persists only valid settings.
 - Restore defaults updates the form and shows an informational message; it does not replace Save.
 - Language selection updates the bundled translation and keeps the `language` property in sync.
+- Appearance offers Follow system, Light, and Dark. It previews immediately, persists through Save settings, and returns to Follow system through Restore defaults.
 - The concurrency control is bounded to 1–16. The current product limitation is shown as a warning message.
 
 ## Validation states

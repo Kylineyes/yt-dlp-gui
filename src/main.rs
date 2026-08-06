@@ -7,11 +7,14 @@ mod storage;
 slint::include_modules!();
 
 use app::settings_validation::{SettingsValidation, ValidationError, validate_settings};
-use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload};
+use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload, ThemePreference};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
 use fatal_error_window::FatalErrorController;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel};
 use std::cell::RefCell;
+use prompt_window::{PromptConfirmAction, PromptController};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel};
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{
     Arc,
@@ -249,6 +252,14 @@ fn install_callbacks(
                     error.to_string(),
                 ),
             }
+        }
+    });
+
+    let weak = window.as_weak();
+    window.on_change_theme_preference(move |preference| {
+        if let Some(window) = weak.upgrade() {
+            let preference = ThemePreference::from_storage(preference.as_str());
+            window.set_theme_preference(preference.as_storage().into());
         }
     });
 
@@ -547,6 +558,7 @@ fn settings_from_window(window: &MainWindow) -> AppSettings {
         proxy: window.get_proxy().to_string(),
         max_concurrency: window.get_max_concurrency().clamp(1, 16) as u32,
         language: window.get_language().to_string(),
+        theme_preference: ThemePreference::from_storage(window.get_theme_preference().as_str()),
     }
 }
 
@@ -557,6 +569,7 @@ fn apply_settings(window: &MainWindow, settings: &AppSettings) {
     window.set_search_output_directory(settings.default_download_directory.clone().into());
     window.set_proxy(settings.proxy.clone().into());
     window.set_max_concurrency(settings.max_concurrency as i32);
+    window.set_theme_preference(settings.theme_preference.as_storage().into());
     if slint::select_bundled_translation(&settings.language).is_ok() {
         window.set_language(settings.language.clone().into());
     }

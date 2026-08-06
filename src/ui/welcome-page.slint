@@ -1,13 +1,14 @@
 import { VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { Theme } from "theme.slint";
 
 component StepCard inherits Rectangle {
     in property <string> step-number;
     in property <string> step-title;
     in property <styled-text> step-description;
 
-    background: #FFFFFF;
+    background: Theme.surface-card;
     border-width: 1px;
-    border-color: #D9DEE7;
+    border-color: Theme.border-default;
     border-radius: 8px;
     horizontal-stretch: 1;
 
@@ -16,19 +17,19 @@ component StepCard inherits Rectangle {
         spacing: 8px;
         Text {
             text: root.step-number;
-            color: #2563EB;
+            color: Theme.accent;
             font-size: 14px;
             font-weight: 600;
         }
         Text {
             text: root.step-title;
-            color: #1F2937;
+            color: Theme.text-primary;
             font-size: 16px;
             font-weight: 600;
         }
         StyledText {
             text: root.step-description;
-            default-color: #5B6472;
+            default-color: Theme.text-secondary;
             default-font-size: 14px;
             vertical-stretch: 1;
         }
@@ -38,7 +39,7 @@ component StepCard inherits Rectangle {
 export component WelcomePage inherits Rectangle {
     pure callback format-step-description(string) -> styled-text;
 
-    background: #F7F8FA;
+    background: Theme.surface-page;
 
     VerticalBox {
         padding: 24px;
@@ -48,13 +49,13 @@ export component WelcomePage inherits Rectangle {
             spacing: 8px;
             Text {
                 text: @tr("Welcome");
-                color: #1F2937;
+                color: Theme.text-primary;
                 font-size: 28px;
                 font-weight: 600;
             }
             Text {
                 text: @tr("A desktop interface for creating and managing yt-dlp download tasks");
-                color: #5B6472;
+                color: Theme.text-secondary;
                 font-size: 16px;
                 wrap: word-wrap;
             }
@@ -62,9 +63,9 @@ export component WelcomePage inherits Rectangle {
 
         // Summarize the capabilities available in this version.
         Rectangle {
-            background: #FFFFFF;
+            background: Theme.surface-card;
             border-width: 1px;
-            border-color: #D9DEE7;
+            border-color: Theme.border-default;
             border-radius: 8px;
 
             VerticalBox {
@@ -72,13 +73,13 @@ export component WelcomePage inherits Rectangle {
                 spacing: 8px;
                 Text {
                     text: @tr("What this tool does");
-                    color: #1F2937;
+                    color: Theme.text-primary;
                     font-size: 16px;
                     font-weight: 600;
                 }
                 Text {
                     text: @tr("Configure yt-dlp, prepare and save download tasks, start downloads, and track their status in one place.");
-                    color: #5B6472;
+                    color: Theme.text-secondary;
                     font-size: 14px;
                     wrap: word-wrap;
                 }
@@ -89,7 +90,7 @@ export component WelcomePage inherits Rectangle {
             spacing: 12px;
             Text {
                 text: @tr("How to use it");
-                color: #1F2937;
+                color: Theme.text-primary;
                 font-size: 20px;
                 font-weight: 600;
             }
@@ -115,9 +116,9 @@ export component WelcomePage inherits Rectangle {
 
         // Acknowledge project dependencies without introducing another action.
         Rectangle {
-            background: #FFFFFF;
+            background: Theme.surface-card;
             border-width: 1px;
-            border-color: #D9DEE7;
+            border-color: Theme.border-default;
             border-radius: 8px;
 
             HorizontalBox {
@@ -128,50 +129,50 @@ export component WelcomePage inherits Rectangle {
                     spacing: 8px;
                     Text {
                         text: @tr("Built with Rust and Slint");
-                        color: #1F2937;
+                        color: Theme.text-primary;
                         font-size: 16px;
                         font-weight: 600;
                     }
                     Text {
                         text: @tr("Powered by yt-dlp, ytd-rs, Tokio, rusqlite, SQLite, Serde, and serde_json.");
-                        color: #5B6472;
+                        color: Theme.text-secondary;
                         font-size: 14px;
                         wrap: word-wrap;
                     }
                     Text {
                         text: @tr("FFmpeg is used as an external tool for media post-processing when needed.");
-                        color: #5B6472;
+                        color: Theme.text-secondary;
                         font-size: 14px;
                         wrap: word-wrap;
                     }
                     Text {
                         text: @tr("Thanks to these projects and the open-source community.");
-                        color: #5B6472;
+                        color: Theme.text-secondary;
                         font-size: 14px;
                         wrap: word-wrap;
                     }
                 }
                 Rectangle {
                     width: 1px;
-                    background: #D9DEE7;
+                    background: Theme.border-default;
                 }
                 VerticalBox {
                     horizontal-stretch: 2;
                     spacing: 8px;
                     Text {
                         text: @tr("Project repository");
-                        color: #1F2937;
+                        color: Theme.text-primary;
                         font-size: 16px;
                         font-weight: 600;
                     }
                     Rectangle {
                         height: repository-url.preferred-height;
                         width: repository-url.preferred-width;
-                        background: link-area.pressed ? #DBEAFE : link-area.has-hover ? #EFF6FF : transparent;
+                        background: link-area.pressed ? Theme.surface-selected : link-area.has-hover ? Theme.surface-hover : transparent;
                         border-radius: 6px;
                         repository-url := Text {
                             text: @tr("https://github.com/Kylineyes/yt-dlp-gui");
-                            color: link-area.pressed ? #1E40AF : link-area.has-hover ? #1D4ED8 : #2563EB;
+                            color: link-area.pressed ? Theme.accent-pressed : link-area.has-hover ? Theme.accent-hover : Theme.accent;
                             font-size: 14px;
                             accessible-label: @tr("Open the yt-dlp GUI project repository");
                         }

@@ -1,5 +1,6 @@
-import { Button, HorizontalBox, TextEdit, VerticalBox } from "std-widgets.slint";
+import { Button, HorizontalBox, Palette, TextEdit, VerticalBox } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
+import { Theme } from "ui/theme.slint";
 import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
 import { ToastHost, ValidationStatus } from "ui/components/feedback.slint";
 import { SettingsPage } from "ui/settings-page.slint";
@@ -19,6 +20,8 @@ export component MainWindow inherits Window {
     in-out property <string> proxy;
     in-out property <int> max-concurrency: 1;
     in-out property <string> language: "zh-CN";
+    in-out property <string> theme-preference: "system";
+
     in-out property <ValidationStatus> yt-dlp-status: ValidationStatus.checking;
     in-out property <ValidationStatus> ffmpeg-status: ValidationStatus.checking;
     in-out property <ValidationStatus> download-directory-status: ValidationStatus.checking;
@@ -49,6 +52,7 @@ export component MainWindow inherits Window {
 
     callback save-settings();
     callback change-language(string);
+    callback change-theme-preference(string);
     callback reset-settings();
     callback validate-settings(int);
     callback select-yt-dlp(string);
@@ -65,6 +69,15 @@ export component MainWindow inherits Window {
     callback toast-dismissed(int);
     callback window-closed();
     pure callback format-step-description(string) -> styled-text;
+
+    in-out property <string> prompt-detail;
+    out property <string> storage-initialization-title: @tr("Storage initialization failed");
+    out property <string> storage-initialization-message: @tr("The application could not create or initialize its database file. Check the directory containing the application executable and make sure the current user can create and update files there.\n\nTechnical details: {}", root.prompt-detail);
+
+    changed selected-page => { root.page-changed(root.selected-page); }
+    changed theme-preference => {
+        Palette.color-scheme = root.theme-preference == "dark" ? ColorScheme.dark : root.theme-preference == "light" ? ColorScheme.light : ColorScheme.unknown;
+    }
 
     HorizontalBox {
         spacing: 0px;
@@ -110,6 +123,7 @@ export component MainWindow inherits Window {
                 proxy <=> root.proxy;
                 max-concurrency <=> root.max-concurrency;
                 language <=> root.language;
+                theme-preference <=> root.theme-preference;
                 yt-dlp-status <=> root.yt-dlp-status;
                 ffmpeg-status <=> root.ffmpeg-status;
                 download-directory-status <=> root.download-directory-status;
@@ -125,6 +139,7 @@ export component MainWindow inherits Window {
                 message-argument: root.settings-message-argument;
                 save => { root.save-settings(); }
                 change-language(language) => { root.change-language(language); }
+                change-theme-preference(preference) => { root.change-theme-preference(preference); }
                 reset => { root.reset-settings(); }
                 validate(field) => { root.validate-settings(field); }
                 select-yt-dlp(title) => { root.select-yt-dlp(title); }
@@ -177,6 +192,17 @@ export component FatalErrorWindow inherits Window {
                 text: @tr("Check the directory containing the application executable and make sure the current user can create and update files there.");
                 color: #5B6472;
                 font-size: 14px;
+        Rectangle {
+            vertical-stretch: 1;
+            background: Theme.surface-muted;
+            border-width: 1px;
+            border-color: Theme.border-default;
+            border-radius: 6px;
+            TextEdit {
+                width: parent.width;
+                height: parent.height;
+                text: root.prompt-message;
+                read-only: true;
                 wrap: word-wrap;
             }
             Button {

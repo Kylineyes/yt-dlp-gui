@@ -1,5 +1,6 @@
-import { HorizontalBox, VerticalBox } from "std-widgets.slint";
-import { ToastData, ToastKind } from "../types.slint";
+import { Button, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { ToastData } from "../types.slint";
 
 export enum ValidationStatus { checking, valid, invalid }
 
@@ -33,12 +34,13 @@ component ToastItem inherits Rectangle {
         duration: root.closing ? 240ms : (root.data.kind == ToastKind.success ? 3000ms : 6000ms);
         easing: linear;
     }
-    height: 72px;
-    width: 440px;
-    background: root.data.kind == ToastKind.success ? #15803D : #C42B1C;
-    border-radius: 8px;
+    height: 64px;
+    width: content.preferred-width;
+    background: root.data.kind == 0 ? Theme.toast-success : Theme.toast-danger;
+    border-radius: 7px;
     drop-shadow-blur: 8px;
-    drop-shadow-color: #66000000;
+    drop-shadow-color: Theme.shadow;
+    // Keep entrance fast while giving dismissal a clearly visible fade.
     animate visual-opacity { duration: root.closing ? 240ms : 80ms; easing: ease-in-out; }
 
     init => {
@@ -87,9 +89,7 @@ component ToastItem inherits Rectangle {
             text: root.data.kind == ToastKind.success ? @tr("Settings saved") :
                   root.data.kind == ToastKind.validation-error ? @tr("Fix invalid settings before saving") :
                   root.data.detail == "" ? @tr("Operation failed") : @tr("Operation failed: {}", root.data.detail);
-            color: #FFFFFF;
-            font-size: 14px;
-            wrap: word-wrap;
+            color: Theme.text-on-solid;
             vertical-alignment: center;
             horizontal-stretch: 1;
             accessible-label: root.data.kind == ToastKind.success ? @tr("Success") :
@@ -126,13 +126,13 @@ component ToastItem inherits Rectangle {
         width: root.width;
         height: 3px;
         clip: true;
-        background: #FFFFFF33;
+        background: Theme.text-on-solid.with-alpha(0.2);
         countdown-bar := Rectangle {
             x: parent.width - self.width;
             y: 0px;
             width: parent.width * root.countdown-progress;
             height: parent.height;
-            background: #FFFFFFCC;
+            background: Theme.text-on-solid.with-alpha(0.8);
         }
     }
 }

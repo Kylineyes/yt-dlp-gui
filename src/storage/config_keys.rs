@@ -6,6 +6,7 @@ pub(super) const DEFAULT_DOWNLOAD_DIRECTORY: &str = "default_download_directory"
 pub(super) const PROXY: &str = "proxy";
 pub(super) const MAX_CONCURRENCY: &str = "max_concurrency";
 pub(super) const LANGUAGE: &str = "language";
+pub(super) const THEME_PREFERENCE: &str = "theme_preference";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AppConfigKey {
@@ -15,15 +16,17 @@ pub(super) enum AppConfigKey {
     Proxy,
     MaxConcurrency,
     Language,
+    ThemePreference,
 }
 
-pub(super) const ALL_CONFIG_KEYS: [AppConfigKey; 6] = [
+pub(super) const ALL_CONFIG_KEYS: [AppConfigKey; 7] = [
     AppConfigKey::YtDlpPath,
     AppConfigKey::FfmpegPath,
     AppConfigKey::DefaultDownloadDirectory,
     AppConfigKey::Proxy,
     AppConfigKey::MaxConcurrency,
     AppConfigKey::Language,
+    AppConfigKey::ThemePreference,
 ];
 
 impl AppConfigKey {
@@ -35,6 +38,7 @@ impl AppConfigKey {
             Self::Proxy => PROXY,
             Self::MaxConcurrency => MAX_CONCURRENCY,
             Self::Language => LANGUAGE,
+            Self::ThemePreference => THEME_PREFERENCE,
         }
     }
 
@@ -46,6 +50,7 @@ impl AppConfigKey {
             Self::Proxy => settings.proxy.clone(),
             Self::MaxConcurrency => settings.max_concurrency.to_string(),
             Self::Language => settings.language.clone(),
+            Self::ThemePreference => settings.theme_preference.as_storage().into(),
         }
     }
 
@@ -61,6 +66,10 @@ impl AppConfigKey {
                 }
             }
             Self::Language => settings.language = value,
+            Self::ThemePreference => {
+                settings.theme_preference =
+                    crate::app::state::ThemePreference::from_storage(&value);
+            }
         }
     }
 }
