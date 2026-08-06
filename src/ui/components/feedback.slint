@@ -2,6 +2,7 @@ import { Button, HorizontalBox, VerticalBox } from "std-widgets.slint";
 import { Theme } from "../theme.slint";
 import { ToastData, ToastKind } from "../types.slint";
 
+export enum ToastKind { success, error, validation-error }
 export enum ValidationStatus { checking, valid, invalid }
 
 export component ValidationIndicator inherits Rectangle {
@@ -18,7 +19,6 @@ export component ValidationIndicator inherits Rectangle {
                           root.status == ValidationStatus.invalid ? @tr("Invalid") : @tr("Checking");
     }
 }
-
 component ToastItem inherits Rectangle {
     in property <ToastData> data;
     callback dismissed(int);

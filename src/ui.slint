@@ -1,4 +1,4 @@
-import { Button, HorizontalBox, TextEdit, VerticalBox } from "std-widgets.slint";
+import { Button, HorizontalBox, Palette, TextEdit, VerticalBox } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
 import { Theme } from "ui/theme.slint";
 import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
@@ -67,12 +67,16 @@ export component MainWindow inherits Window {
     callback start-download(int);
     callback pause-download(int);
     callback toast-dismissed(int);
+    callback page-changed(int);
     callback window-closed();
     pure callback format-step-description(string) -> styled-text;
 
     out property <string> storage-initialization-title: @tr("Storage initialization failed");
     out property <string> storage-initialization-message: @tr("The application could not create or initialize its database file. Check the directory containing the application executable and make sure the current user can create and update files there.\n\nTechnical details: {}", root.prompt-detail);
 
+    changed theme-preference => {
+        Palette.color-scheme = root.theme-preference == "light" ? ColorScheme.light : root.theme-preference == "dark" ? ColorScheme.dark : ColorScheme.unknown;
+    }
 
     HorizontalBox {
         spacing: 0px;
@@ -119,10 +123,6 @@ export component MainWindow inherits Window {
                 max-concurrency <=> root.max-concurrency;
                 language <=> root.language;
                 theme-preference <=> root.theme-preference;
-                yt-dlp-status <=> root.yt-dlp-status;
-                ffmpeg-status <=> root.ffmpeg-status;
-                download-directory-status <=> root.download-directory-status;
-                proxy-status <=> root.proxy-status;
                 yt-dlp-error-kind <=> root.yt-dlp-error-kind;
                 ffmpeg-error-kind <=> root.ffmpeg-error-kind;
                 download-directory-error-kind <=> root.download-directory-error-kind;
@@ -133,10 +133,10 @@ export component MainWindow inherits Window {
                 message-kind: root.settings-message-kind;
                 message-argument: root.settings-message-argument;
                 save => { root.save-settings(); }
+                validate => { root.validate-settings(); }
                 change-language(language) => { root.change-language(language); }
                 change-theme-preference(preference) => { root.change-theme-preference(preference); }
                 reset => { root.reset-settings(); }
-                validate => { root.validate-settings(); }
                 select-yt-dlp(title) => { root.select-yt-dlp(title); }
                 select-ffmpeg(title) => { root.select-ffmpeg(title); }
                 select-download-directory(title) => { root.select-download-directory(title); }
@@ -165,8 +165,7 @@ export component FatalErrorWindow inherits Window {
     max-height: root.error-log-visible ? 520px : 320px;
 
     Rectangle {
-        background: Theme.surface-page;
-
+        background: Theme.surface-window;
         VerticalBox {
             padding: 24px;
             spacing: 16px;
