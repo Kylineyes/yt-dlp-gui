@@ -129,7 +129,7 @@ fn validate_download_directory(value: &str) -> ValidationError {
 }
 
 fn has_surrounding_whitespace(value: &str) -> bool {
-    value != value.trim()
+    value != value.trim() || value.contains(['\r', '\n'])
 }
 
 fn command_succeeds(program: &Path, version_argument: &str) -> bool {
@@ -188,6 +188,22 @@ mod tests {
         );
         assert_eq!(
             validate_download_directory(" C:/downloads"),
+            ValidationError::SurroundingWhitespace
+        );
+    }
+
+    #[test]
+    fn rejects_line_breaks_in_paths_before_probe_or_filesystem_checks() {
+        assert_eq!(
+            validate_yt_dlp("C:/tools/yt\n-dlp.exe"),
+            ValidationError::SurroundingWhitespace
+        );
+        assert_eq!(
+            validate_ffmpeg("C:/tools/ff\r\nmpg.exe"),
+            ValidationError::SurroundingWhitespace
+        );
+        assert_eq!(
+            validate_download_directory("C:/downloads\rarchive"),
             ValidationError::SurroundingWhitespace
         );
     }

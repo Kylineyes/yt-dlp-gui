@@ -3,22 +3,6 @@ import { Theme } from "../theme.slint";
 import { ToastData, ToastKind } from "../types.slint";
 
 export enum ToastKind { success, error, validation-error }
-export enum ValidationStatus { checking, valid, invalid }
-
-export component ValidationIndicator inherits Rectangle {
-    in property <ValidationStatus> status;
-
-    width: 20px;
-    height: 20px;
-    Image {
-        source: root.status == ValidationStatus.valid ? @image-url("../../../assets/icons/status-valid.svg") :
-                root.status == ValidationStatus.invalid ? @image-url("../../../assets/icons/status-invalid.svg") :
-                @image-url("../../../assets/icons/status-checking.svg");
-        image-fit: contain;
-        accessible-label: root.status == ValidationStatus.valid ? @tr("Valid") :
-                          root.status == ValidationStatus.invalid ? @tr("Invalid") : @tr("Checking");
-    }
-}
 component ToastItem inherits Rectangle {
     in property <ToastData> data;
     callback dismissed(int);
