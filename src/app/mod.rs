@@ -31,7 +31,14 @@ pub enum ErrorKind {
 #[derive(Debug)]
 pub enum WorkerEvent {
     Ready,
-    StorageInitializationFailed { detail: String },
+    StorageInitializationFailed {
+        detail: String,
+    },
+    #[allow(dead_code)]
+    MessageDialogRequested {
+        title: String,
+        message: String,
+    },
     SettingsLoaded(AppSettings),
     SettingsSaved(AppSettings),
     SearchCompleted(SearchResult),
@@ -45,12 +52,40 @@ pub enum WorkerEvent {
         detail: String,
     },
     DownloadsLoaded(Vec<DownloadRecord>),
-    DownloadStarted { id: i64 },
-    LogLine { id: i64, line: String },
-    DownloadFinished { id: i64 },
-    DownloadFailed { id: i64, message: String },
-    Notice { kind: NoticeKind, argument: String },
-    Error { kind: ErrorKind, detail: String },
+    DownloadStarted {
+        id: i64,
+    },
+    LogLine {
+        id: i64,
+        line: String,
+    },
+    DownloadFinished {
+        id: i64,
+    },
+    DownloadFailed {
+        id: i64,
+        message: String,
+    },
+    Notice {
+        kind: NoticeKind,
+        argument: String,
+    },
+    Error {
+        kind: ErrorKind,
+        detail: String,
+    },
+}
+
+#[allow(dead_code)]
+pub fn request_message_dialog(
+    events: &UnboundedSender<WorkerEvent>,
+    title: impl Into<String>,
+    message: impl Into<String>,
+) {
+    let _ = events.send(WorkerEvent::MessageDialogRequested {
+        title: title.into(),
+        message: message.into(),
+    });
 }
 
 pub fn spawn_worker(
@@ -308,6 +343,27 @@ mod tests {
     use crate::error::{AppError, StorageStage};
     use std::path::PathBuf;
     use tokio::sync::mpsc::error::TryRecvError;
+
+    #[test]
+    fn message_dialog_request_preserves_title_and_message() {
+        let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        request_message_dialog(
+            &events,
+            "Download complete",
+            "The file was saved to the selected directory",
+        );
+
+        match receiver
+            .try_recv()
+            .expect("Expected a message dialog request")
+        {
+            WorkerEvent::MessageDialogRequested { title, message } => {
+                assert_eq!(title, "Download complete");
+                assert_eq!(message, "The file was saved to the selected directory");
+            }
+            other => panic!("Expected a message dialog request, got {other:?}"),
+        }
+    }
 
     #[test]
     fn storage_initialization_failure_sends_dedicated_event() {
