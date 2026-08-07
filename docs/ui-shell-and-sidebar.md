@@ -45,7 +45,7 @@ The current navigation button owns page selection. Selecting Download tasks also
 
 ## Shell feedback
 
-`ToastHost` is placed above page content with `z: 10`. Its lifecycle and semantic colors are defined in [`ui-feedback-and-errors.md`](ui-feedback-and-errors.md). `FatalErrorWindow` is also a shell-level component and must follow that document rather than introducing page-specific error styling.
+`ToastHost` is placed above page content with `z: 10`. Its lifecycle and semantic colors are defined in [`ui-feedback-and-errors.md`](ui-feedback-and-errors.md). `FatalErrorWindow` and `MessageDialog` are shell-level native-modal components managed by the main window; they must follow that document rather than introducing page-specific feedback styling.
 
 ## Acceptance criteria
 

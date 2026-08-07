@@ -155,6 +155,49 @@ export component MainWindow inherits Window {
     }
 }
 
+export component MessageDialog inherits Window {
+    in property <string> dialog-title;
+    in property <string> message;
+    callback confirmed();
+
+    title: root.dialog-title;
+    min-width: 440px;
+    max-width: 440px;
+    min-height: 240px;
+    max-height: 360px;
+
+    Rectangle {
+        background: Theme.surface-window;
+        VerticalBox {
+            padding: 24px;
+            spacing: 16px;
+            Text {
+                text: root.dialog-title;
+                color: Theme.text-primary;
+                font-size: 20px;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+            Text {
+                text: root.message;
+                color: Theme.text-secondary;
+                font-size: 14px;
+                wrap: word-wrap;
+                vertical-stretch: 1;
+            }
+            HorizontalBox {
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    height: 36px;
+                    text: @tr("OK");
+                    primary: true;
+                    clicked => { root.confirmed(); }
+                }
+            }
+        }
+    }
+}
+
 export component FatalErrorWindow inherits Window {
     in property <string> error-log;
     in-out property <bool> error-log-visible: false;

@@ -2,6 +2,8 @@ mod app;
 mod download;
 mod error;
 mod fatal_error_window;
+mod message_dialog;
+mod native_modal;
 mod storage;
 mod theme;
 
@@ -11,6 +13,7 @@ use app::settings_validation::{SettingsValidation, ValidationError, validate_set
 use app::state::{AppSettings, DownloadRecord, MediaStream, NewDownload, ThemePreference};
 use app::{ErrorKind, NoticeKind, UiCommand, WorkerEvent};
 use fatal_error_window::FatalErrorController;
+use message_dialog::MessageDialogController;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, StyledText, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -61,17 +64,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let next_toast_id = Arc::new(AtomicI32::new(1));
 
     let fatal_error_controller = Rc::new(RefCell::new(FatalErrorController::new(window.as_weak())));
+    let message_dialog_controller =
+        Rc::new(RefCell::new(MessageDialogController::new(window.as_weak())));
 
     let _event_pump = install_event_pump(
         &window,
         event_receiver,
         fatal_error_controller.clone(),
+        message_dialog_controller.clone(),
         next_toast_id.clone(),
     );
     install_callbacks(&window, command_sender.clone(), toasts, next_toast_id);
     let _system_theme_pump = install_system_theme_pump(&window);
 
     window.run()?;
+    message_dialog_controller.borrow_mut().hide();
     fatal_error_controller.borrow_mut().hide();
     let _ = command_sender.send(UiCommand::Shutdown);
     let _ = worker.join();
@@ -100,6 +107,7 @@ fn install_event_pump(
     window: &MainWindow,
     mut event_receiver: tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>,
     fatal_error_controller: Rc<RefCell<FatalErrorController>>,
+    message_dialog_controller: Rc<RefCell<MessageDialogController>>,
     next_toast_id: Arc<AtomicI32>,
 ) -> slint::Timer {
     let timer = slint::Timer::default();
@@ -112,9 +120,16 @@ fn install_event_pump(
                 return;
             };
             while let Ok(event) = event_receiver.try_recv() {
-                apply_event(&window, event, &fatal_error_controller, &next_toast_id);
+                apply_event(
+                    &window,
+                    event,
+                    &fatal_error_controller,
+                    &message_dialog_controller,
+                    &next_toast_id,
+                );
             }
             fatal_error_controller.borrow_mut().ensure_native_modal();
+            message_dialog_controller.borrow_mut().ensure_native_modal();
         },
     );
     timer
@@ -124,6 +139,7 @@ fn apply_event(
     window: &MainWindow,
     event: WorkerEvent,
     fatal_error_controller: &Rc<RefCell<FatalErrorController>>,
+    message_dialog_controller: &Rc<RefCell<MessageDialogController>>,
     next_toast_id: &AtomicI32,
 ) {
     match event {
@@ -135,6 +151,12 @@ fn apply_event(
             let created = fatal_error_controller.borrow_mut().show(detail);
             if created {
                 install_fatal_error_callback(fatal_error_controller.clone());
+            }
+        }
+        WorkerEvent::MessageDialogRequested { title, message } => {
+            let created = message_dialog_controller.borrow_mut().show(title, message);
+            if created {
+                install_message_dialog_callback(message_dialog_controller.clone());
             }
         }
         WorkerEvent::SettingsLoaded(settings) => apply_settings(window, &settings),
@@ -220,6 +242,15 @@ fn apply_event(
             ErrorKind::General => show_toast(window, next_toast_id, ToastKind::Error, &detail),
         },
     }
+}
+
+fn install_message_dialog_callback(controller: Rc<RefCell<MessageDialogController>>) {
+    controller.borrow().with_window(|window| {
+        let callback_controller = controller.clone();
+        window.on_confirmed(move || {
+            callback_controller.borrow_mut().hide();
+        });
+    });
 }
 
 fn install_fatal_error_callback(controller: Rc<RefCell<FatalErrorController>>) {

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document covers `src/ui/components/feedback.slint` and `FatalErrorWindow` in `src/ui.slint`. Shared visual values come from [`ui-design-system.md`](ui-design-system.md).
+This document covers `src/ui/components/feedback.slint`, `FatalErrorWindow`, and `MessageDialog` in `src/ui.slint`. Shared visual values come from [`ui-design-system.md`](ui-design-system.md).
 
 ## Toast
 
@@ -38,9 +38,19 @@ The fatal error window is a native-modal shell error for storage initialization 
 
 The error log uses a muted card surface and default border. The window may expand to show the log but must retain readable padding and button grouping. Error content must remain textual and must not rely only on red styling.
 
+## MessageDialog
+
+`MessageDialog` is a shell-owned, single-instance native modal for general program messages. Program code supplies a dynamic title and message; a repeated request updates and activates the existing dialog instead of stacking a second native modal.
+
+The dialog uses `Theme.surface-window`, `Theme.text-primary` for its 20px / 600 title, and `Theme.text-secondary` for its 14px wrapping body. It uses 24px padding, 16px content spacing, and a right-aligned 36px primary `OK` button. These Theme roles must provide the same readable hierarchy in Light, Dark, and Follow system modes; do not use FatalErrorWindow's danger styling for general messages.
+
+The `OK` button is the only dismissal path and only closes MessageDialog. The main window is disabled while the dialog is visible. The title bar's minimize, maximize, and close commands are unavailable, and Slint keeps the window shown for close requests. Confirming MessageDialog must not quit the application.
+
+Static dialog controls use `@tr(...)`. Dynamic title and message values are runtime data; fixed application copy must still originate from translated Slint strings rather than Rust-built sentences.
+
 ## Rust/UI boundary
 
-Rust decides when to emit worker errors, validation results, and fatal storage errors. Slint presents them, starts or stops local visual timers, and emits dismiss/confirmation callbacks. Do not perform persistence or download work in these components.
+Rust decides when to emit worker errors, validation results, fatal storage errors, and message dialog requests. Slint presents them, starts or stops local visual timers, and emits dismiss/confirmation callbacks. Do not perform persistence or download work in these components.
 
 ## Internationalization and acceptance
 

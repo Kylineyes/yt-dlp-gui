@@ -1,17 +1,17 @@
 #[cfg(windows)]
 use crate::native_modal::NativeModal;
-use crate::{FatalErrorWindow, MainWindow};
+use crate::{MainWindow, MessageDialog};
 use slint::{CloseRequestResponse, ComponentHandle, SharedString, Weak};
 
-/// Owns the fatal error window and its native owner relationship.
-pub(crate) struct FatalErrorController {
-    window: Option<FatalErrorWindow>,
+/// Owns the single general-purpose message dialog and its modal relationship.
+pub(crate) struct MessageDialogController {
+    window: Option<MessageDialog>,
     main_window: Weak<MainWindow>,
     #[cfg(windows)]
     native: Option<NativeModal>,
 }
 
-impl FatalErrorController {
+impl MessageDialogController {
     pub(crate) fn new(main_window: Weak<MainWindow>) -> Self {
         Self {
             window: None,
@@ -21,12 +21,17 @@ impl FatalErrorController {
         }
     }
 
-    /// Shows the fatal storage error and reports whether a window was created.
-    pub(crate) fn show(&mut self, error_log: impl Into<SharedString>) -> bool {
-        let error_log = error_log.into();
+    /// Shows a message and reports whether a dialog window was created.
+    pub(crate) fn show(
+        &mut self,
+        title: impl Into<SharedString>,
+        message: impl Into<SharedString>,
+    ) -> bool {
+        let title = title.into();
+        let message = message.into();
         if let Some(window) = &self.window {
-            window.set_error_log(error_log.clone());
-            window.set_error_log_visible(false);
+            window.set_dialog_title(title.clone());
+            window.set_message(message.clone());
             if window.show().is_ok() {
                 #[cfg(windows)]
                 if let Some(native) = &self.native {
@@ -37,11 +42,11 @@ impl FatalErrorController {
             self.hide();
         }
 
-        let Ok(window) = FatalErrorWindow::new() else {
+        let Ok(window) = MessageDialog::new() else {
             return false;
         };
-        window.set_error_log(error_log);
-        window.set_error_log_visible(false);
+        window.set_dialog_title(title);
+        window.set_message(message);
         window
             .window()
             .on_close_requested(|| CloseRequestResponse::KeepWindowShown);
@@ -70,7 +75,7 @@ impl FatalErrorController {
         }
     }
 
-    pub(crate) fn with_window(&self, callback: impl FnOnce(&FatalErrorWindow)) {
+    pub(crate) fn with_window(&self, callback: impl FnOnce(&MessageDialog)) {
         if let Some(window) = self.window.as_ref() {
             callback(window);
         }
