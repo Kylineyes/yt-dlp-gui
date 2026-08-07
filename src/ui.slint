@@ -2,7 +2,7 @@ import { Button, HorizontalBox, Palette, TextEdit, VerticalBox } from "std-widge
 import { Sidebar } from "sidebar.slint";
 import { Theme } from "ui/theme.slint";
 import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
-import { ToastHost, ValidationStatus } from "ui/components/feedback.slint";
+import { ToastHost } from "ui/components/feedback.slint";
 import { SettingsPage } from "ui/settings-page.slint";
 import { SearchPage } from "ui/search-page.slint";
 import { DownloadsPage } from "ui/downloads-page.slint";
@@ -21,10 +21,7 @@ export component MainWindow inherits Window {
     in-out property <int> max-concurrency: 1;
     in-out property <string> language: "zh-CN";
     in-out property <string> theme-preference: "system";
-    in-out property <ValidationStatus> yt-dlp-status: ValidationStatus.checking;
-    in-out property <ValidationStatus> ffmpeg-status: ValidationStatus.checking;
-    in-out property <ValidationStatus> download-directory-status: ValidationStatus.checking;
-    in-out property <ValidationStatus> proxy-status: ValidationStatus.checking;
+    in-out property <bool> system-dark: false;
     in-out property <int> yt-dlp-error-kind: 0;
     in-out property <int> ffmpeg-error-kind: 0;
     in-out property <int> download-directory-error-kind: 0;
@@ -57,6 +54,8 @@ export component MainWindow inherits Window {
     callback reset-settings();
     callback select-yt-dlp(string);
     callback select-ffmpeg(string);
+    callback use-yt-dlp-from-path();
+    callback use-ffmpeg-from-path();
     callback select-download-directory(string);
     callback select-search-output-directory(string);
     callback search-url-edited();
@@ -77,6 +76,8 @@ export component MainWindow inherits Window {
     changed theme-preference => {
         Palette.color-scheme = root.theme-preference == "light" ? ColorScheme.light : root.theme-preference == "dark" ? ColorScheme.dark : ColorScheme.unknown;
     }
+    init => { Theme.system-dark = root.system-dark; }
+    changed system-dark => { Theme.system-dark = root.system-dark; }
 
     HorizontalBox {
         spacing: 0px;
@@ -133,12 +134,13 @@ export component MainWindow inherits Window {
                 message-kind: root.settings-message-kind;
                 message-argument: root.settings-message-argument;
                 save => { root.save-settings(); }
-                validate => { root.validate-settings(); }
                 change-language(language) => { root.change-language(language); }
                 change-theme-preference(preference) => { root.change-theme-preference(preference); }
                 reset => { root.reset-settings(); }
                 select-yt-dlp(title) => { root.select-yt-dlp(title); }
                 select-ffmpeg(title) => { root.select-ffmpeg(title); }
+                use-yt-dlp-from-path => { root.use-yt-dlp-from-path(); }
+                use-ffmpeg-from-path => { root.use-ffmpeg-from-path(); }
                 select-download-directory(title) => { root.select-download-directory(title); }
             }
         }

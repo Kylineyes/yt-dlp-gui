@@ -4,16 +4,6 @@
 
 This document covers `src/ui/components/feedback.slint` and `FatalErrorWindow` in `src/ui.slint`. Shared visual values come from [`ui-design-system.md`](ui-design-system.md).
 
-## ValidationIndicator
-
-`ValidationIndicator` is a 20px status icon with three states:
-
-- `checking`: validation is in progress.
-- `valid`: the field passed validation.
-- `invalid`: the field requires correction.
-
-Each state has an accessible label (`Checking`, `Valid`, or `Invalid`). The icon supplements the adjacent label and error text; it is not the only state signal.
-
 ## Toast
 
 `ToastHost` is global shell feedback rendered above page content. It must not move or resize the page.
@@ -54,4 +44,4 @@ Rust decides when to emit worker errors, validation results, and fatal storage e
 
 ## Internationalization and acceptance
 
-All toast labels, dismiss text, fatal dialog copy, and error-log controls use `@tr(...)`. Verify success, operation failure, validation failure, manual dismiss, automatic timeout, fatal dialog expansion, and OK exit in both bundled languages. Confirm accessible status labels remain present.
+All toast labels, dismiss text, fatal dialog copy, and error-log controls use `@tr(...)`. Verify success, operation failure, validation failure, manual dismiss, automatic timeout, fatal dialog expansion, and OK exit in both bundled languages.

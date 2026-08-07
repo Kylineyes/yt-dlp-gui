@@ -3,6 +3,7 @@ mod download;
 mod error;
 mod fatal_error_window;
 mod storage;
+mod theme;
 
 slint::include_modules!();
 
@@ -46,6 +47,7 @@ type SharedToastController = Rc<ToastController>;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = MainWindow::new()?;
+    window.set_system_dark(theme::system_is_dark());
     slint::select_bundled_translation("zh-CN")?;
     let (command_sender, command_receiver) = unbounded_channel();
     let (event_sender, event_receiver) = unbounded_channel();
@@ -67,12 +69,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         next_toast_id.clone(),
     );
     install_callbacks(&window, command_sender.clone(), toasts, next_toast_id);
+    let _system_theme_pump = install_system_theme_pump(&window);
 
     window.run()?;
     fatal_error_controller.borrow_mut().hide();
     let _ = command_sender.send(UiCommand::Shutdown);
     let _ = worker.join();
     Ok(())
+}
+
+fn install_system_theme_pump(window: &MainWindow) -> slint::Timer {
+    let timer = slint::Timer::default();
+    let weak_window = window.as_weak();
+    timer.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_millis(500),
+        move || {
+            let Some(window) = weak_window.upgrade() else {
+                return;
+            };
+            if window.get_theme_preference() == "system" {
+                window.set_system_dark(theme::system_is_dark());
+            }
+        },
+    );
+    timer
 }
 
 fn install_event_pump(
@@ -280,12 +301,30 @@ fn install_callbacks(
     });
 
     let weak = window.as_weak();
+    window.on_use_yt_dlp_from_path(move || {
+        if let Some(window) = weak.upgrade()
+            && let Some(path) = first_path_executable("yt-dlp.exe")
+        {
+            window.set_yt_dlp_path(path.to_string_lossy().into_owned().into());
+        }
+    });
+
+    let weak = window.as_weak();
     window.on_select_ffmpeg(move |title| {
         if let Some(window) = weak.upgrade()
             && let Some(path) = rfd::FileDialog::new().set_title(title.as_str()).pick_file()
         {
             window.set_ffmpeg_path(path.to_string_lossy().into_owned().into());
             window.set_ffmpeg_error_kind(0);
+        }
+    });
+
+    let weak = window.as_weak();
+    window.on_use_ffmpeg_from_path(move || {
+        if let Some(window) = weak.upgrade()
+            && let Some(path) = first_path_executable("ffmpeg.exe")
+        {
+            window.set_ffmpeg_path(path.to_string_lossy().into_owned().into());
         }
     });
 
@@ -427,6 +466,21 @@ fn install_callbacks(
     let _ = commands.send(UiCommand::LoadSettings);
 }
 
+fn first_path_executable(executable_name: &str) -> Option<std::path::PathBuf> {
+    std::env::var_os("PATH").and_then(|path| find_path_executable(std::env::split_paths(&path), executable_name))
+}
+
+fn find_path_executable(
+    directories: impl IntoIterator<Item = std::path::PathBuf>,
+    executable_name: &str,
+) -> Option<std::path::PathBuf> {
+    directories
+        .into_iter()
+        .filter(|directory| !directory.as_os_str().is_empty())
+        .map(|directory| directory.join(executable_name))
+        .find(|candidate| candidate.is_file())
+}
+
 fn install_settings_validation(
     window: &MainWindow,
     commands: tokio::sync::mpsc::UnboundedSender<UiCommand>,
@@ -459,9 +513,9 @@ fn install_settings_validation(
                 if let Some(window) = weak.upgrade() {
                     let should_save = window.get_pending_save();
                     apply_validation(&window, validation, &toast_id);
-                    if should_save && validation.is_valid() {
-                        let settings = settings_from_window(&window);
-                        if commands.send(UiCommand::SaveSettings(settings)).is_err() {
+                    if should_save && validation.is_valid()
+                        && commands.send(UiCommand::SaveSettings(settings)).is_err()
+                    {
                             show_toast(
                                 &window,
                                 &toast_id,
@@ -469,7 +523,6 @@ fn install_settings_validation(
                                 "Settings command channel is closed",
                             );
                         }
-                    }
                 }
             });
         });
@@ -617,4 +670,55 @@ fn human_bytes(bytes: i64) -> String {
         }
     }
     format!("{} B", bytes as i64)
+}
+
+#[cfg(test)]
+mod path_lookup_tests {
+    use super::find_path_executable;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    fn test_directory(label: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "yt-dlp-gui-path-lookup-{label}-{}-{}",
+            std::process::id(),
+            TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&path).expect("test directory should be created");
+        path
+    }
+
+    #[test]
+    fn path_lookup_uses_the_first_matching_file() {
+        let first = test_directory("first");
+        let second = test_directory("second");
+        std::fs::write(first.join("yt-dlp.exe"), []).expect("first executable should be created");
+        std::fs::write(second.join("yt-dlp.exe"), []).expect("second executable should be created");
+
+        assert_eq!(
+            find_path_executable([first.clone(), second.clone()], "yt-dlp.exe"),
+            Some(first.join("yt-dlp.exe"))
+        );
+        let _ = std::fs::remove_dir_all(first);
+        let _ = std::fs::remove_dir_all(second);
+    }
+
+    #[test]
+    fn path_lookup_skips_empty_entries_and_directories() {
+        let directory = test_directory("directory");
+        let match_directory = test_directory("match");
+        std::fs::create_dir(directory.join("ffmpeg.exe")).expect("same-named directory should be created");
+        std::fs::write(match_directory.join("ffmpeg.exe"), []).expect("executable should be created");
+
+        assert_eq!(
+            find_path_executable(
+                [std::path::PathBuf::new(), directory.clone(), match_directory.clone()],
+                "ffmpeg.exe"
+            ),
+            Some(match_directory.join("ffmpeg.exe"))
+        );
+        let _ = std::fs::remove_dir_all(directory);
+        let _ = std::fs::remove_dir_all(match_directory);
+    }
 }

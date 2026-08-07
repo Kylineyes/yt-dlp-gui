@@ -65,7 +65,7 @@ Rules:
 
 ### Theme modes
 
-The application supports Light, Dark, and Follow system appearance preferences. Follow system delegates the active color scheme to Slint's platform integration. All custom Slint surfaces and text must consume the active `ThemeTokens` roles rather than hardcoding a light-mode color; standard widgets also follow `Palette.color-scheme`.
+The application supports Light, Dark, and Follow system appearance preferences. Follow system delegates the active color scheme to Slint's platform integration. When `Palette.color-scheme` is `unknown`, custom `Theme` tokens use the Rust-injected `system-dark` platform state, matching the actual Windows application appearance used by standard widgets. The Windows adapter reads `AppsUseLightTheme` and refreshes it periodically while Follow system is selected; missing or unsupported values fall back to light. Standard widgets continue to follow `Palette.color-scheme`. All custom Slint surfaces and text must consume active Theme roles rather than hardcoding a light-mode color.
 
 ### Surfaces and borders
 

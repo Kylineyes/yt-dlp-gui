@@ -309,6 +309,9 @@ msgstr "yt-dlp 集成平台"
 msgid "Browse…"
 msgstr "浏览…"
 
+msgid "Use environment variable"
+msgstr "使用环境变量"
+
 msgid "Load default location"
 msgstr "加载默认位置"
 

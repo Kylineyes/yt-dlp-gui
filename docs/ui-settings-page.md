@@ -36,7 +36,9 @@ Use the common form label, control height, spacing, error, and focus tokens. Do 
 ## Interaction contract
 
 - Editing a field clears its previous save error for that field; it does not run validation immediately.
+- The yt-dlp and FFmpeg rows provide a Use environment variable action before Browse. It scans PATH in order and writes only the first existing matching `.exe`; no match leaves the field unchanged.
 - Browse buttons only update the corresponding file or folder field.
+- Environment path fields are single-line controls. Their save validation rejects residual carriage returns and line feeds from external input.
 - `invalid-revision` focuses and selects the first invalid field after a failed save.
 - Save is disabled while `pending-save` is true. Rust validates all settings as one operation and persists only valid settings.
 - Restore defaults updates the form and shows an informational message; it does not replace Save.
