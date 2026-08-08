@@ -1,5 +1,5 @@
-use super::config_keys::{ALL_CONFIG_KEYS, YT_DLP_PATH};
-use super::{database_path_next_to_executable, Storage, DATABASE_FILE_NAME};
+use super::config_keys::{ALL_CONFIG_KEYS, FFMPEG_PATH, YT_DLP_PATH};
+use super::{DATABASE_FILE_NAME, Storage, database_path_next_to_executable};
 use crate::app::state::{AppSettings, NewDownload, ThemePreference};
 use crate::error::{AppError, StorageStage};
 use std::error::Error;
@@ -81,6 +81,30 @@ fn persists_settings_and_download_progress() {
     let records = storage.list_downloads().expect("tasks should be listed");
     assert_eq!(records[0].downloaded_bytes, 1024);
     assert_eq!(records[0].resource_name, "Test resource");
+}
+
+#[test]
+fn preserves_ffmpeg_path_as_configured() {
+    let storage = Storage::open_or_initialize(":memory:")
+        .expect("in-memory database should initialize defaults");
+    let settings = AppSettings {
+        ffmpeg_path: "C:/tools/ffmpeg.exe".into(),
+        ..AppSettings::default()
+    };
+
+    storage
+        .save_settings(&settings)
+        .expect("settings should be saved");
+
+    assert_eq!(
+        storage
+            .load_settings()
+            .expect("settings should load")
+            .ffmpeg_path,
+        "C:/tools/ffmpeg.exe"
+    );
+    let (value, _) = config_entry(&storage, FFMPEG_PATH);
+    assert_eq!(value, "C:/tools/ffmpeg.exe");
 }
 
 #[test]
