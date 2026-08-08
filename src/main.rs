@@ -72,6 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         event_receiver,
         fatal_error_controller.clone(),
         message_dialog_controller.clone(),
+        command_sender.clone(),
         next_toast_id.clone(),
     );
     install_callbacks(&window, command_sender.clone(), toasts, next_toast_id);
@@ -108,6 +109,7 @@ fn install_event_pump(
     mut event_receiver: tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>,
     fatal_error_controller: Rc<RefCell<FatalErrorController>>,
     message_dialog_controller: Rc<RefCell<MessageDialogController>>,
+    commands: tokio::sync::mpsc::UnboundedSender<UiCommand>,
     next_toast_id: Arc<AtomicI32>,
 ) -> slint::Timer {
     let timer = slint::Timer::default();
@@ -125,6 +127,7 @@ fn install_event_pump(
                     event,
                     &fatal_error_controller,
                     &message_dialog_controller,
+                    &commands,
                     &next_toast_id,
                 );
             }
@@ -140,6 +143,7 @@ fn apply_event(
     event: WorkerEvent,
     fatal_error_controller: &Rc<RefCell<FatalErrorController>>,
     message_dialog_controller: &Rc<RefCell<MessageDialogController>>,
+    commands: &tokio::sync::mpsc::UnboundedSender<UiCommand>,
     next_toast_id: &AtomicI32,
 ) {
     match event {
@@ -153,10 +157,13 @@ fn apply_event(
                 install_fatal_error_callback(fatal_error_controller.clone());
             }
         }
-        WorkerEvent::MessageDialogRequested { title, message } => {
-            let created = message_dialog_controller.borrow_mut().show(title, message);
+        WorkerEvent::MessageDialogRequested { request } => {
+            let created = message_dialog_controller.borrow_mut().enqueue(request);
             if created {
-                install_message_dialog_callback(message_dialog_controller.clone());
+                install_message_dialog_callback(
+                    message_dialog_controller.clone(),
+                    commands.clone(),
+                );
             }
         }
         WorkerEvent::SettingsLoaded(settings) => apply_settings(window, &settings),
@@ -244,11 +251,20 @@ fn apply_event(
     }
 }
 
-fn install_message_dialog_callback(controller: Rc<RefCell<MessageDialogController>>) {
+fn install_message_dialog_callback(
+    controller: Rc<RefCell<MessageDialogController>>,
+    commands: tokio::sync::mpsc::UnboundedSender<UiCommand>,
+) {
     controller.borrow().with_window(|window| {
         let callback_controller = controller.clone();
-        window.on_confirmed(move || {
-            callback_controller.borrow_mut().hide();
+        window.on_button_clicked(move |index| {
+            let Some(response) = callback_controller.borrow_mut().respond(index) else {
+                return;
+            };
+            let _ = commands.send(UiCommand::MessageDialogResponded {
+                request_id: response.request_id,
+                action: response.action,
+            });
         });
     });
 }
@@ -498,7 +514,8 @@ fn install_callbacks(
 }
 
 fn first_path_executable(executable_name: &str) -> Option<std::path::PathBuf> {
-    std::env::var_os("PATH").and_then(|path| find_path_executable(std::env::split_paths(&path), executable_name))
+    std::env::var_os("PATH")
+        .and_then(|path| find_path_executable(std::env::split_paths(&path), executable_name))
 }
 
 fn find_path_executable(
@@ -544,16 +561,17 @@ fn install_settings_validation(
                 if let Some(window) = weak.upgrade() {
                     let should_save = window.get_pending_save();
                     apply_validation(&window, validation, &toast_id);
-                    if should_save && validation.is_valid()
+                    if should_save
+                        && validation.is_valid()
                         && commands.send(UiCommand::SaveSettings(settings)).is_err()
                     {
-                            show_toast(
-                                &window,
-                                &toast_id,
-                                ToastKind::Error,
-                                "Settings command channel is closed",
-                            );
-                        }
+                        show_toast(
+                            &window,
+                            &toast_id,
+                            ToastKind::Error,
+                            "Settings command channel is closed",
+                        );
+                    }
                 }
             });
         });
@@ -739,12 +757,18 @@ mod path_lookup_tests {
     fn path_lookup_skips_empty_entries_and_directories() {
         let directory = test_directory("directory");
         let match_directory = test_directory("match");
-        std::fs::create_dir(directory.join("ffmpeg.exe")).expect("same-named directory should be created");
-        std::fs::write(match_directory.join("ffmpeg.exe"), []).expect("executable should be created");
+        std::fs::create_dir(directory.join("ffmpeg.exe"))
+            .expect("same-named directory should be created");
+        std::fs::write(match_directory.join("ffmpeg.exe"), [])
+            .expect("executable should be created");
 
         assert_eq!(
             find_path_executable(
-                [std::path::PathBuf::new(), directory.clone(), match_directory.clone()],
+                [
+                    std::path::PathBuf::new(),
+                    directory.clone(),
+                    match_directory.clone()
+                ],
                 "ffmpeg.exe"
             ),
             Some(match_directory.join("ffmpeg.exe"))

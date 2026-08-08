@@ -3,6 +3,67 @@ use crate::storage::Storage;
 use std::path::PathBuf;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MessageDialogRequestId(pub u64);
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MessageDialogAction {
+    Confirm,
+    Cancel,
+    Ignore,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MessageDialogRequest {
+    pub id: MessageDialogRequestId,
+    pub title: String,
+    pub message: String,
+    pub buttons: Vec<MessageDialogAction>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MessageDialogResponse {
+    pub request_id: MessageDialogRequestId,
+    pub action: MessageDialogAction,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageDialogRequestError {
+    EmptyButtons,
+    TooManyButtons,
+    DuplicateButton(MessageDialogAction),
+}
+
+impl MessageDialogRequest {
+    #[allow(dead_code)]
+    pub fn new(
+        id: MessageDialogRequestId,
+        title: impl Into<String>,
+        message: impl Into<String>,
+        buttons: Vec<MessageDialogAction>,
+    ) -> Result<Self, MessageDialogRequestError> {
+        if buttons.is_empty() {
+            return Err(MessageDialogRequestError::EmptyButtons);
+        }
+        if buttons.len() > 3 {
+            return Err(MessageDialogRequestError::TooManyButtons);
+        }
+        for (index, button) in buttons.iter().enumerate() {
+            if buttons[..index].contains(button) {
+                return Err(MessageDialogRequestError::DuplicateButton(*button));
+            }
+        }
+        Ok(Self {
+            id,
+            title: title.into(),
+            message: message.into(),
+            buttons,
+        })
+    }
+}
+
 pub mod settings_validation;
 pub mod state;
 use state::{AppSettings, DownloadRecord, MediaStream, NewDownload, SearchResult};
@@ -10,11 +71,21 @@ use state::{AppSettings, DownloadRecord, MediaStream, NewDownload, SearchResult}
 pub enum UiCommand {
     LoadSettings,
     SaveSettings(AppSettings),
-    Search { url: String },
+    Search {
+        url: String,
+    },
     CreateDownload(NewDownload),
-    StartDownload { id: i64 },
+    StartDownload {
+        id: i64,
+    },
     RefreshDownloads,
-    PauseDownload { id: i64 },
+    PauseDownload {
+        id: i64,
+    },
+    MessageDialogResponded {
+        request_id: MessageDialogRequestId,
+        action: MessageDialogAction,
+    },
     Shutdown,
 }
 
@@ -36,8 +107,7 @@ pub enum WorkerEvent {
     },
     #[allow(dead_code)]
     MessageDialogRequested {
-        title: String,
-        message: String,
+        request: MessageDialogRequest,
     },
     SettingsLoaded(AppSettings),
     SettingsSaved(AppSettings),
@@ -79,13 +149,9 @@ pub enum WorkerEvent {
 #[allow(dead_code)]
 pub fn request_message_dialog(
     events: &UnboundedSender<WorkerEvent>,
-    title: impl Into<String>,
-    message: impl Into<String>,
+    request: MessageDialogRequest,
 ) {
-    let _ = events.send(WorkerEvent::MessageDialogRequested {
-        title: title.into(),
-        message: message.into(),
-    });
+    let _ = events.send(WorkerEvent::MessageDialogRequested { request });
 }
 
 pub fn spawn_worker(
@@ -225,6 +291,9 @@ pub fn spawn_worker(
                         }
                         Err(error) => send_error(&events, error),
                     },
+                    UiCommand::MessageDialogResponded { request_id, action } => {
+                        let _response = MessageDialogResponse { request_id, action };
+                    }
                     UiCommand::PauseDownload { id } => {
                         let _ = events.send(WorkerEvent::Notice {
                             kind: NoticeKind::PauseUnsupported,
@@ -345,21 +414,55 @@ mod tests {
     use tokio::sync::mpsc::error::TryRecvError;
 
     #[test]
-    fn message_dialog_request_preserves_title_and_message() {
+    fn message_dialog_request_rejects_empty_buttons() {
+        let result =
+            MessageDialogRequest::new(MessageDialogRequestId(1), "Title", "Message", Vec::new());
+        assert_eq!(result, Err(MessageDialogRequestError::EmptyButtons));
+    }
+
+    #[test]
+    fn message_dialog_request_rejects_duplicate_buttons() {
+        let result = MessageDialogRequest::new(
+            MessageDialogRequestId(1),
+            "Title",
+            "Message",
+            vec![MessageDialogAction::Confirm, MessageDialogAction::Confirm],
+        );
+        assert_eq!(
+            result,
+            Err(MessageDialogRequestError::DuplicateButton(
+                MessageDialogAction::Confirm
+            ))
+        );
+    }
+
+    #[test]
+    fn message_dialog_request_preserves_title_and_buttons() {
         let (events, mut receiver) = tokio::sync::mpsc::unbounded_channel();
-        request_message_dialog(
-            &events,
+        let request = MessageDialogRequest::new(
+            MessageDialogRequestId(7),
             "Download complete",
             "The file was saved to the selected directory",
-        );
+            vec![MessageDialogAction::Cancel, MessageDialogAction::Confirm],
+        )
+        .expect("Expected a valid message dialog request");
+        request_message_dialog(&events, request);
 
         match receiver
             .try_recv()
             .expect("Expected a message dialog request")
         {
-            WorkerEvent::MessageDialogRequested { title, message } => {
-                assert_eq!(title, "Download complete");
-                assert_eq!(message, "The file was saved to the selected directory");
+            WorkerEvent::MessageDialogRequested { request } => {
+                assert_eq!(request.id, MessageDialogRequestId(7));
+                assert_eq!(request.title, "Download complete");
+                assert_eq!(
+                    request.message,
+                    "The file was saved to the selected directory"
+                );
+                assert_eq!(
+                    request.buttons,
+                    vec![MessageDialogAction::Cancel, MessageDialogAction::Confirm]
+                );
             }
             other => panic!("Expected a message dialog request, got {other:?}"),
         }

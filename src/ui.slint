@@ -1,7 +1,7 @@
 import { Button, HorizontalBox, Palette, TextEdit, VerticalBox } from "std-widgets.slint";
 import { Sidebar } from "sidebar.slint";
 import { Theme } from "ui/theme.slint";
-import { StreamRow, DownloadRow, ToastData } from "ui/types.slint";
+import { StreamRow, DownloadRow, ToastData, MessageDialogButtonData, MessageDialogButtonKind } from "ui/types.slint";
 import { ToastHost } from "ui/components/feedback.slint";
 import { SettingsPage } from "ui/settings-page.slint";
 import { SearchPage } from "ui/search-page.slint";
@@ -158,7 +158,8 @@ export component MainWindow inherits Window {
 export component MessageDialog inherits Window {
     in property <string> dialog-title;
     in property <string> message;
-    callback confirmed();
+    in property <[MessageDialogButtonData]> buttons;
+    callback button-clicked(int);
 
     title: root.dialog-title;
     min-width: 440px;
@@ -187,11 +188,12 @@ export component MessageDialog inherits Window {
             }
             HorizontalBox {
                 Rectangle { horizontal-stretch: 1; }
-                Button {
+                for button[index] in root.buttons : Button {
                     height: 36px;
-                    text: @tr("OK");
-                    primary: true;
-                    clicked => { root.confirmed(); }
+                    text: button.kind == MessageDialogButtonKind.confirm ? @tr("Confirm") :
+                          button.kind == MessageDialogButtonKind.cancel ? @tr("Cancel") : @tr("Ignore");
+                    primary: button.primary;
+                    clicked => { root.button-clicked(index); }
                 }
             }
         }

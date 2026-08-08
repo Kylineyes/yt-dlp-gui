@@ -16,6 +16,13 @@ export struct ToastData {
     detail: string,
 }
 
+export enum MessageDialogButtonKind { confirm, cancel, ignore }
+
+export struct MessageDialogButtonData {
+    kind: MessageDialogButtonKind,
+    primary: bool,
+}
+
 export struct DownloadRow {
     id: int,
     name: string,
