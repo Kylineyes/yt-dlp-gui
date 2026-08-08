@@ -375,5 +375,14 @@ msgstr "显示错误日志"
 msgid "Hide error log"
 msgstr "隐藏错误日志"
 
+msgid "Confirm"
+msgstr "确认"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Ignore"
+msgstr "忽略"
+
 msgid "OK"
 msgstr "确定"

@@ -40,11 +40,11 @@ The error log uses a muted card surface and default border. The window may expan
 
 ## MessageDialog
 
-`MessageDialog` is a shell-owned, single-instance native modal for general program messages. Program code supplies a dynamic title and message; a repeated request updates and activates the existing dialog instead of stacking a second native modal.
+`MessageDialog` is a shell-owned, single-instance native modal for general program messages. Program code supplies a dynamic title, message, and an explicit non-empty subset of `Confirm`, `Cancel`, and `Ignore`; the UI never adds a default button, removes duplicates, or changes the supplied order. A repeated request enters a FIFO queue instead of replacing the active request or stacking another native modal.
 
-The dialog uses `Theme.surface-window`, `Theme.text-primary` for its 20px / 600 title, and `Theme.text-secondary` for its 14px wrapping body. It uses 24px padding, 16px content spacing, and a right-aligned 36px primary `OK` button. These Theme roles must provide the same readable hierarchy in Light, Dark, and Follow system modes; do not use FatalErrorWindow's danger styling for general messages.
+The dialog uses `Theme.surface-window`, `Theme.text-primary` for its 20px / 600 title, and `Theme.text-secondary` for its 14px wrapping body. It uses 24px padding, 16px content spacing, and a right-aligned 36px button row. `Confirm` is the only primary action; if the upstream list omits it, no button is promoted to primary. These Theme roles must provide the same readable hierarchy in Light, Dark, and Follow system modes; do not use FatalErrorWindow's danger styling for general messages.
 
-The `OK` button is the only dismissal path and only closes MessageDialog. The main window is disabled while the dialog is visible. The title bar's minimize, maximize, and close commands are unavailable, and Slint keeps the window shown for close requests. Confirming MessageDialog must not quit the application.
+The main window is disabled while the dialog is visible. The title bar's minimize, maximize, and close commands are unavailable, and Slint keeps the window shown for close requests. Clicking a supplied button closes the active request or advances the FIFO queue, then sends its `request_id` and action back through `UiCommand::MessageDialogResponded`. Confirming, cancelling, or ignoring MessageDialog must not quit the application.
 
 Static dialog controls use `@tr(...)`. Dynamic title and message values are runtime data; fixed application copy must still originate from translated Slint strings rather than Rust-built sentences.
 
