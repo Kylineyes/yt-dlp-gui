@@ -17,9 +17,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 - 新增依赖、平台 API 和构建配置必须符合 Windows 10 1903+ 的兼容性要求。
 - 不要根据项目名称或 `.gitignore` 推断未被代码和配置确认的架构；以实际源代码和 Cargo 配置为准。
 
+## 设计系统
+
+根目录 [`design.md`](design.md) 是 UI 主题、颜色、字号、字体、行高、字间距和无障碍规则的唯一设计来源。
+
+- 修改或新增 Slint UI、主题逻辑、设置项或控件状态前，先阅读并遵守 `design.md`。
+- 新增或修改设计令牌时，必须在同一变更中同步更新 `design.md`，不得在组件中私自创建未登记的颜色、字号、字体或间距。
+- 设计系统仍必须通过 Slint 落地，不得使用 WebView、HTML、CSS 或浏览器内核替代。
+
 ## 仓库当前状态
 
-当前 checkout 仍是尚未初始化的项目骨架。跟踪树中只有 `.gitignore`，尚无应用源代码、Cargo manifest、文档、测试套件、CI 配置或运行入口。
+当前 checkout 仍是尚未初始化的项目骨架。跟踪树中已有 `.gitignore`、`CLAUDE.md` 和 UI 设计规范 `design.md`，尚无应用源代码、Cargo manifest、其他项目文档、测试套件、CI 配置或运行入口。
 
 `.gitignore` 使用了 Cargo/Rust 风格的忽略规则（`target`、Rust 备份文件、MSVC `.pdb` 文件和 cargo-mutants 输出），但目前还没有 Cargo 工程。因此，添加 Rust 工程后应及时补充本文件中的实际构建、运行、格式化、检查和测试命令。
 
