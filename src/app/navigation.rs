@@ -21,6 +21,15 @@ impl NavigationState {
     pub fn navigate_to(&mut self, route: Route) {
         self.current = route;
     }
+
+    pub fn navigate_to_index(&mut self, index: i32) -> bool {
+        let Some(route) = Route::from_index(index) else {
+            return false;
+        };
+
+        self.navigate_to(route);
+        true
+    }
 }
 
 impl Default for NavigationState {
