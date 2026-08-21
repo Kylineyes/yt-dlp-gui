@@ -1,0 +1,92 @@
+// 这些测试锁定设计系统与页面分支之间的稳定数据契约，不启动真实窗口。
+use yt_dlp_gui::app::contracts::Route;
+use yt_dlp_gui::app::navigation::NavigationState;
+use yt_dlp_gui::design_system::{
+    EffectiveTheme, I18nCatalog, Locale, TextKey, TextScale, ThemeMode,
+};
+
+#[test]
+fn theme_mode_resolution_has_safe_light_fallback() {
+    assert_eq!(ThemeMode::DEFAULT, ThemeMode::System);
+    assert_eq!(
+        ThemeMode::Light.resolve(Some(EffectiveTheme::Dark), true),
+        EffectiveTheme::Light
+    );
+    assert_eq!(
+        ThemeMode::Dark.resolve(Some(EffectiveTheme::Light), true),
+        EffectiveTheme::Dark
+    );
+    assert_eq!(
+        ThemeMode::Dark.resolve(Some(EffectiveTheme::Dark), false),
+        EffectiveTheme::Light
+    );
+    assert_eq!(
+        ThemeMode::System.resolve(Some(EffectiveTheme::Dark), true),
+        EffectiveTheme::Dark
+    );
+    assert_eq!(
+        ThemeMode::System.resolve(Some(EffectiveTheme::Dark), false),
+        EffectiveTheme::Light
+    );
+    assert_eq!(ThemeMode::System.resolve(None, true), EffectiveTheme::Light);
+}
+
+#[test]
+fn theme_values_have_stable_serialization() {
+    assert_eq!(ThemeMode::parse("light"), ThemeMode::Light);
+    assert_eq!(ThemeMode::parse("DARK"), ThemeMode::Dark);
+    assert_eq!(ThemeMode::parse("unknown"), ThemeMode::System);
+    assert_eq!(ThemeMode::Dark.as_str(), "dark");
+    assert_eq!(TextScale::parse("large").factor(), 1.15);
+    assert_eq!(TextScale::parse("extra-large").factor(), 1.30);
+    assert_eq!(TextScale::parse("unknown").factor(), 1.0);
+}
+
+#[test]
+fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
+    assert_eq!(Locale::parse("en-US"), Locale::EnUs);
+    assert_eq!(Locale::parse("zh_CN"), Locale::ZhCn);
+    assert_eq!(Locale::parse("unknown"), Locale::DEFAULT);
+
+    for key in [
+        TextKey::AppTitle,
+        TextKey::NavWelcome,
+        TextKey::NavConfigure,
+        TextKey::NavSearch,
+        TextKey::NavTasks,
+    ] {
+        assert!(!I18nCatalog::text(Locale::ZhCn, key).is_empty());
+        assert!(!I18nCatalog::text(Locale::EnUs, key).is_empty());
+    }
+}
+
+#[test]
+fn routes_remain_a_stable_four_page_contract() {
+    assert_eq!(
+        Route::ALL,
+        [
+            Route::Welcome,
+            Route::Configure,
+            Route::Search,
+            Route::Tasks
+        ]
+    );
+
+    for (index, route) in Route::ALL.into_iter().enumerate() {
+        assert_eq!(route.index(), index as i32);
+        assert_eq!(Route::from_index(index as i32), Some(route));
+    }
+
+    assert_eq!(Route::from_index(-1), None);
+    assert_eq!(Route::from_index(4), None);
+}
+
+#[test]
+fn navigation_state_rejects_invalid_route_indices() {
+    let mut state = NavigationState::new();
+    assert_eq!(state.current(), Route::Welcome);
+    assert!(state.navigate_to_index(2));
+    assert_eq!(state.current(), Route::Search);
+    assert!(!state.navigate_to_index(99));
+    assert_eq!(state.current(), Route::Search);
+}

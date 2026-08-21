@@ -1,0 +1,82 @@
+import { DesignTokens } from "tokens.slint";
+
+// Theme 是组件唯一应依赖的视觉入口：它把基础色值映射为语义属性，
+// 并统一处理有效主题和文本缩放，避免各组件重复写 Light/Dark 分支。
+// 用户偏好和有效主题分离：System 仍可保持为用户选择，即使有效主题回退到浅色。
+export enum ThemeMode {
+    system,
+    light,
+    dark,
+}
+
+// EffectiveTheme 是当前令牌实际采用的浅色或深色映射。
+export enum EffectiveTheme {
+    light,
+    dark,
+}
+
+// 文本缩放只改变字号和行框，不改变控件语义或颜色层级。
+export enum TextScale {
+    default,
+    large,
+    extra-large,
+}
+
+export global Theme {
+    in-out property <ThemeMode> mode: ThemeMode.system;
+    in-out property <EffectiveTheme> effective-theme: EffectiveTheme.light;
+    in-out property <TextScale> text-scale: TextScale.default;
+
+    private property <bool> dark: effective-theme == EffectiveTheme.dark;
+    private property <float> scale: text-scale == TextScale.default ? 1.0 : text-scale == TextScale.large ? 1.15 : 1.30;
+
+    out property <color> background-primary: dark ? DesignTokens.dark-background-primary : DesignTokens.light-background-primary;
+    out property <color> surface-primary: dark ? DesignTokens.dark-surface-primary : DesignTokens.light-surface-primary;
+    out property <color> surface-elevated: dark ? DesignTokens.dark-surface-elevated : DesignTokens.light-surface-elevated;
+    out property <color> text-primary: dark ? DesignTokens.dark-text-primary : DesignTokens.light-text-primary;
+    out property <color> text-secondary: dark ? DesignTokens.dark-text-secondary : DesignTokens.light-text-secondary;
+    out property <color> text-muted: dark ? DesignTokens.dark-text-muted : DesignTokens.light-text-muted;
+    out property <color> border-default: dark ? DesignTokens.dark-border-default : DesignTokens.light-border-default;
+    out property <color> border-strong: dark ? DesignTokens.dark-border-strong : DesignTokens.light-border-strong;
+    out property <color> accent: dark ? DesignTokens.dark-accent : DesignTokens.light-accent;
+    out property <color> accent-hover: dark ? DesignTokens.dark-accent-hover : DesignTokens.light-accent-hover;
+    out property <color> accent-pressed: dark ? DesignTokens.dark-accent-pressed : DesignTokens.light-accent-pressed;
+    out property <color> accent-on: dark ? DesignTokens.dark-accent-on : DesignTokens.light-accent-on;
+    out property <color> focus-ring: dark ? DesignTokens.dark-focus-ring : DesignTokens.light-focus-ring;
+    out property <color> success: dark ? DesignTokens.dark-success : DesignTokens.light-success;
+    out property <color> warning: dark ? DesignTokens.dark-warning : DesignTokens.light-warning;
+    out property <color> danger: dark ? DesignTokens.dark-danger : DesignTokens.light-danger;
+    out property <color> disabled-surface: dark ? DesignTokens.dark-disabled-surface : DesignTokens.light-disabled-surface;
+    out property <color> disabled-text: dark ? DesignTokens.dark-disabled-text : DesignTokens.light-disabled-text;
+
+    out property <length> spacing-small: DesignTokens.spacing-small;
+    out property <length> spacing-medium: DesignTokens.spacing-medium;
+    out property <length> spacing-large: DesignTokens.spacing-large;
+    out property <length> sidebar-padding: DesignTokens.sidebar-padding;
+    out property <length> sidebar-min-width: DesignTokens.sidebar-min-width;
+    out property <length> sidebar-gap: DesignTokens.sidebar-gap;
+    out property <length> corner-radius-small: DesignTokens.corner-radius-small;
+    out property <length> corner-radius-medium: DesignTokens.corner-radius-medium;
+    out property <length> border-width-default: DesignTokens.border-width-default;
+    out property <length> focus-ring-width: DesignTokens.focus-ring-width;
+    out property <length> control-min-height: DesignTokens.control-min-height;
+    out property <length> window-min-width: DesignTokens.window-min-width;
+    out property <length> window-min-height: DesignTokens.window-min-height;
+    out property <length> scroll-content-padding: DesignTokens.scroll-content-padding;
+
+    out property <length> font-size-caption: DesignTokens.font-size-caption * scale;
+    out property <length> font-size-body: DesignTokens.font-size-body * scale;
+    out property <length> font-size-body-large: DesignTokens.font-size-body-large * scale;
+    out property <length> font-size-title-small: DesignTokens.font-size-title-small * scale;
+    out property <length> font-size-title: DesignTokens.font-size-title * scale;
+    out property <length> font-size-display: DesignTokens.font-size-display * scale;
+    out property <length> letter-spacing-default: DesignTokens.letter-spacing-default;
+    out property <length> letter-spacing-heading: DesignTokens.letter-spacing-heading;
+    out property <string> ui-font-family: DesignTokens.ui-font-family;
+    out property <string> mono-font-family: DesignTokens.mono-font-family;
+
+    // 由于 Slint 没有直接的 line-height 属性，行高通过字号计算出的行框提供。
+    out property <length> body-line-box: font-size-body * 1.45;
+    out property <length> compact-line-box: font-size-body * 1.25;
+    out property <length> title-line-box: font-size-title * 1.20;
+}

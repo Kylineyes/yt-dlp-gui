@@ -27,13 +27,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## 仓库当前状态
 
-当前 checkout 仍是尚未初始化的项目骨架。跟踪树中已有 `.gitignore`、`CLAUDE.md` 和 UI 设计规范 `design.md`，尚无应用源代码、Cargo manifest、其他项目文档、测试套件、CI 配置或运行入口。
+当前 checkout 已包含 Rust/Slint 基础工程、共享 UI 设计系统和四路由基础契约。应用仍处于基础设施阶段，页面正文、SQLite 存储、yt-dlp 调用、CI 配置和完整运行流程尚未建立。
 
-`.gitignore` 使用了 Cargo/Rust 风格的忽略规则（`target`、Rust 备份文件、MSVC `.pdb` 文件和 cargo-mutants 输出），但目前还没有 Cargo 工程。因此，添加 Rust 工程后应及时补充本文件中的实际构建、运行、格式化、检查和测试命令。
+`.gitignore` 使用了 Cargo/Rust 风格的忽略规则（`target`、Rust 备份文件、MSVC `.pdb` 文件和 cargo-mutants 输出）。
 
 ## 命令
 
-当前没有可从项目配置中验证的构建、运行、格式化、检查、打包或测试命令。在 `Cargo.toml` 等配置文件加入前，不要假设 Cargo 或其他工具命令可以执行。
+以下命令已基于当前 Cargo 工程验证：
+
+```text
+cargo fmt --check
+cargo check
+cargo test
+cargo test --test design_system_contract
+```
+
+应用运行命令为：
+
+```text
+cargo run
+```
+
+Windows 主题、DPI 和 UI 视觉行为需要在 Windows 环境中实际运行应用验证。
 
 可用的仓库检查命令：
 
@@ -81,7 +96,9 @@ Cargo 工程建立后，应在这里记录经过验证的命令，包括运行�
 
 ## 架构
 
-当前 checkout 中尚不存在可描述的应用架构，也没有模块边界、数据流或入口点。后续架构说明应以实际 Rust/Slint 源代码和配置为依据，并明确 yt-dlp 调用、桌面界面、SQLite 存储和平台适配之间的边界；不得引入 WebView 作为界面层。
+当前代码已包含最小 Rust/Slint 应用架构：`build.rs` 编译 `ui/app-window.slint` 及其导入的设计系统组件，`src/app/window.rs` 通过 `slint::include_modules!()` 创建并运行 `AppWindow`；`src/design_system/` 提供主题解析、Windows 系统主题读取和 i18n catalog；`ui/design/` 提供令牌、主题/i18n 全局对象、共享导航按钮、主布局和页面滚动宿主。
+
+`src/app/contracts.rs` 与 `src/app/navigation.rs` 提供四路由 `Route` 和 `NavigationState` 基础契约。当前共享壳层只提供页面内容插槽，不实现欢迎、配置、检索、任务页面正文。后续架构说明应继续以实际 Rust/Slint 源代码和配置为依据，并明确 yt-dlp 调用、桌面界面、SQLite 存储和平台适配之间的边界；不得引入 WebView 作为界面层。
 
 ## 分支协作与所有权
 
