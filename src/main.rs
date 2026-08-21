@@ -1,5 +1,3 @@
-mod app;
-
 fn main() -> Result<(), slint::PlatformError> {
-    app::window::run()
+    yt_dlp_gui::app::window::run()
 }

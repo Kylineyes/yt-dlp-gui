@@ -1,0 +1,56 @@
+import { Theme } from "theme.slint";
+
+// 纯展示和事件转发组件；选中状态由 AppShell 控制，不在按钮内部保存路由。
+export component NavigationButton inherits FocusScope {
+    in property <string> label;
+    // route-index 只是回调携带的稳定序号，真正的 Route 校验由 Rust NavigationState 完成。
+    in property <int> route-index;
+    in property <bool> selected: false;
+    in property <bool> button-enabled: true;
+    callback clicked(int);
+
+    // 导航项保持为紧凑行高；VerticalLayout 不能把它扩展成大面积卡片。
+    height: Theme.control-min-height;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+
+    background := Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        border-radius: Theme.corner-radius-medium;
+        background: root.selected ? Theme.accent : area.has-hover ? Theme.surface-elevated : Theme.surface-primary;
+        border-width: root.has-focus ? Theme.focus-ring-width : Theme.border-width-default;
+        border-color: root.has-focus ? Theme.focus-ring : root.selected ? Theme.accent : Theme.border-default;
+        opacity: root.button-enabled ? 1.0 : 0.6;
+    }
+
+    label-text := Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.label;
+        color: root.selected ? Theme.accent-on : root.button-enabled ? Theme.text-primary : Theme.disabled-text;
+        font-family: Theme.ui-font-family;
+        font-size: Theme.font-size-body;
+        letter-spacing: Theme.letter-spacing-default;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    area := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        enabled: root.button-enabled;
+        clicked => { root.clicked(root.route-index); }
+    }
+
+    key-pressed(event) => {
+        if (root.button-enabled && (event.text == Key.Return || event.text == Key.Space)) {
+            root.clicked(root.route-index);
+            accept
+        }
+        reject
+    }
+}

@@ -1,5 +1,26 @@
+import { AppShell } from "design/app-shell.slint";
+import { I18n } from "design/i18n.slint";
+import { Theme } from "design/theme.slint";
+
+export { I18n } from "design/i18n.slint";
+export { EffectiveTheme, TextScale, Theme, ThemeMode } from "design/theme.slint";
+
 export component AppWindow inherits Window {
-    title: "";
-    min-width: 640px;
-    min-height: 480px;
+    title: I18n.app-title;
+    min-width: Theme.window-min-width;
+    min-height: Theme.window-min-height;
+
+    in-out property <int> current-route: 0;
+    callback route-requested(int);
+
+    AppShell {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+        current-route <=> root.current-route;
+        route-requested(index) => { root.route-requested(index); }
+
+        Rectangle { }
+    }
 }

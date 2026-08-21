@@ -1,0 +1,92 @@
+import { I18n } from "i18n.slint";
+import { NavigationButton } from "navigation-button.slint";
+import { PageScrollHost } from "page-scroll-host.slint";
+import { Theme } from "theme.slint";
+
+// 共享窗口布局只负责侧栏、路由事件和页面插槽，不实现任何页面业务正文。
+export component AppShell inherits Rectangle {
+    in property <int> current-route: 0;
+    callback route-requested(int);
+
+    // 用独立 Text 计算当前语言标签的宽度，避免按钮尺寸反向决定侧栏宽度。
+    measure-welcome := Text {
+        text: I18n.nav-welcome;
+        font-family: Theme.ui-font-family;
+        font-size: Theme.font-size-body;
+        visible: false;
+    }
+    measure-configure := Text {
+        text: I18n.nav-configure;
+        font-family: Theme.ui-font-family;
+        font-size: Theme.font-size-body;
+        visible: false;
+    }
+    measure-search := Text {
+        text: I18n.nav-search;
+        font-family: Theme.ui-font-family;
+        font-size: Theme.font-size-body;
+        visible: false;
+    }
+    measure-tasks := Text {
+        text: I18n.nav-tasks;
+        font-family: Theme.ui-font-family;
+        font-size: Theme.font-size-body;
+        visible: false;
+    }
+
+    width: 100%;
+    height: 100%;
+    background: Theme.background-primary;
+
+    HorizontalLayout {
+        width: parent.width;
+        height: parent.height;
+        spacing: 0px;
+
+        sidebar := Rectangle {
+            width: max(Theme.sidebar-min-width, max(measure-welcome.preferred-width, max(measure-configure.preferred-width, max(measure-search.preferred-width, measure-tasks.preferred-width))) + 2 * Theme.sidebar-padding);
+            height: parent.height;
+            horizontal-stretch: 0;
+            vertical-stretch: 1;
+            background: Theme.surface-primary;
+
+            VerticalLayout {
+                x: Theme.sidebar-padding;
+                y: (parent.height - self.preferred-height) / 2;
+                width: parent.width - 2 * Theme.sidebar-padding;
+                spacing: Theme.sidebar-gap;
+
+                nav-welcome := NavigationButton {
+                    label: I18n.nav-welcome;
+                    route-index: 0;
+                    selected: root.current-route == 0;
+                    clicked(index) => { root.route-requested(index); }
+                }
+                nav-configure := NavigationButton {
+                    label: I18n.nav-configure;
+                    route-index: 1;
+                    selected: root.current-route == 1;
+                    clicked(index) => { root.route-requested(index); }
+                }
+                nav-search := NavigationButton {
+                    label: I18n.nav-search;
+                    route-index: 2;
+                    selected: root.current-route == 2;
+                    clicked(index) => { root.route-requested(index); }
+                }
+                nav-tasks := NavigationButton {
+                    label: I18n.nav-tasks;
+                    route-index: 3;
+                    selected: root.current-route == 3;
+                    clicked(index) => { root.route-requested(index); }
+                }
+            }
+        }
+
+        PageScrollHost {
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+            @children
+        }
+    }
+}

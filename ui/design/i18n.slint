@@ -1,0 +1,10 @@
+// Rust 侧把 locale 和最终文案注入这里；Slint 组件只消费这些属性。
+// 默认空文本避免在资源初始化前显示未解析的 key。
+export global I18n {
+    in-out property <string> locale: "zh-CN";
+    in-out property <string> app-title: "";
+    in-out property <string> nav-welcome: "";
+    in-out property <string> nav-configure: "";
+    in-out property <string> nav-search: "";
+    in-out property <string> nav-tasks: "";
+}

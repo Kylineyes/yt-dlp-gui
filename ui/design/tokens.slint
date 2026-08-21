@@ -1,0 +1,69 @@
+// 原始设计令牌只在这里定义；组件应通过 Theme 读取语义令牌。
+// 浅色和深色值分开保存，避免页面组件自行判断主题。
+export global DesignTokens {
+    in property <color> light-background-primary: #f7f8fa;
+    in property <color> light-surface-primary: #ffffff;
+    in property <color> light-surface-elevated: #ffffff;
+    in property <color> light-text-primary: #1f2937;
+    in property <color> light-text-secondary: #4b5563;
+    in property <color> light-text-muted: #6b7280;
+    in property <color> light-border-default: #d1d5db;
+    in property <color> light-border-strong: #9ca3af;
+    in property <color> light-accent: #2563eb;
+    in property <color> light-accent-hover: #1d4ed8;
+    in property <color> light-accent-pressed: #1e40af;
+    in property <color> light-accent-on: #ffffff;
+    in property <color> light-focus-ring: #2563eb;
+    in property <color> light-success: #15803d;
+    in property <color> light-warning: #b45309;
+    in property <color> light-danger: #b91c1c;
+    in property <color> light-disabled-surface: #e5e7eb;
+    in property <color> light-disabled-text: #9ca3af;
+
+    in property <color> dark-background-primary: #111827;
+    in property <color> dark-surface-primary: #1f2937;
+    in property <color> dark-surface-elevated: #273449;
+    in property <color> dark-text-primary: #f9fafb;
+    in property <color> dark-text-secondary: #d1d5db;
+    in property <color> dark-text-muted: #9ca3af;
+    in property <color> dark-border-default: #374151;
+    in property <color> dark-border-strong: #6b7280;
+    in property <color> dark-accent: #60a5fa;
+    in property <color> dark-accent-hover: #93c5fd;
+    in property <color> dark-accent-pressed: #bfdbfe;
+    in property <color> dark-accent-on: #111827;
+    in property <color> dark-focus-ring: #93c5fd;
+    in property <color> dark-success: #4ade80;
+    in property <color> dark-warning: #fbbf24;
+    in property <color> dark-danger: #f87171;
+    in property <color> dark-disabled-surface: #374151;
+    in property <color> dark-disabled-text: #6b7280;
+
+    in property <length> spacing-small: 8px;
+    in property <length> spacing-medium: 16px;
+    in property <length> spacing-large: 24px;
+    in property <length> sidebar-padding: 20px;
+    in property <length> sidebar-min-width: 160px;
+    in property <length> sidebar-gap: 8px;
+    in property <length> corner-radius-small: 4px;
+    in property <length> corner-radius-medium: 8px;
+    in property <length> border-width-default: 1px;
+    in property <length> focus-ring-width: 2px;
+    in property <length> control-min-height: 36px;
+    in property <length> window-min-width: 640px;
+    in property <length> window-min-height: 480px;
+    in property <length> scroll-content-padding: 24px;
+    in property <length> scroll-bar-width: 14px;
+
+    in property <length> font-size-caption: 12px;
+    in property <length> font-size-body: 14px;
+    in property <length> font-size-body-large: 16px;
+    in property <length> font-size-title-small: 18px;
+    in property <length> font-size-title: 22px;
+    in property <length> font-size-display: 28px;
+    in property <length> letter-spacing-default: 0px;
+    in property <length> letter-spacing-heading: 0px;
+
+    in property <string> ui-font-family: "Segoe UI";
+    in property <string> mono-font-family: "Cascadia Mono";
+}

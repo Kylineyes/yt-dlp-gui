@@ -75,7 +75,31 @@ ThemeMode = Light | Dark | System
 - 禁用状态可以降低对比度以表达不可交互，但文本仍应保持可辨识。
 - 新增颜色时先增加语义令牌和两套主题值，再在组件中使用；禁止直接添加未登记的十六进制色值。
 
-## 5. 文本大小
+## 5. 基础尺寸令牌
+
+共享 UI 基础设施使用以下语义尺寸令牌，页面和组件不得直接写入未登记的尺寸值：
+
+| 令牌 | 建议值 | 用途 |
+| --- | ---: | --- |
+| `spacing-small` | 8 px | 控件内部和紧邻元素间距 |
+| `spacing-medium` | 16 px | 常规内容间距、按钮水平内边距 |
+| `spacing-large` | 24 px | 页面内容和分组间距 |
+| `sidebar-padding` | 20 px | 侧边栏水平内边距 |
+| `sidebar-min-width` | 160 px | 侧边栏最小逻辑宽度 |
+| `sidebar-gap` | 8 px | 侧边栏按钮垂直间距 |
+| `corner-radius-small` | 4 px | 边框和紧凑控件 |
+| `corner-radius-medium` | 8 px | 按钮、面板和卡片 |
+| `border-width-default` | 1 px | 默认边框 |
+| `focus-ring-width` | 2 px | 键盘焦点环 |
+| `control-min-height` | 36 px | 常规可操作控件最小高度 |
+| `window-min-width` | 640 px | 窗口最小宽度基线 |
+| `window-min-height` | 480 px | 窗口最小高度基线 |
+| `scroll-content-padding` | 24 px | 页面滚动内容内边距 |
+| `scroll-bar-width` | 14 px | 滚动条布局预留宽度 |
+
+这些值是逻辑尺寸，不是物理像素假设。窗口、侧边栏和控件必须在文本放大以及 Windows 100% 和 150% DPI 下重新验证；若当前语言或缩放档位需要更大空间，应由布局自然扩展。
+
+## 6. 文本大小
 
 字号使用 Slint 的逻辑尺寸，不把固定物理像素当作显示器 DPI 假设。初始字号层级如下：
 
