@@ -1,0 +1,193 @@
+import { Theme } from "design/theme.slint";
+
+export enum DialogTitleKind {
+    // 仅用于选择错误/注意语义图标，标题文字仍由调用方传入。
+    error,
+    notice,
+}
+
+export enum DialogButtonKind {
+    confirm,
+    cancel,
+}
+
+export enum DialogButtonLayout {
+    // 由弹窗内部控制按钮组合，调用模块不能注入任意按钮。
+    confirm-only,
+    confirm-and-cancel,
+}
+
+component DialogButton inherits FocusScope {
+    // 共享按钮组件只转发按钮类型，结果解释由 Rust 弹窗服务完成。
+    in property <string> label;
+    in property <DialogButtonKind> kind;
+    callback clicked(DialogButtonKind);
+
+    width: 6 * Theme.spacing-large;
+    height: Theme.control-min-height;
+
+    background := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: Theme.corner-radius-medium;
+        border-width: root.has-focus ? Theme.focus-ring-width : Theme.border-width-default;
+        border-color: root.has-focus ? Theme.focus-ring : area.has-hover ? Theme.accent-hover : Theme.border-default;
+        background: area.pressed ? Theme.accent-pressed : area.has-hover ? Theme.accent-hover : Theme.accent;
+    }
+
+    label-text := Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.label;
+        color: Theme.accent-on;
+        font-family: Theme.ui-font-family;
+        font-size: Theme.font-size-body;
+        letter-spacing: Theme.letter-spacing-default;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    area := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => { root.clicked(root.kind); }
+    }
+
+    key-pressed(event) => {
+        if (event.text == Key.Return || event.text == Key.Space) {
+            root.clicked(root.kind);
+            accept
+        }
+        reject
+    }
+}
+
+export component DialogWindow inherits Window {
+    // min/max 同值锁定逻辑尺寸；原生标题栏按钮由 Rust/winit 在窗口创建后禁用。
+    title: root.dialog-title;
+    preferred-width: 34 * Theme.spacing-medium;
+    preferred-height: 24 * Theme.spacing-medium;
+    min-width: 34 * Theme.spacing-medium;
+    max-width: 34 * Theme.spacing-medium;
+    min-height: 24 * Theme.spacing-medium;
+    max-height: 24 * Theme.spacing-medium;
+    background: Theme.surface-elevated;
+    default-font-family: Theme.ui-font-family;
+    default-font-size: Theme.font-size-body;
+
+    in property <string> dialog-title;
+    in property <string> dialog-description;
+    in property <string> confirm-label;
+    in property <string> cancel-label;
+    in property <DialogTitleKind> title-kind: DialogTitleKind.notice;
+    in property <DialogButtonLayout> button-layout: DialogButtonLayout.confirm-only;
+    callback result(DialogButtonKind);
+
+    content := Rectangle {
+        x: Theme.spacing-large;
+        y: Theme.spacing-large;
+        width: parent.width - 2 * Theme.spacing-large;
+        height: parent.height - 2 * Theme.spacing-large;
+        background: transparent;
+
+        icon := Rectangle {
+            x: 0px;
+            y: 0px;
+            width: 4 * Theme.spacing-small;
+            height: 4 * Theme.spacing-small;
+            border-radius: 2 * Theme.spacing-small;
+            background: root.title-kind == DialogTitleKind.error ? Theme.danger : Theme.warning;
+
+            if root.title-kind == DialogTitleKind.error : Rectangle {
+                x: 1.75 * Theme.spacing-small;
+                y: Theme.spacing-small;
+                width: Theme.spacing-small / 2;
+                height: 1.375 * Theme.spacing-medium;
+                border-radius: Theme.corner-radius-small;
+                background: Theme.accent-on;
+            }
+            if root.title-kind == DialogTitleKind.error : Rectangle {
+                x: 1.75 * Theme.spacing-small;
+                y: 2.75 * Theme.spacing-small;
+                width: Theme.spacing-small / 2;
+                height: Theme.spacing-small / 2;
+                border-radius: Theme.corner-radius-small;
+                background: Theme.accent-on;
+            }
+            if root.title-kind == DialogTitleKind.notice : Rectangle {
+                x: Theme.spacing-small;
+                y: Theme.spacing-small;
+                width: 2 * Theme.spacing-small;
+                height: 2 * Theme.spacing-small;
+                border-radius: Theme.spacing-small;
+                background: Theme.accent-on;
+            }
+            if root.title-kind == DialogTitleKind.notice : Rectangle {
+                x: 1.875 * Theme.spacing-small;
+                y: 1.375 * Theme.spacing-small;
+                width: Theme.spacing-small / 4;
+                height: 0.875 * Theme.spacing-small;
+                border-radius: Theme.corner-radius-small;
+                background: Theme.warning;
+            }
+            if root.title-kind == DialogTitleKind.notice : Rectangle {
+                x: 1.875 * Theme.spacing-small;
+                y: 2.5 * Theme.spacing-small;
+                width: Theme.spacing-small / 4;
+                height: Theme.spacing-small / 4;
+                border-radius: Theme.corner-radius-small;
+                background: Theme.warning;
+            }
+        }
+
+        title-text := Text {
+            x: icon.x + icon.width + Theme.spacing-small;
+            y: 0px;
+            width: parent.width - icon.width - Theme.spacing-small;
+            height: Theme.font-size-title-small * 1.20;
+            text: root.dialog-title;
+            color: Theme.text-primary;
+            font-family: Theme.ui-font-family;
+            font-size: Theme.font-size-title-small;
+            letter-spacing: Theme.letter-spacing-heading;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        // 描述区域是弹窗唯一的中心内容，按左上角开始自然换行。
+        description-text := Text {
+            x: 0px;
+            y: icon.height + Theme.spacing-large;
+            width: parent.width;
+            height: parent.height - icon.height - 3 * Theme.spacing-large - 2 * Theme.control-min-height;
+            text: root.dialog-description;
+            color: Theme.text-secondary;
+            font-family: Theme.ui-font-family;
+            font-size: Theme.font-size-body-large;
+            letter-spacing: Theme.letter-spacing-default;
+            vertical-alignment: top;
+            horizontal-alignment: left;
+            wrap: word-wrap;
+            overflow: clip;
+        }
+
+        // 取消按钮只在确认+取消方案中存在，确认按钮始终保留。
+        cancel-button := DialogButton {
+            x: parent.width - confirm-button.width - Theme.spacing-small - self.width;
+            y: parent.height - self.height;
+            label: root.cancel-label;
+            kind: DialogButtonKind.cancel;
+            visible: root.button-layout == DialogButtonLayout.confirm-and-cancel;
+            clicked(kind) => { root.result(kind); }
+        }
+
+        confirm-button := DialogButton {
+            x: parent.width - self.width;
+            y: parent.height - self.height;
+            label: root.confirm-label;
+            kind: DialogButtonKind.confirm;
+            clicked(kind) => { root.result(kind); }
+        }
+    }
+}

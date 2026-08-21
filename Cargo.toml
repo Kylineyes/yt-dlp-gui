@@ -5,14 +5,14 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-slint = "1.10"
+slint = { version = "1.10", features = ["unstable-winit-030"] }
 webbrowser = "1.2"
 
 [build-dependencies]
 slint-build = "1.10"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Registry"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Registry", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }
 
 [workspace]
 resolver = "2"
