@@ -3,7 +3,8 @@ import { Theme } from "theme.slint";
 
 // 每个页面独立使用一个滚动宿主；@children 是页面内容插槽，侧栏不会进入滚动区域。
 export component PageScrollHost inherits Rectangle {
-    width: 100%;
+    in property <length> content-height: 0px;
+    private property <length> content-width: max(self.width - 2 * Theme.scroll-content-padding, 1px);
     height: 100%;
     min-width: 50px;
     min-height: 50px;
@@ -14,15 +15,39 @@ export component PageScrollHost inherits Rectangle {
     ScrollView {
         width: parent.width;
         height: parent.height;
+        viewport-width: self.width;
+        viewport-height: max(parent.height, root.content-height + 3 * Theme.scroll-content-padding);
         vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
         horizontal-scrollbar-policy: ScrollBarPolicy.as-needed;
 
-        Rectangle {
-            x: Theme.scroll-content-padding;
+        HorizontalLayout {
+            x: 0px;
             y: Theme.scroll-content-padding;
-            width: max(parent.width - 2 * Theme.scroll-content-padding, 1px);
-            min-height: max(parent.height - 2 * Theme.scroll-content-padding, 1px);
-            @children
+            width: parent.width;
+            height: root.content-height + 2 * Theme.scroll-content-padding;
+            spacing: 0px;
+
+            Rectangle {
+                width: Theme.scroll-content-padding;
+                height: root.content-height;
+                horizontal-stretch: 0;
+                vertical-stretch: 0;
+            }
+
+            Rectangle {
+                width: root.content-width;
+                height: root.content-height;
+                horizontal-stretch: 0;
+                vertical-stretch: 0;
+                @children
+            }
+
+            Rectangle {
+                width: Theme.scroll-content-padding;
+                height: root.content-height;
+                horizontal-stretch: 0;
+                vertical-stretch: 0;
+            }
         }
     }
 }

@@ -2,6 +2,8 @@ slint::include_modules!();
 
 use std::time::Duration;
 
+const PROJECT_URL: &str = "https://github.com/Kylineyes/yt-dlp-gui";
+
 // 主题和 i18n 在窗口进入事件循环前初始化，避免首帧显示未解析状态。
 use crate::app::navigation::NavigationState;
 use crate::design_system::i18n::{I18nCatalog, Locale, TextKey};
@@ -59,6 +61,10 @@ pub fn run() -> Result<(), slint::PlatformError> {
         }
     });
 
+    ui.on_project_url_requested(|| {
+        let _ = webbrowser::open(PROJECT_URL);
+    });
+
     let result = ui.run();
     drop(theme_timer);
     result
@@ -96,4 +102,51 @@ fn set_i18n(i18n: &I18n<'_>, locale: Locale) {
     i18n.set_nav_configure(I18nCatalog::text(locale, TextKey::NavConfigure).into());
     i18n.set_nav_search(I18nCatalog::text(locale, TextKey::NavSearch).into());
     i18n.set_nav_tasks(I18nCatalog::text(locale, TextKey::NavTasks).into());
+    i18n.set_welcome_title(I18nCatalog::text(locale, TextKey::WelcomeTitle).into());
+    i18n.set_welcome_introduction(I18nCatalog::text(locale, TextKey::WelcomeIntroduction).into());
+    i18n.set_welcome_step_configure_number(
+        I18nCatalog::text(locale, TextKey::WelcomeStepConfigureNumber).into(),
+    );
+    i18n.set_welcome_step_configure_description(
+        I18nCatalog::text(locale, TextKey::WelcomeStepConfigureDescription).into(),
+    );
+    i18n.set_welcome_step_configure_page(
+        I18nCatalog::text(locale, TextKey::WelcomeStepConfigurePage).into(),
+    );
+    i18n.set_welcome_step_search_number(
+        I18nCatalog::text(locale, TextKey::WelcomeStepSearchNumber).into(),
+    );
+    i18n.set_welcome_step_search_description(
+        I18nCatalog::text(locale, TextKey::WelcomeStepSearchDescription).into(),
+    );
+    i18n.set_welcome_step_search_page(
+        I18nCatalog::text(locale, TextKey::WelcomeStepSearchPage).into(),
+    );
+    i18n.set_welcome_step_tasks_number(
+        I18nCatalog::text(locale, TextKey::WelcomeStepTasksNumber).into(),
+    );
+    i18n.set_welcome_step_tasks_description(
+        I18nCatalog::text(locale, TextKey::WelcomeStepTasksDescription).into(),
+    );
+    i18n.set_welcome_step_tasks_page(
+        I18nCatalog::text(locale, TextKey::WelcomeStepTasksPage).into(),
+    );
+    i18n.set_welcome_dependencies_title(
+        I18nCatalog::text(locale, TextKey::WelcomeDependenciesTitle).into(),
+    );
+    i18n.set_welcome_dependency_slint(
+        I18nCatalog::text(locale, TextKey::WelcomeDependencySlint).into(),
+    );
+    i18n.set_welcome_dependency_webbrowser(
+        I18nCatalog::text(locale, TextKey::WelcomeDependencyWebbrowser).into(),
+    );
+    i18n.set_welcome_dependency_windows_sys(
+        I18nCatalog::text(locale, TextKey::WelcomeDependencyWindowsSys).into(),
+    );
+    i18n.set_welcome_dependency_slint_build(
+        I18nCatalog::text(locale, TextKey::WelcomeDependencySlintBuild).into(),
+    );
+    i18n.set_welcome_thanks(I18nCatalog::text(locale, TextKey::WelcomeThanks).into());
+    i18n.set_welcome_project_label(I18nCatalog::text(locale, TextKey::WelcomeProjectLabel).into());
+    i18n.set_welcome_project_url(I18nCatalog::text(locale, TextKey::WelcomeProjectUrl).into());
 }

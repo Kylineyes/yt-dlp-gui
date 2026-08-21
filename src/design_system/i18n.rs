@@ -35,6 +35,25 @@ pub enum TextKey {
     NavConfigure,
     NavSearch,
     NavTasks,
+    WelcomeTitle,
+    WelcomeIntroduction,
+    WelcomeStepConfigureNumber,
+    WelcomeStepConfigureDescription,
+    WelcomeStepConfigurePage,
+    WelcomeStepSearchNumber,
+    WelcomeStepSearchDescription,
+    WelcomeStepSearchPage,
+    WelcomeStepTasksDescription,
+    WelcomeStepTasksPage,
+    WelcomeStepTasksNumber,
+    WelcomeDependenciesTitle,
+    WelcomeDependencySlint,
+    WelcomeDependencyWebbrowser,
+    WelcomeDependencyWindowsSys,
+    WelcomeDependencySlintBuild,
+    WelcomeThanks,
+    WelcomeProjectLabel,
+    WelcomeProjectUrl,
 }
 
 /// 无状态的共享 catalog；所有 key 在首批语言中都有定义的回退文案。
@@ -50,11 +69,61 @@ impl I18nCatalog {
             (Locale::ZhCn, TextKey::NavConfigure) => "配置",
             (Locale::ZhCn, TextKey::NavSearch) => "检索",
             (Locale::ZhCn, TextKey::NavTasks) => "任务",
+            (Locale::ZhCn, TextKey::WelcomeTitle) => "欢迎使用 yt-dlp 图形界面",
+            (Locale::ZhCn, TextKey::WelcomeIntroduction) => "只需以下三步，即可开始下载视频：",
+            (Locale::ZhCn, TextKey::WelcomeStepConfigureNumber) => "1.",
+            (Locale::ZhCn, TextKey::WelcomeStepConfigureDescription) => "页面设置所需的环境变量。",
+            (Locale::ZhCn, TextKey::WelcomeStepConfigurePage) => "配置",
+            (Locale::ZhCn, TextKey::WelcomeStepSearchNumber) => "2.",
+            (Locale::ZhCn, TextKey::WelcomeStepSearchDescription) => {
+                "页面输入 YouTube 视频链接，选择所需的流后开始下载。"
+            }
+            (Locale::ZhCn, TextKey::WelcomeStepSearchPage) => "检索",
+            (Locale::ZhCn, TextKey::WelcomeStepTasksNumber) => "3.",
+            (Locale::ZhCn, TextKey::WelcomeStepTasksDescription) => {
+                "页面查看进行中和已完成的下载任务。"
+            }
+            (Locale::ZhCn, TextKey::WelcomeStepTasksPage) => "任务",
+            (Locale::ZhCn, TextKey::WelcomeDependenciesTitle) => "依赖",
+            (Locale::ZhCn, TextKey::WelcomeDependencySlint) => "slint",
+            (Locale::ZhCn, TextKey::WelcomeDependencyWebbrowser) => "webbrowser",
+            (Locale::ZhCn, TextKey::WelcomeDependencyWindowsSys) => "windows-sys",
+            (Locale::ZhCn, TextKey::WelcomeDependencySlintBuild) => "slint-build",
+            (Locale::ZhCn, TextKey::WelcomeThanks) => "感谢这些开源项目的贡献。",
+            (Locale::ZhCn, TextKey::WelcomeProjectLabel) => "项目主页：",
+            (Locale::ZhCn, TextKey::WelcomeProjectUrl) => "https://github.com/Kylineyes/yt-dlp-gui",
             (Locale::EnUs, TextKey::AppTitle) => "yt-dlp GUI",
             (Locale::EnUs, TextKey::NavWelcome) => "Welcome",
             (Locale::EnUs, TextKey::NavConfigure) => "Configure",
             (Locale::EnUs, TextKey::NavSearch) => "Search",
             (Locale::EnUs, TextKey::NavTasks) => "Tasks",
+            (Locale::EnUs, TextKey::WelcomeTitle) => "Welcome to yt-dlp GUI",
+            (Locale::EnUs, TextKey::WelcomeIntroduction) => {
+                "Start downloading videos in three steps:"
+            }
+            (Locale::EnUs, TextKey::WelcomeStepConfigureNumber) => "1.",
+            (Locale::EnUs, TextKey::WelcomeStepConfigureDescription) => {
+                " page to set the required environment variables."
+            }
+            (Locale::EnUs, TextKey::WelcomeStepConfigurePage) => "Configure",
+            (Locale::EnUs, TextKey::WelcomeStepSearchNumber) => "2.",
+            (Locale::EnUs, TextKey::WelcomeStepSearchDescription) => {
+                " page to enter a YouTube video URL, choose a stream, and start the download."
+            }
+            (Locale::EnUs, TextKey::WelcomeStepSearchPage) => "Search",
+            (Locale::EnUs, TextKey::WelcomeStepTasksNumber) => "3.",
+            (Locale::EnUs, TextKey::WelcomeStepTasksDescription) => {
+                " page to view active and completed download tasks."
+            }
+            (Locale::EnUs, TextKey::WelcomeStepTasksPage) => "Tasks",
+            (Locale::EnUs, TextKey::WelcomeDependenciesTitle) => "Dependencies",
+            (Locale::EnUs, TextKey::WelcomeDependencySlint) => "slint",
+            (Locale::EnUs, TextKey::WelcomeDependencyWebbrowser) => "webbrowser",
+            (Locale::EnUs, TextKey::WelcomeDependencyWindowsSys) => "windows-sys",
+            (Locale::EnUs, TextKey::WelcomeDependencySlintBuild) => "slint-build",
+            (Locale::EnUs, TextKey::WelcomeThanks) => "Thank you to these open-source projects.",
+            (Locale::EnUs, TextKey::WelcomeProjectLabel) => "Project home:",
+            (Locale::EnUs, TextKey::WelcomeProjectUrl) => "https://github.com/Kylineyes/yt-dlp-gui",
         }
     }
 
