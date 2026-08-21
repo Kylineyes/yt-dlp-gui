@@ -1,6 +1,7 @@
 import { AppShell } from "design/app-shell.slint";
 import { I18n } from "design/i18n.slint";
 import { Theme } from "design/theme.slint";
+import { WelcomePage } from "pages/welcome-page.slint";
 
 export { I18n } from "design/i18n.slint";
 export { EffectiveTheme, TextScale, Theme, ThemeMode } from "design/theme.slint";
@@ -12,15 +13,20 @@ export component AppWindow inherits Window {
 
     in-out property <int> current-route: 0;
     callback route-requested(int);
+    callback project-url-requested();
 
-    AppShell {
+    app-shell := AppShell {
         x: 0px;
         y: 0px;
         width: 100%;
         height: 100%;
         current-route <=> root.current-route;
+        content-height: welcome-page.intrinsic-height;
         route-requested(index) => { root.route-requested(index); }
 
-        Rectangle { }
+        welcome-page := WelcomePage {
+            visible: root.current-route == 0;
+            project-url-requested => { root.project-url-requested(); }
+        }
     }
 }

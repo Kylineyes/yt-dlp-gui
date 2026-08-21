@@ -1,0 +1,346 @@
+import { I18n } from "../design/i18n.slint";
+import { Theme } from "../design/theme.slint";
+
+export component WelcomePage inherits Rectangle {
+    callback project-url-requested();
+    out property <length> intrinsic-height: content.height;
+
+    private property <length> title-height: Theme.font-size-display * 1.20;
+    private property <length> instruction-row-height: Theme.body-line-box;
+    private property <length> instruction-configure-height: max(instruction-row-height, configure-description.preferred-height);
+    private property <length> instruction-search-height: max(instruction-row-height, search-description.preferred-height);
+    private property <length> instruction-tasks-height: max(instruction-row-height, tasks-description.preferred-height);
+    private property <length> instructions-height: Theme.font-size-body-large * 1.45 + instruction-configure-height + instruction-search-height + instruction-tasks-height + 3 * Theme.spacing-medium;
+    private property <length> footer-height: Theme.font-size-body-large * 1.45 + 4 * Theme.body-line-box + Theme.font-size-caption * 1.45 + 5 * Theme.spacing-small;
+    private property <length> project-height: Theme.body-line-box + Theme.spacing-small + Theme.control-min-height;
+
+    width: 100%;
+    height: content.height;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    background: transparent;
+
+    content := VerticalLayout {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: title-height + instructions-height + footer-height + project-height + 2 * Theme.spacing-large + 2 * Theme.spacing-large + 4 * Theme.spacing-medium;
+        horizontal-stretch: 0;
+        vertical-stretch: 0;
+        spacing: Theme.spacing-large;
+
+        Text {
+            vertical-stretch: 0;
+            text: I18n.welcome-title;
+            color: Theme.text-primary;
+            font-family: Theme.ui-font-family;
+            font-size: Theme.font-size-display;
+            letter-spacing: Theme.letter-spacing-heading;
+            height: title-height;
+            horizontal-alignment: left;
+            vertical-alignment: center;
+        }
+
+        Rectangle {
+            vertical-stretch: 0;
+            background: Theme.surface-primary;
+            border-width: Theme.border-width-default;
+            border-color: Theme.border-default;
+            border-radius: Theme.corner-radius-medium;
+            height: instructions-height + 2 * Theme.spacing-large;
+
+            instructions := VerticalLayout {
+                x: Theme.spacing-large;
+                y: Theme.spacing-large;
+                width: parent.width - 2 * Theme.spacing-large;
+                height: instructions-height;
+                vertical-stretch: 0;
+                spacing: Theme.spacing-medium;
+
+                Text {
+                    vertical-stretch: 0;
+                    text: I18n.welcome-introduction;
+                    color: Theme.text-primary;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-body-large;
+                    letter-spacing: Theme.letter-spacing-default;
+                    height: Theme.font-size-body-large * 1.45;
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    height: instruction-configure-height;
+                    vertical-stretch: 0;
+                    spacing: Theme.spacing-small;
+
+                    Text {
+                        vertical-stretch: 0;
+                        text: I18n.welcome-step-configure-number;
+                        color: Theme.text-secondary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        width: 20px;
+                    }
+                    Text {
+                        vertical-stretch: 0;
+                        text: I18n.welcome-step-configure-page;
+                        color: Theme.text-primary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        font-weight: FontWeight.bold;
+                    }
+                    configure-description := Text {
+                        horizontal-stretch: 1;
+                        vertical-stretch: 0;
+                        height: parent.height;
+                        text: I18n.welcome-step-configure-description;
+                        color: Theme.text-secondary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        wrap: word-wrap;
+                    }
+                }
+
+                HorizontalLayout {
+                    height: instruction-search-height;
+                    vertical-stretch: 0;
+                    spacing: Theme.spacing-small;
+
+                    Text {
+                        vertical-stretch: 0;
+                        text: I18n.welcome-step-search-number;
+                        color: Theme.text-secondary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        width: 20px;
+                    }
+                    Text {
+                        vertical-stretch: 0;
+                        text: I18n.welcome-step-search-page;
+                        color: Theme.text-primary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        font-weight: FontWeight.bold;
+                    }
+                    search-description := Text {
+                        horizontal-stretch: 1;
+                        vertical-stretch: 0;
+                        height: parent.height;
+                        text: I18n.welcome-step-search-description;
+                        color: Theme.text-secondary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        wrap: word-wrap;
+                    }
+                }
+
+                HorizontalLayout {
+                    height: instruction-tasks-height;
+                    vertical-stretch: 0;
+                    spacing: Theme.spacing-small;
+
+                    Text {
+                        vertical-stretch: 0;
+                        text: I18n.welcome-step-tasks-number;
+                        color: Theme.text-secondary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        width: 20px;
+                    }
+                    Text {
+                        vertical-stretch: 0;
+                        text: I18n.welcome-step-tasks-page;
+                        color: Theme.text-primary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        font-weight: FontWeight.bold;
+                    }
+                    tasks-description := Text {
+                        horizontal-stretch: 1;
+                        vertical-stretch: 0;
+                        height: parent.height;
+                        text: I18n.welcome-step-tasks-description;
+                        color: Theme.text-secondary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 0;
+            background: Theme.surface-primary;
+            border-width: Theme.border-width-default;
+            border-color: Theme.border-default;
+            border-radius: Theme.corner-radius-medium;
+            height: footer-height + 2 * Theme.spacing-medium;
+
+            footer := VerticalLayout {
+                x: Theme.spacing-medium;
+                y: Theme.spacing-medium;
+                width: parent.width - 2 * Theme.spacing-medium;
+                height: footer-height;
+                vertical-stretch: 0;
+                spacing: Theme.spacing-small;
+
+                Text {
+                    vertical-stretch: 0;
+                    text: I18n.welcome-dependencies-title;
+                    color: Theme.text-primary;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-body-large;
+                    font-weight: FontWeight.bold;
+                    height: Theme.font-size-body-large * 1.45;
+                }
+
+                HorizontalLayout {
+                    height: instruction-row-height;
+                    vertical-stretch: 0;
+                    spacing: Theme.spacing-small;
+                    Rectangle {
+                        width: Theme.spacing-small;
+                        height: instruction-row-height;
+                        vertical-stretch: 0;
+                        Rectangle {
+                            x: 0px;
+                            y: (parent.height - self.height) / 2;
+                            width: Theme.spacing-small;
+                            height: Theme.spacing-small;
+                            border-radius: Theme.spacing-small / 2;
+                            background: Theme.text-secondary;
+                        }
+                    }
+                    Text { horizontal-stretch: 1; vertical-stretch: 0; height: instruction-row-height; text: I18n.welcome-dependency-slint; color: Theme.text-secondary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; vertical-alignment: center; }
+                }
+                HorizontalLayout {
+                    height: instruction-row-height;
+                    vertical-stretch: 0;
+                    spacing: Theme.spacing-small;
+                    Rectangle {
+                        width: Theme.spacing-small;
+                        height: instruction-row-height;
+                        vertical-stretch: 0;
+                        Rectangle {
+                            x: 0px;
+                            y: (parent.height - self.height) / 2;
+                            width: Theme.spacing-small;
+                            height: Theme.spacing-small;
+                            border-radius: Theme.spacing-small / 2;
+                            background: Theme.text-secondary;
+                        }
+                    }
+                    Text { horizontal-stretch: 1; vertical-stretch: 0; height: instruction-row-height; text: I18n.welcome-dependency-webbrowser; color: Theme.text-secondary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; vertical-alignment: center; }
+                }
+                HorizontalLayout {
+                    height: instruction-row-height;
+                    vertical-stretch: 0;
+                    spacing: Theme.spacing-small;
+                    Rectangle {
+                        width: Theme.spacing-small;
+                        height: instruction-row-height;
+                        vertical-stretch: 0;
+                        Rectangle {
+                            x: 0px;
+                            y: (parent.height - self.height) / 2;
+                            width: Theme.spacing-small;
+                            height: Theme.spacing-small;
+                            border-radius: Theme.spacing-small / 2;
+                            background: Theme.text-secondary;
+                        }
+                    }
+                    Text { horizontal-stretch: 1; vertical-stretch: 0; height: instruction-row-height; text: I18n.welcome-dependency-windows-sys; color: Theme.text-secondary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; vertical-alignment: center; }
+                }
+                HorizontalLayout {
+                    height: instruction-row-height;
+                    vertical-stretch: 0;
+                    spacing: Theme.spacing-small;
+                    Rectangle {
+                        width: Theme.spacing-small;
+                        height: instruction-row-height;
+                        vertical-stretch: 0;
+                        Rectangle {
+                            x: 0px;
+                            y: (parent.height - self.height) / 2;
+                            width: Theme.spacing-small;
+                            height: Theme.spacing-small;
+                            border-radius: Theme.spacing-small / 2;
+                            background: Theme.text-secondary;
+                        }
+                    }
+                    Text { horizontal-stretch: 1; vertical-stretch: 0; height: instruction-row-height; text: I18n.welcome-dependency-slint-build; color: Theme.text-secondary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; vertical-alignment: center; }
+                }
+
+                Text {
+                    vertical-stretch: 0;
+                    text: I18n.welcome-thanks;
+                    color: Theme.text-muted;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-caption;
+                    height: Theme.font-size-caption * 1.45;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 0;
+            background: Theme.surface-primary;
+            border-width: Theme.border-width-default;
+            border-color: Theme.border-default;
+            border-radius: Theme.corner-radius-medium;
+            height: project-height + 2 * Theme.spacing-medium;
+
+            project-content := VerticalLayout {
+                x: Theme.spacing-medium;
+                y: Theme.spacing-medium;
+                width: parent.width - 2 * Theme.spacing-medium;
+                height: project-height;
+                vertical-stretch: 0;
+                spacing: Theme.spacing-small;
+
+                Text {
+                    vertical-stretch: 0;
+                    text: I18n.welcome-project-label;
+                    color: Theme.text-secondary;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-body;
+                    height: Theme.body-line-box;
+                }
+
+                project-link := FocusScope {
+                    width: project-link-text.preferred-width;
+                    height: Theme.body-line-box;
+                    horizontal-stretch: 0;
+                    vertical-stretch: 0;
+
+                    project-link-text := Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: I18n.welcome-project-url;
+                        color: link-area.has-hover || project-link.has-focus ? Theme.accent-hover : Theme.accent;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+
+                    link-area := TouchArea {
+                        width: parent.width;
+                        height: parent.height;
+                        clicked => { root.project-url-requested(); }
+                    }
+
+                    key-pressed(event) => {
+                        if (event.text == Key.Return || event.text == Key.Space) {
+                            root.project-url-requested();
+                            accept
+                        }
+                        reject
+                    }
+                }
+            }
+        }
+    }
+}

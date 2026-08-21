@@ -6,6 +6,7 @@ import { Theme } from "theme.slint";
 // 共享窗口布局只负责侧栏、路由事件和页面插槽，不实现任何页面业务正文。
 export component AppShell inherits Rectangle {
     in property <int> current-route: 0;
+    in property <length> content-height: 0px;
     callback route-requested(int);
 
     // 用独立 Text 计算当前语言标签的宽度，避免按钮尺寸反向决定侧栏宽度。
@@ -83,7 +84,8 @@ export component AppShell inherits Rectangle {
             }
         }
 
-        PageScrollHost {
+        page-scroll := PageScrollHost {
+            content-height: root.content-height;
             horizontal-stretch: 1;
             vertical-stretch: 1;
             @children

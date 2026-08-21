@@ -6,6 +6,7 @@ build = "build.rs"
 
 [dependencies]
 slint = "1.10"
+webbrowser = "1.2"
 
 [build-dependencies]
 slint-build = "1.10"
