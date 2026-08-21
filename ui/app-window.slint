@@ -1,10 +1,12 @@
 import { AppShell } from "design/app-shell.slint";
+import { DialogWindow, DialogButtonKind, DialogButtonLayout, DialogTitleKind } from "dialog-window.slint";
 import { I18n } from "design/i18n.slint";
 import { Theme } from "design/theme.slint";
 import { WelcomePage } from "pages/welcome-page.slint";
 
 export { I18n } from "design/i18n.slint";
 export { EffectiveTheme, TextScale, Theme, ThemeMode } from "design/theme.slint";
+export { DialogWindow, DialogButtonKind, DialogButtonLayout, DialogTitleKind } from "dialog-window.slint";
 
 export component AppWindow inherits Window {
     title: I18n.app-title;
