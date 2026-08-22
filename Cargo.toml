@@ -5,6 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
+rusqlite = { version = "0.37", features = ["bundled"] }
 slint = { version = "1.10", features = ["unstable-winit-030"] }
 webbrowser = "1.2"
 

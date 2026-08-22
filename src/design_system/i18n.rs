@@ -80,9 +80,7 @@ impl I18nCatalog {
             }
             (Locale::ZhCn, TextKey::WelcomeStepSearchPage) => "检索",
             (Locale::ZhCn, TextKey::WelcomeStepTasksNumber) => "3.",
-            (Locale::ZhCn, TextKey::WelcomeStepTasksDescription) => {
-                "页面查看进行中和已完成的下载任务。"
-            }
+            (Locale::ZhCn, TextKey::WelcomeStepTasksDescription) => "页面查看进行中和已完成的下载任务。",
             (Locale::ZhCn, TextKey::WelcomeStepTasksPage) => "任务",
             (Locale::ZhCn, TextKey::WelcomeDependenciesTitle) => "依赖",
             (Locale::ZhCn, TextKey::WelcomeDependencySlint) => "slint",
@@ -98,9 +96,7 @@ impl I18nCatalog {
             (Locale::EnUs, TextKey::NavSearch) => "Search",
             (Locale::EnUs, TextKey::NavTasks) => "Tasks",
             (Locale::EnUs, TextKey::WelcomeTitle) => "Welcome to yt-dlp GUI",
-            (Locale::EnUs, TextKey::WelcomeIntroduction) => {
-                "Start downloading videos in three steps:"
-            }
+            (Locale::EnUs, TextKey::WelcomeIntroduction) => "Start downloading videos in three steps:",
             (Locale::EnUs, TextKey::WelcomeStepConfigureNumber) => "1.",
             (Locale::EnUs, TextKey::WelcomeStepConfigureDescription) => {
                 " page to set the required environment variables."

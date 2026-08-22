@@ -141,19 +141,9 @@ fn center_window(dialog: &DialogWindow, parent: Option<ParentWindow>) {
         let monitor_rect = window.current_monitor().map(|monitor| {
             let position = monitor.position();
             let size = monitor.size();
-            (
-                position.x,
-                position.y,
-                size.width as i32,
-                size.height as i32,
-            )
+            (position.x, position.y, size.width as i32, size.height as i32)
         });
-        (
-            size.width as i32,
-            size.height as i32,
-            parent_rect,
-            monitor_rect,
-        )
+        (size.width as i32, size.height as i32, parent_rect, monitor_rect)
     });
 
     let Some((width, height, parent_rect, monitor_rect)) = geometry else {
@@ -172,19 +162,12 @@ fn center_window(dialog: &DialogWindow, parent: Option<ParentWindow>) {
 #[cfg(windows)]
 fn parent_window_rect(parent: ParentWindow) -> Option<(i32, i32, i32, i32)> {
     let mut rect = std::mem::MaybeUninit::uninit();
-    let success = unsafe {
-        windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect(parent, rect.as_mut_ptr())
-    };
+    let success = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect(parent, rect.as_mut_ptr()) };
     if success == 0 {
         return None;
     }
     let rect = unsafe { rect.assume_init() };
-    Some((
-        rect.left,
-        rect.top,
-        rect.right - rect.left,
-        rect.bottom - rect.top,
-    ))
+    Some((rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top))
 }
 
 #[cfg(not(windows))]

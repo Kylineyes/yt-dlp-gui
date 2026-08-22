@@ -1,9 +1,7 @@
 // 这些测试锁定设计系统与页面分支之间的稳定数据契约，不启动真实窗口。
 use yt_dlp_gui::app::contracts::Route;
 use yt_dlp_gui::app::navigation::NavigationState;
-use yt_dlp_gui::design_system::{
-    EffectiveTheme, I18nCatalog, Locale, TextKey, TextScale, ThemeMode,
-};
+use yt_dlp_gui::design_system::{EffectiveTheme, I18nCatalog, Locale, TextKey, TextScale, ThemeMode};
 
 #[test]
 fn theme_mode_resolution_has_safe_light_fallback() {
@@ -83,12 +81,7 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
 fn routes_remain_a_stable_four_page_contract() {
     assert_eq!(
         Route::ALL,
-        [
-            Route::Welcome,
-            Route::Configure,
-            Route::Search,
-            Route::Tasks
-        ]
+        [Route::Welcome, Route::Configure, Route::Search, Route::Tasks]
     );
 
     for (index, route) in Route::ALL.into_iter().enumerate() {

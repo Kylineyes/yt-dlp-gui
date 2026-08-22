@@ -5,17 +5,42 @@ use std::time::Duration;
 const PROJECT_URL: &str = "https://github.com/Kylineyes/yt-dlp-gui";
 
 // 主题和 i18n 在窗口进入事件循环前初始化，避免首帧显示未解析状态。
+use crate::app::dialog::{DialogButtons, DialogRequest, DialogService, DialogTitle};
 use crate::app::navigation::NavigationState;
 use crate::design_system::i18n::{I18nCatalog, Locale, TextKey};
 use crate::design_system::theme::{
-    dark_theme_available, system_theme, EffectiveTheme as RustEffectiveTheme,
-    TextScale as RustTextScale, ThemeMode as RustThemeMode,
+    dark_theme_available, system_theme, EffectiveTheme as RustEffectiveTheme, TextScale as RustTextScale,
+    ThemeMode as RustThemeMode,
 };
+use crate::storage::StorageError;
+
+pub fn show_storage_error(error: StorageError) -> Result<(), Box<dyn std::error::Error>> {
+    let description = format!(
+        "{}\n\n请检查配置数据库文件是否存在、可读且未被其他程序锁定。程序不会自动创建或修复该文件。",
+        error
+    );
+    let request = DialogRequest {
+        title: "配置加载失败",
+        description: &description,
+        confirm_label: "确认",
+        cancel_label: "",
+        title_kind: DialogTitle::Error,
+        buttons: DialogButtons::ConfirmOnly,
+    };
+    let _dialog = DialogService::show(request, None, |_| {
+        slint::quit_event_loop().ok();
+    })?;
+    slint::run_event_loop()?;
+    Ok(())
+}
 
 pub fn run() -> Result<(), slint::PlatformError> {
+    let storage = crate::storage::Storage::instance().expect("存储模块必须先于主窗口初始化");
+    let configuration = storage.configuration().expect("启动后存储配置必须可以同步读取");
     let ui = AppWindow::new()?;
     let mut navigation = NavigationState::new();
-    let mode = RustThemeMode::DEFAULT;
+    let mode = theme_mode(configuration.theme);
+    let locale = Locale::parse(&configuration.language);
     let effective = mode.resolve(system_theme(), dark_theme_available());
 
     {
@@ -27,24 +52,20 @@ pub fn run() -> Result<(), slint::PlatformError> {
 
     {
         let i18n = ui.global::<I18n>();
-        set_i18n(&i18n, Locale::DEFAULT);
+        set_i18n(&i18n, locale);
     }
 
     let theme_timer = if mode == RustThemeMode::System {
         // 轮询 Windows 主题设置，更新令牌而不重建窗口或丢失页面状态。
         let ui_weak = ui.as_weak();
         let timer = slint::Timer::default();
-        timer.start(
-            slint::TimerMode::Repeated,
-            Duration::from_secs(1),
-            move || {
-                if let Some(ui) = ui_weak.upgrade() {
-                    let effective = mode.resolve(system_theme(), dark_theme_available());
-                    ui.global::<Theme>()
-                        .set_effective_theme(slint_effective_theme(effective));
-                }
-            },
-        );
+        timer.start(slint::TimerMode::Repeated, Duration::from_secs(1), move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                let effective = mode.resolve(system_theme(), dark_theme_available());
+                ui.global::<Theme>()
+                    .set_effective_theme(slint_effective_theme(effective));
+            }
+        });
         Some(timer)
     } else {
         None
@@ -68,6 +89,14 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let result = ui.run();
     drop(theme_timer);
     result
+}
+
+fn theme_mode(value: i8) -> RustThemeMode {
+    match value {
+        1 => RustThemeMode::Light,
+        2 => RustThemeMode::Dark,
+        _ => RustThemeMode::DEFAULT,
+    }
 }
 
 fn slint_theme_mode(mode: RustThemeMode) -> ThemeMode {
@@ -104,48 +133,22 @@ fn set_i18n(i18n: &I18n<'_>, locale: Locale) {
     i18n.set_nav_tasks(I18nCatalog::text(locale, TextKey::NavTasks).into());
     i18n.set_welcome_title(I18nCatalog::text(locale, TextKey::WelcomeTitle).into());
     i18n.set_welcome_introduction(I18nCatalog::text(locale, TextKey::WelcomeIntroduction).into());
-    i18n.set_welcome_step_configure_number(
-        I18nCatalog::text(locale, TextKey::WelcomeStepConfigureNumber).into(),
-    );
+    i18n.set_welcome_step_configure_number(I18nCatalog::text(locale, TextKey::WelcomeStepConfigureNumber).into());
     i18n.set_welcome_step_configure_description(
         I18nCatalog::text(locale, TextKey::WelcomeStepConfigureDescription).into(),
     );
-    i18n.set_welcome_step_configure_page(
-        I18nCatalog::text(locale, TextKey::WelcomeStepConfigurePage).into(),
-    );
-    i18n.set_welcome_step_search_number(
-        I18nCatalog::text(locale, TextKey::WelcomeStepSearchNumber).into(),
-    );
-    i18n.set_welcome_step_search_description(
-        I18nCatalog::text(locale, TextKey::WelcomeStepSearchDescription).into(),
-    );
-    i18n.set_welcome_step_search_page(
-        I18nCatalog::text(locale, TextKey::WelcomeStepSearchPage).into(),
-    );
-    i18n.set_welcome_step_tasks_number(
-        I18nCatalog::text(locale, TextKey::WelcomeStepTasksNumber).into(),
-    );
-    i18n.set_welcome_step_tasks_description(
-        I18nCatalog::text(locale, TextKey::WelcomeStepTasksDescription).into(),
-    );
-    i18n.set_welcome_step_tasks_page(
-        I18nCatalog::text(locale, TextKey::WelcomeStepTasksPage).into(),
-    );
-    i18n.set_welcome_dependencies_title(
-        I18nCatalog::text(locale, TextKey::WelcomeDependenciesTitle).into(),
-    );
-    i18n.set_welcome_dependency_slint(
-        I18nCatalog::text(locale, TextKey::WelcomeDependencySlint).into(),
-    );
-    i18n.set_welcome_dependency_webbrowser(
-        I18nCatalog::text(locale, TextKey::WelcomeDependencyWebbrowser).into(),
-    );
-    i18n.set_welcome_dependency_windows_sys(
-        I18nCatalog::text(locale, TextKey::WelcomeDependencyWindowsSys).into(),
-    );
-    i18n.set_welcome_dependency_slint_build(
-        I18nCatalog::text(locale, TextKey::WelcomeDependencySlintBuild).into(),
-    );
+    i18n.set_welcome_step_configure_page(I18nCatalog::text(locale, TextKey::WelcomeStepConfigurePage).into());
+    i18n.set_welcome_step_search_number(I18nCatalog::text(locale, TextKey::WelcomeStepSearchNumber).into());
+    i18n.set_welcome_step_search_description(I18nCatalog::text(locale, TextKey::WelcomeStepSearchDescription).into());
+    i18n.set_welcome_step_search_page(I18nCatalog::text(locale, TextKey::WelcomeStepSearchPage).into());
+    i18n.set_welcome_step_tasks_number(I18nCatalog::text(locale, TextKey::WelcomeStepTasksNumber).into());
+    i18n.set_welcome_step_tasks_description(I18nCatalog::text(locale, TextKey::WelcomeStepTasksDescription).into());
+    i18n.set_welcome_step_tasks_page(I18nCatalog::text(locale, TextKey::WelcomeStepTasksPage).into());
+    i18n.set_welcome_dependencies_title(I18nCatalog::text(locale, TextKey::WelcomeDependenciesTitle).into());
+    i18n.set_welcome_dependency_slint(I18nCatalog::text(locale, TextKey::WelcomeDependencySlint).into());
+    i18n.set_welcome_dependency_webbrowser(I18nCatalog::text(locale, TextKey::WelcomeDependencyWebbrowser).into());
+    i18n.set_welcome_dependency_windows_sys(I18nCatalog::text(locale, TextKey::WelcomeDependencyWindowsSys).into());
+    i18n.set_welcome_dependency_slint_build(I18nCatalog::text(locale, TextKey::WelcomeDependencySlintBuild).into());
     i18n.set_welcome_thanks(I18nCatalog::text(locale, TextKey::WelcomeThanks).into());
     i18n.set_welcome_project_label(I18nCatalog::text(locale, TextKey::WelcomeProjectLabel).into());
     i18n.set_welcome_project_url(I18nCatalog::text(locale, TextKey::WelcomeProjectUrl).into());

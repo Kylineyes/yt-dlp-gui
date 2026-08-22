@@ -2,10 +2,7 @@ use yt_dlp_gui::app::dialog::{DialogButton, DialogButtons, DialogRequest, Dialog
 
 #[test]
 fn dialog_button_layout_exposes_only_supported_buttons() {
-    assert_eq!(
-        DialogButtons::ConfirmOnly.buttons(),
-        &[DialogButton::Confirm]
-    );
+    assert_eq!(DialogButtons::ConfirmOnly.buttons(), &[DialogButton::Confirm]);
     assert_eq!(
         DialogButtons::ConfirmAndCancel.buttons(),
         &[DialogButton::Confirm, DialogButton::Cancel]
