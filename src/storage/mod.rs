@@ -2,6 +2,7 @@ mod config;
 mod database;
 mod error;
 mod path;
+pub mod schema;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -24,7 +25,7 @@ pub struct Storage {
     /// SQLite 连接由互斥锁保护，所有数据库操作都经过 Storage。
     connection: Mutex<Connection>,
     /// 与数据库唯一配置记录对应的同步内存快照。
-    configuration: Mutex<EnvironmentConfig>,
+    configuration: Mutex<Option<EnvironmentConfig>>,
 }
 
 impl Storage {
@@ -33,16 +34,23 @@ impl Storage {
         path::resolve_database_path(config_path)
     }
 
-    /// 打开既有数据库并读取唯一的环境配置记录；该函数不会创建文件或表。
+    /// 打开或创建数据库，初始化全部 schema，并读取已有的环境配置。
+    ///
+    /// 首次创建的 config 表保持为空，具体配置由后续配置流程写入。
     pub fn initialize(database_path: PathBuf) -> Result<(), StorageError> {
         if STORAGE.get().is_some() {
             return Err(StorageError::AlreadyInitialized);
         }
 
-        let connection = database::open_existing_database(&database_path)?;
+        let connection = database::open_database(&database_path)?;
+        schema::initialize_schema(&connection).map_err(StorageError::Schema)?;
         let configuration = database::read_configuration(&connection)?;
-        if configuration.version != CONFIG_VERSION {
-            return Err(StorageError::UnsupportedConfigurationVersion(configuration.version));
+        if let Some(configuration) = &configuration {
+            if configuration.version != CONFIG_VERSION {
+                return Err(StorageError::UnsupportedConfigurationVersion(
+                    configuration.version.clone(),
+                ));
+            }
         }
         STORAGE
             .set(Self {
@@ -63,41 +71,45 @@ impl Storage {
         &self.database_path
     }
 
-    /// 同步读取当前内存中的完整环境配置快照。
-    pub fn configuration(&self) -> Result<EnvironmentConfig, StorageError> {
+    /// 同步读取当前内存中的环境配置；首次启动且 config 为空时返回 None。
+    pub fn configuration(&self) -> Result<Option<EnvironmentConfig>, StorageError> {
         Ok(self.configuration.lock().map_err(|_| StorageError::Poisoned)?.clone())
     }
 
-    pub fn version(&self) -> Result<String, StorageError> {
-        Ok(self.configuration()?.version)
+    pub fn version(&self) -> Result<Option<String>, StorageError> {
+        Ok(self.configuration()?.map(|configuration| configuration.version))
     }
 
-    pub fn yt_dlp_path(&self) -> Result<String, StorageError> {
-        Ok(self.configuration()?.yt_dlp_path)
+    pub fn yt_dlp_path(&self) -> Result<Option<String>, StorageError> {
+        Ok(self.configuration()?.map(|configuration| configuration.yt_dlp_path))
     }
 
-    pub fn ffmpeg_path(&self) -> Result<String, StorageError> {
-        Ok(self.configuration()?.ffmpeg_path)
+    pub fn ffmpeg_path(&self) -> Result<Option<String>, StorageError> {
+        Ok(self.configuration()?.map(|configuration| configuration.ffmpeg_path))
     }
 
-    pub fn default_download_path(&self) -> Result<String, StorageError> {
-        Ok(self.configuration()?.default_download_path)
+    pub fn default_download_path(&self) -> Result<Option<String>, StorageError> {
+        Ok(self
+            .configuration()?
+            .map(|configuration| configuration.default_download_path))
     }
 
-    pub fn theme(&self) -> Result<i8, StorageError> {
-        Ok(self.configuration()?.theme)
+    pub fn theme(&self) -> Result<Option<i8>, StorageError> {
+        Ok(self.configuration()?.map(|configuration| configuration.theme))
     }
 
-    pub fn language(&self) -> Result<String, StorageError> {
-        Ok(self.configuration()?.language)
+    pub fn language(&self) -> Result<Option<String>, StorageError> {
+        Ok(self.configuration()?.map(|configuration| configuration.language))
     }
 
-    pub fn concurrent_downloads(&self) -> Result<i8, StorageError> {
-        Ok(self.configuration()?.concurrent_downloads)
+    pub fn concurrent_downloads(&self) -> Result<Option<i8>, StorageError> {
+        Ok(self
+            .configuration()?
+            .map(|configuration| configuration.concurrent_downloads))
     }
 
-    pub fn proxy(&self) -> Result<String, StorageError> {
-        Ok(self.configuration()?.proxy)
+    pub fn proxy(&self) -> Result<Option<String>, StorageError> {
+        Ok(self.configuration()?.map(|configuration| configuration.proxy))
     }
 
     /// 同步保存并更新 yt-dlp 的完整可执行文件路径。
@@ -150,7 +162,11 @@ impl Storage {
             database::update_text(&connection, field, &value)?;
         }
         update(
-            &mut *self.configuration.lock().map_err(|_| StorageError::Poisoned)?,
+            self.configuration
+                .lock()
+                .map_err(|_| StorageError::Poisoned)?
+                .as_mut()
+                .ok_or(StorageError::ConfigurationMissing)?,
             value,
         );
         Ok(())
@@ -167,7 +183,11 @@ impl Storage {
             database::update_integer(&connection, field, value)?;
         }
         update(
-            &mut *self.configuration.lock().map_err(|_| StorageError::Poisoned)?,
+            self.configuration
+                .lock()
+                .map_err(|_| StorageError::Poisoned)?
+                .as_mut()
+                .ok_or(StorageError::ConfigurationMissing)?,
             value,
         );
         Ok(())
