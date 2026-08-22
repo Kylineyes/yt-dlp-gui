@@ -9,6 +9,8 @@ use slint::winit_030::{
     WinitWindowAccessor,
 };
 
+use crate::design_system::theme::{EffectiveTheme as RustEffectiveTheme, TextScale as RustTextScale};
+
 // 标题类别只决定语义图标和状态色，不承载可见标题文案。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DialogTitle {
@@ -51,6 +53,12 @@ pub struct DialogRequest<'a> {
     pub buttons: DialogButtons,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DialogVisualState {
+    pub effective_theme: RustEffectiveTheme,
+    pub text_scale: RustTextScale,
+}
+
 #[cfg(windows)]
 pub type ParentWindow = windows_sys::Win32::Foundation::HWND;
 
@@ -64,6 +72,7 @@ impl DialogService {
     pub fn show(
         request: DialogRequest<'_>,
         parent: Option<ParentWindow>,
+        visual_state: DialogVisualState,
         on_result: impl FnOnce(DialogButton) + 'static,
     ) -> Result<DialogWindow, slint::PlatformError> {
         let dialog = DialogWindow::new()?;
@@ -73,6 +82,7 @@ impl DialogService {
         dialog.set_cancel_label(request.cancel_label.into());
         dialog.set_title_kind(slint_title_kind(request.title_kind));
         dialog.set_button_layout(slint_button_layout(request.buttons));
+        set_visual_state(&dialog, visual_state);
 
         // 先注册结果和关闭回调，再显示窗口，避免用户在回调安装前完成操作。
         let callback = Rc::new(RefCell::new(Some(on_result)));
@@ -109,6 +119,27 @@ where
 {
     if let Some(callback) = callback.borrow_mut().take() {
         callback(button);
+    }
+}
+
+fn set_visual_state(dialog: &DialogWindow, visual_state: DialogVisualState) {
+    let theme = dialog.global::<Theme>();
+    theme.set_effective_theme(slint_effective_theme(visual_state.effective_theme));
+    theme.set_text_scale(slint_text_scale(visual_state.text_scale));
+}
+
+fn slint_effective_theme(theme: RustEffectiveTheme) -> EffectiveTheme {
+    match theme {
+        RustEffectiveTheme::Light => EffectiveTheme::Light,
+        RustEffectiveTheme::Dark => EffectiveTheme::Dark,
+    }
+}
+
+fn slint_text_scale(scale: RustTextScale) -> TextScale {
+    match scale {
+        RustTextScale::Default => TextScale::Default,
+        RustTextScale::Large => TextScale::Large,
+        RustTextScale::ExtraLarge => TextScale::ExtraLarge,
     }
 }
 
