@@ -5,16 +5,13 @@ use rusqlite::{Connection, OptionalExtension};
 use super::config::EnvironmentConfig;
 use super::error::StorageError;
 
-/// 以读写模式打开既有数据库，禁止 SQLite 在路径不存在时自动创建文件。
-pub(super) fn open_existing_database(database_path: &Path) -> Result<Connection, StorageError> {
-    if !database_path.is_file() {
-        return Err(StorageError::DatabaseFileUnavailable(database_path.to_path_buf()));
-    }
-    Connection::open_with_flags(database_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE).map_err(StorageError::Open)
+/// 打开数据库文件；首次启动时允许 SQLite 创建目标文件。
+pub(super) fn open_database(database_path: &Path) -> Result<Connection, StorageError> {
+    Connection::open(database_path).map_err(StorageError::Open)
 }
 
 /// 读取 config 表的第一条记录；当前版本要求该表只保存一条环境配置。
-pub(super) fn read_configuration(connection: &Connection) -> Result<EnvironmentConfig, StorageError> {
+pub(super) fn read_configuration(connection: &Connection) -> Result<Option<EnvironmentConfig>, StorageError> {
     connection
         .query_row(
             concat!(
@@ -26,8 +23,7 @@ pub(super) fn read_configuration(connection: &Connection) -> Result<EnvironmentC
             EnvironmentConfig::from_row,
         )
         .optional()
-        .map_err(StorageError::Read)?
-        .ok_or(StorageError::ConfigurationMissing)
+        .map_err(StorageError::Read)
 }
 
 /// 更新字符串字段；field 只允许由本模块内部传入，避免把外部输入拼接进 SQL。

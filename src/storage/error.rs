@@ -9,14 +9,10 @@ pub enum StorageError {
     AlreadyInitialized,
     /// config 表不存在有效的环境配置记录。
     ConfigurationMissing,
-    /// 目标路径不是可读取的既有数据库文件。
-    DatabaseFileUnavailable(PathBuf),
     /// 无法取得当前可执行文件路径。
     ExecutablePath(std::io::Error),
     /// 可执行文件没有可用的父目录。
     InvalidDatabasePath(PathBuf),
-    /// `-c` 参数没有对应的路径值。
-    MissingDatabasePath,
     /// 其他模块在初始化前尝试访问单例。
     NotInitialized,
     /// SQLite 连接打开失败。
@@ -25,6 +21,8 @@ pub enum StorageError {
     Poisoned,
     /// SQLite 查询或结果映射失败。
     Read(SqlError),
+    /// SQLite schema 初始化失败。
+    Schema(SqlError),
     /// 数据库中的配置版本不是当前支持的版本。
     UnsupportedConfigurationVersion(String),
     /// SQLite 更新操作失败。
@@ -36,18 +34,15 @@ impl std::fmt::Display for StorageError {
         match self {
             Self::AlreadyInitialized => write!(formatter, "存储模块已经初始化。"),
             Self::ConfigurationMissing => write!(formatter, "配置数据库中不存在环境配置记录。"),
-            Self::DatabaseFileUnavailable(path) => {
-                write!(formatter, "无法读取配置数据库文件：{}。", path.display())
-            }
             Self::ExecutablePath(error) => write!(formatter, "无法定位应用程序文件：{error}"),
             Self::InvalidDatabasePath(path) => {
                 write!(formatter, "应用程序目录无效：{}。", path.display())
             }
-            Self::MissingDatabasePath => write!(formatter, "参数 -c 后缺少配置数据库路径。"),
             Self::NotInitialized => write!(formatter, "存储模块尚未初始化。"),
             Self::Open(error) => write!(formatter, "无法打开配置数据库：{error}"),
             Self::Poisoned => write!(formatter, "存储模块状态异常。"),
             Self::Read(error) => write!(formatter, "无法读取环境配置：{error}"),
+            Self::Schema(error) => write!(formatter, "无法初始化存储表结构：{error}"),
             Self::UnsupportedConfigurationVersion(version) => write!(
                 formatter,
                 "不支持的配置版本：{version}，当前支持版本为 {}。",

@@ -15,10 +15,7 @@ use crate::design_system::theme::{
 use crate::storage::StorageError;
 
 pub fn show_storage_error(error: StorageError) -> Result<(), Box<dyn std::error::Error>> {
-    let description = format!(
-        "{}\n\n请检查配置数据库文件是否存在、可读且未被其他程序锁定。程序不会自动创建或修复该文件。",
-        error
-    );
+    let description = format!("{}\n\n请检查配置数据库路径、文件权限和 SQLite 错误详情。", error);
     let request = DialogRequest {
         title: "配置加载失败",
         description: &description,
@@ -39,8 +36,14 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let configuration = storage.configuration().expect("启动后存储配置必须可以同步读取");
     let ui = AppWindow::new()?;
     let mut navigation = NavigationState::new();
-    let mode = theme_mode(configuration.theme);
-    let locale = Locale::parse(&configuration.language);
+    let mode = configuration
+        .as_ref()
+        .map(|configuration| theme_mode(configuration.theme))
+        .unwrap_or(RustThemeMode::DEFAULT);
+    let locale = configuration
+        .as_ref()
+        .map(|configuration| Locale::parse(&configuration.language))
+        .unwrap_or(Locale::DEFAULT);
     let effective = mode.resolve(system_theme(), dark_theme_available());
 
     {
