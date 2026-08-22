@@ -71,6 +71,23 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
         TextKey::WelcomeThanks,
         TextKey::WelcomeProjectLabel,
         TextKey::WelcomeProjectUrl,
+        TextKey::ConfigureTitle,
+        TextKey::ConfigureIntroduction,
+        TextKey::ConfigureYtdlpPathLabel,
+        TextKey::ConfigureYtdlpPathPlaceholder,
+        TextKey::ConfigureBrowserLabel,
+        TextKey::ConfigureLanguageLabel,
+        TextKey::ConfigureThemeLabel,
+        TextKey::ConfigureThemeSystem,
+        TextKey::ConfigureThemeLight,
+        TextKey::ConfigureThemeDark,
+        TextKey::ConfigureSave,
+        TextKey::ConfigureReset,
+        TextKey::ConfigureLoading,
+        TextKey::ConfigureSaving,
+        TextKey::ConfigureSaved,
+        TextKey::ConfigureValidationError,
+        TextKey::ConfigureStorageError,
     ] {
         assert!(!I18nCatalog::text(Locale::ZhCn, key).is_empty());
         assert!(!I18nCatalog::text(Locale::EnUs, key).is_empty());
