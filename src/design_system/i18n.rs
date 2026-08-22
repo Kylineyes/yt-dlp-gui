@@ -56,11 +56,84 @@ pub enum TextKey {
     WelcomeProjectUrl,
 }
 
+/// 单个语言的完整 UI 文案快照；窗口层只负责把快照应用到 Slint global。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct I18nSnapshot {
+    pub app_title: &'static str,
+    pub nav_welcome: &'static str,
+    pub nav_configure: &'static str,
+    pub nav_search: &'static str,
+    pub nav_tasks: &'static str,
+    pub welcome_title: &'static str,
+    pub welcome_introduction: &'static str,
+    pub welcome_step_configure_number: &'static str,
+    pub welcome_step_configure_description: &'static str,
+    pub welcome_step_configure_page: &'static str,
+    pub welcome_step_search_number: &'static str,
+    pub welcome_step_search_description: &'static str,
+    pub welcome_step_search_page: &'static str,
+    pub welcome_step_tasks_number: &'static str,
+    pub welcome_step_tasks_description: &'static str,
+    pub welcome_step_tasks_page: &'static str,
+    pub welcome_dependencies_title: &'static str,
+    pub welcome_dependency_slint: &'static str,
+    pub welcome_dependency_webbrowser: &'static str,
+    pub welcome_dependency_windows_sys: &'static str,
+    pub welcome_dependency_slint_build: &'static str,
+    pub welcome_thanks: &'static str,
+    pub welcome_project_label: &'static str,
+    pub welcome_project_url: &'static str,
+}
+
 /// 无状态的共享 catalog；所有 key 在首批语言中都有定义的回退文案。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct I18nCatalog;
 
 impl I18nCatalog {
+    pub const fn snapshot(locale: Locale) -> I18nSnapshot {
+        I18nSnapshot {
+            app_title: Self::text(locale, TextKey::AppTitle),
+            nav_welcome: Self::text(locale, TextKey::NavWelcome),
+            nav_configure: Self::text(locale, TextKey::NavConfigure),
+            nav_search: Self::text(locale, TextKey::NavSearch),
+            nav_tasks: Self::text(locale, TextKey::NavTasks),
+            welcome_title: Self::text(locale, TextKey::WelcomeTitle),
+            welcome_introduction: Self::text(locale, TextKey::WelcomeIntroduction),
+            welcome_step_configure_number: Self::text(locale, TextKey::WelcomeStepConfigureNumber),
+            welcome_step_configure_description: Self::text(
+                locale,
+                TextKey::WelcomeStepConfigureDescription,
+            ),
+            welcome_step_configure_page: Self::text(locale, TextKey::WelcomeStepConfigurePage),
+            welcome_step_search_number: Self::text(locale, TextKey::WelcomeStepSearchNumber),
+            welcome_step_search_description: Self::text(
+                locale,
+                TextKey::WelcomeStepSearchDescription,
+            ),
+            welcome_step_search_page: Self::text(locale, TextKey::WelcomeStepSearchPage),
+            welcome_step_tasks_number: Self::text(locale, TextKey::WelcomeStepTasksNumber),
+            welcome_step_tasks_description: Self::text(
+                locale,
+                TextKey::WelcomeStepTasksDescription,
+            ),
+            welcome_step_tasks_page: Self::text(locale, TextKey::WelcomeStepTasksPage),
+            welcome_dependencies_title: Self::text(locale, TextKey::WelcomeDependenciesTitle),
+            welcome_dependency_slint: Self::text(locale, TextKey::WelcomeDependencySlint),
+            welcome_dependency_webbrowser: Self::text(locale, TextKey::WelcomeDependencyWebbrowser),
+            welcome_dependency_windows_sys: Self::text(
+                locale,
+                TextKey::WelcomeDependencyWindowsSys,
+            ),
+            welcome_dependency_slint_build: Self::text(
+                locale,
+                TextKey::WelcomeDependencySlintBuild,
+            ),
+            welcome_thanks: Self::text(locale, TextKey::WelcomeThanks),
+            welcome_project_label: Self::text(locale, TextKey::WelcomeProjectLabel),
+            welcome_project_url: Self::text(locale, TextKey::WelcomeProjectUrl),
+        }
+    }
+
     /// 按语言和 key 返回最终可显示文本，而不是返回未解析的 key。
     pub const fn text(locale: Locale, key: TextKey) -> &'static str {
         match (locale, key) {
