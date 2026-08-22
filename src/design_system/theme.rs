@@ -29,11 +29,7 @@ impl ThemeMode {
     }
 
     /// 将用户选择、系统主题和深色能力合并为当前实际渲染主题。
-    pub const fn resolve(
-        self,
-        system_theme: Option<EffectiveTheme>,
-        dark_available: bool,
-    ) -> EffectiveTheme {
+    pub const fn resolve(self, system_theme: Option<EffectiveTheme>, dark_available: bool) -> EffectiveTheme {
         match self {
             Self::Light => EffectiveTheme::Light,
             Self::Dark if dark_available => EffectiveTheme::Dark,
@@ -106,8 +102,7 @@ pub fn system_theme() -> Option<EffectiveTheme> {
     use std::ptr::null_mut;
     use windows_sys::Win32::Foundation::ERROR_SUCCESS;
     use windows_sys::Win32::System::Registry::{
-        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, KEY_READ,
-        REG_VALUE_TYPE,
+        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, KEY_READ, REG_VALUE_TYPE,
     };
 
     let path: Vec<u16> = "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\0"

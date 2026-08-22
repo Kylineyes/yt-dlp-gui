@@ -31,6 +31,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 `.gitignore` 使用了 Cargo/Rust 风格的忽略规则（`target`、Rust 备份文件、MSVC `.pdb` 文件和 cargo-mutants 输出）。
 
+## 代码格式
+
+- Rust 代码统一使用 120 列最大宽度，格式化配置以仓库根目录的 `rustfmt.toml` 为准。
+- 修改 Rust 代码后执行 `cargo fmt --check`，不得仅依赖编辑器的局部格式化结果。
+
 ## 命令
 
 以下命令已基于当前 Cargo 工程验证：
@@ -97,6 +102,7 @@ Cargo 工程建立后，应在这里记录经过验证的命令，包括运行�
 - 程序启动时支持 `-c <路径>` 参数以选择配置数据库文件。默认路径须在后续实现中明确，不得在当前骨架阶段推断。
 - 初始数据库仅包含 `config` 表，且该表当前只包含 `version = "0.0.1"` 这一项配置。未确认需求前，不要预置任务、下载历史或 UI 偏好字段。
 - 数据库路径解析、初始化、版本读取与迁移归 `feature/storage` 负责；配置页面只能通过稳定的存储接口读写配置。
+- 存储模块允许按职责拆分为 `src/storage/` 子模块：`mod.rs` 管理单例和对外接口，`config.rs` 管理配置模型，`database.rs` 管理 SQLite 操作，`path.rs` 管理路径解析，`error.rs` 管理存储错误。
 
 ## 数据结构优先
 
