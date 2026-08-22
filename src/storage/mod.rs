@@ -51,6 +51,9 @@ impl Storage {
                     configuration.version.clone(),
                 ));
             }
+            if !matches!(configuration.theme.as_str(), "system" | "light" | "dark") {
+                return Err(StorageError::InvalidTheme(configuration.theme.clone()));
+            }
         }
         STORAGE
             .set(Self {
@@ -94,7 +97,7 @@ impl Storage {
             .map(|configuration| configuration.default_download_path))
     }
 
-    pub fn theme(&self) -> Result<Option<i8>, StorageError> {
+    pub fn theme(&self) -> Result<Option<String>, StorageError> {
         Ok(self.configuration()?.map(|configuration| configuration.theme))
     }
 
@@ -112,84 +115,61 @@ impl Storage {
         Ok(self.configuration()?.map(|configuration| configuration.proxy))
     }
 
+    /// 原子保存完整环境配置；首次保存和后续更新都必须通过该接口完成。
+    pub fn save_configuration(&self, configuration: EnvironmentConfig) -> Result<(), StorageError> {
+        if configuration.version != CONFIG_VERSION {
+            return Err(StorageError::UnsupportedConfigurationVersion(configuration.version));
+        }
+        if !matches!(configuration.theme.as_str(), "system" | "light" | "dark") {
+            return Err(StorageError::InvalidTheme(configuration.theme));
+        }
+        {
+            let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+            database::save_configuration(&mut connection, &configuration)?;
+        }
+        *self.configuration.lock().map_err(|_| StorageError::Poisoned)? = Some(configuration);
+        Ok(())
+    }
+
     /// 同步保存并更新 yt-dlp 的完整可执行文件路径。
     pub fn set_yt_dlp_path(&self, value: String) -> Result<(), StorageError> {
-        self.update_text("yt_dlp_path", value, |config, value| config.yt_dlp_path = value)
+        self.update_configuration(|configuration| configuration.yt_dlp_path = value)
     }
 
     /// 同步保存并更新 FFmpeg 的完整可执行文件路径。
     pub fn set_ffmpeg_path(&self, value: String) -> Result<(), StorageError> {
-        self.update_text("ffmpeg_path", value, |config, value| config.ffmpeg_path = value)
+        self.update_configuration(|configuration| configuration.ffmpeg_path = value)
     }
 
     /// 同步保存并更新默认下载完成目录。
     pub fn set_default_download_path(&self, value: String) -> Result<(), StorageError> {
-        self.update_text("default_download_path", value, |config, value| {
-            config.default_download_path = value
-        })
+        self.update_configuration(|configuration| configuration.default_download_path = value)
     }
 
     /// 同步保存并更新主题方案编号。
-    pub fn set_theme(&self, value: i8) -> Result<(), StorageError> {
-        self.update_integer("theme", value, |config, value| config.theme = value)
+    pub fn set_theme(&self, value: String) -> Result<(), StorageError> {
+        self.update_configuration(|configuration| configuration.theme = value)
     }
 
     /// 同步保存并更新界面语言标识。
     pub fn set_language(&self, value: String) -> Result<(), StorageError> {
-        self.update_text("language", value, |config, value| config.language = value)
+        self.update_configuration(|configuration| configuration.language = value)
     }
 
     /// 同步保存并更新最大并发下载任务数量。
     pub fn set_concurrent_downloads(&self, value: i8) -> Result<(), StorageError> {
-        self.update_integer("concurrent_downloads", value, |config, value| {
-            config.concurrent_downloads = value
-        })
+        self.update_configuration(|configuration| configuration.concurrent_downloads = value)
     }
 
     /// 同步保存并更新 yt-dlp 使用的代理地址。
     pub fn set_proxy(&self, value: String) -> Result<(), StorageError> {
-        self.update_text("proxy", value, |config, value| config.proxy = value)
+        self.update_configuration(|configuration| configuration.proxy = value)
     }
 
-    fn update_text(
-        &self,
-        field: &str,
-        value: String,
-        update: impl FnOnce(&mut EnvironmentConfig, String),
-    ) -> Result<(), StorageError> {
-        {
-            let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
-            database::update_text(&connection, field, &value)?;
-        }
-        update(
-            self.configuration
-                .lock()
-                .map_err(|_| StorageError::Poisoned)?
-                .as_mut()
-                .ok_or(StorageError::ConfigurationMissing)?,
-            value,
-        );
-        Ok(())
-    }
-
-    fn update_integer(
-        &self,
-        field: &str,
-        value: i8,
-        update: impl FnOnce(&mut EnvironmentConfig, i8),
-    ) -> Result<(), StorageError> {
-        {
-            let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
-            database::update_integer(&connection, field, value)?;
-        }
-        update(
-            self.configuration
-                .lock()
-                .map_err(|_| StorageError::Poisoned)?
-                .as_mut()
-                .ok_or(StorageError::ConfigurationMissing)?,
-            value,
-        );
-        Ok(())
+    fn update_configuration(&self, update: impl FnOnce(&mut EnvironmentConfig)) -> Result<(), StorageError> {
+        let mut configuration = self.configuration()?;
+        let configuration = configuration.as_mut().ok_or(StorageError::ConfigurationMissing)?;
+        update(configuration);
+        self.save_configuration(configuration.clone())
     }
 }

@@ -23,6 +23,8 @@ pub enum StorageError {
     Read(SqlError),
     /// SQLite schema 初始化失败。
     Schema(SqlError),
+    /// 配置数据库中的主题值不是 `system`、`light` 或 `dark`。
+    InvalidTheme(String),
     /// 数据库中的配置版本不是当前支持的版本。
     UnsupportedConfigurationVersion(String),
     /// SQLite 更新操作失败。
@@ -43,6 +45,7 @@ impl std::fmt::Display for StorageError {
             Self::Poisoned => write!(formatter, "存储模块状态异常。"),
             Self::Read(error) => write!(formatter, "无法读取环境配置：{error}"),
             Self::Schema(error) => write!(formatter, "无法初始化存储表结构：{error}"),
+            Self::InvalidTheme(theme) => write!(formatter, "不支持的主题配置：{theme}。"),
             Self::UnsupportedConfigurationVersion(version) => write!(
                 formatter,
                 "不支持的配置版本：{version}，当前支持版本为 {}。",
