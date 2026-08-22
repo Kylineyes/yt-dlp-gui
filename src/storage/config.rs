@@ -11,8 +11,8 @@ pub struct EnvironmentConfig {
     pub ffmpeg_path: String,
     /// 下载完成后默认使用的目录，空字符串表示尚未设置。
     pub default_download_path: String,
-    /// 持久化的主题方案编号，由上层负责解释具体枚举含义。
-    pub theme: i8,
+    /// 持久化的主题方案：`system`、`light` 或 `dark`。
+    pub theme: String,
     /// 持久化的 BCP-47 语言标识，例如 `zh-CN` 或 `en-US`。
     pub language: String,
     /// 同时运行的最大下载任务数量。

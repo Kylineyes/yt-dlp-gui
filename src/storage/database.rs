@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use super::config::EnvironmentConfig;
 use super::error::StorageError;
@@ -26,24 +26,33 @@ pub(super) fn read_configuration(connection: &Connection) -> Result<Option<Envir
         .map_err(StorageError::Read)
 }
 
-/// 更新字符串字段；field 只允许由本模块内部传入，避免把外部输入拼接进 SQL。
-pub(super) fn update_text(connection: &Connection, field: &str, value: &str) -> Result<(), StorageError> {
-    let changed = connection
-        .execute(&format!("UPDATE config SET {field} = ?1"), [value])
+/// 原子保存完整配置快照；事务失败时既有记录和内存快照都保持不变。
+pub(super) fn save_configuration(
+    connection: &mut Connection,
+    configuration: &EnvironmentConfig,
+) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(StorageError::Write)?;
+    transaction
+        .execute("DELETE FROM config", [])
         .map_err(StorageError::Write)?;
-    if changed != 1 {
-        return Err(StorageError::ConfigurationMissing);
-    }
-    Ok(())
-}
-
-/// 更新整数配置字段，并确保确实命中了唯一的配置记录。
-pub(super) fn update_integer(connection: &Connection, field: &str, value: i8) -> Result<(), StorageError> {
-    let changed = connection
-        .execute(&format!("UPDATE config SET {field} = ?1"), [value])
+    transaction
+        .execute(
+            concat!(
+                "INSERT INTO config (version, yt_dlp_path, ffmpeg_path, ",
+                "default_download_path, theme, language, concurrent_downloads, proxy) ",
+                "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+            ),
+            params![
+                configuration.version,
+                configuration.yt_dlp_path,
+                configuration.ffmpeg_path,
+                configuration.default_download_path,
+                configuration.theme,
+                configuration.language,
+                configuration.concurrent_downloads,
+                configuration.proxy,
+            ],
+        )
         .map_err(StorageError::Write)?;
-    if changed != 1 {
-        return Err(StorageError::ConfigurationMissing);
-    }
-    Ok(())
+    transaction.commit().map_err(StorageError::Write)
 }

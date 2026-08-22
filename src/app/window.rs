@@ -48,7 +48,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let mut navigation = NavigationState::new();
     let mode = configuration
         .as_ref()
-        .map(|configuration| theme_mode(configuration.theme))
+        .map(|configuration| theme_mode(&configuration.theme))
         .unwrap_or(RustThemeMode::DEFAULT);
     let locale = configuration
         .as_ref()
@@ -104,10 +104,11 @@ pub fn run() -> Result<(), slint::PlatformError> {
     result
 }
 
-fn theme_mode(value: i8) -> RustThemeMode {
+fn theme_mode(value: &str) -> RustThemeMode {
     match value {
-        1 => RustThemeMode::Light,
-        2 => RustThemeMode::Dark,
+        "light" => RustThemeMode::Light,
+        "dark" => RustThemeMode::Dark,
+        "system" => RustThemeMode::System,
         _ => RustThemeMode::DEFAULT,
     }
 }

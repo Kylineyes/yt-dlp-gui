@@ -11,7 +11,7 @@ pub fn initialize_schema(connection: &Connection) -> Result<()> {
             yt_dlp_path TEXT NOT NULL,
             ffmpeg_path TEXT NOT NULL,
             default_download_path TEXT NOT NULL,
-            theme INTEGER NOT NULL,
+            theme TEXT NOT NULL,
             language TEXT NOT NULL,
             concurrent_downloads INTEGER NOT NULL,
             proxy TEXT NOT NULL
