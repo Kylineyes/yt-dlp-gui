@@ -167,4 +167,21 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_welcome_thanks(snapshot.welcome_thanks.into());
     i18n.set_welcome_project_label(snapshot.welcome_project_label.into());
     i18n.set_welcome_project_url(snapshot.welcome_project_url.into());
+    i18n.set_configure_title(snapshot.configure_title.into());
+    i18n.set_configure_introduction(snapshot.configure_introduction.into());
+    i18n.set_configure_ytdlp_path_label(snapshot.configure_ytdlp_path_label.into());
+    i18n.set_configure_ytdlp_path_placeholder(snapshot.configure_ytdlp_path_placeholder.into());
+    i18n.set_configure_browser_label(snapshot.configure_browser_label.into());
+    i18n.set_configure_language_label(snapshot.configure_language_label.into());
+    i18n.set_configure_theme_label(snapshot.configure_theme_label.into());
+    i18n.set_configure_theme_system(snapshot.configure_theme_system.into());
+    i18n.set_configure_theme_light(snapshot.configure_theme_light.into());
+    i18n.set_configure_theme_dark(snapshot.configure_theme_dark.into());
+    i18n.set_configure_save(snapshot.configure_save.into());
+    i18n.set_configure_reset(snapshot.configure_reset.into());
+    i18n.set_configure_loading(snapshot.configure_loading.into());
+    i18n.set_configure_saving(snapshot.configure_saving.into());
+    i18n.set_configure_saved(snapshot.configure_saved.into());
+    i18n.set_configure_validation_error(snapshot.configure_validation_error.into());
+    i18n.set_configure_storage_error(snapshot.configure_storage_error.into());
 }
