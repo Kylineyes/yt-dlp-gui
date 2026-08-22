@@ -28,9 +28,9 @@ pub struct Storage {
 }
 
 impl Storage {
-    /// 从命令行解析数据库位置：`-c <路径>` 优先，否则使用可执行文件目录下的 app.sqlite。
-    pub fn database_path_from_args() -> Result<PathBuf, StorageError> {
-        path::database_path_from_args()
+    /// 将 CLI 提供的可选数据库路径解析为最终存储文件路径。
+    pub fn resolve_database_path(config_path: Option<PathBuf>) -> Result<PathBuf, StorageError> {
+        path::resolve_database_path(config_path)
     }
 
     /// 打开既有数据库并读取唯一的环境配置记录；该函数不会创建文件或表。
