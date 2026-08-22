@@ -7,7 +7,7 @@ const PROJECT_URL: &str = "https://github.com/Kylineyes/yt-dlp-gui";
 // 主题和 i18n 在窗口进入事件循环前初始化，避免首帧显示未解析状态。
 use crate::app::dialog::{DialogButtons, DialogRequest, DialogService, DialogTitle};
 use crate::app::navigation::NavigationState;
-use crate::design_system::i18n::{I18nCatalog, Locale, TextKey};
+use crate::design_system::i18n::{I18nCatalog, I18nSnapshot, Locale};
 use crate::design_system::theme::{
     dark_theme_available, system_theme, EffectiveTheme as RustEffectiveTheme, TextScale as RustTextScale,
     ThemeMode as RustThemeMode,
@@ -127,32 +127,34 @@ fn slint_text_scale(scale: RustTextScale) -> TextScale {
 }
 
 fn set_i18n(i18n: &I18n<'_>, locale: Locale) {
-    // 批量设置共享 global，组件会自动刷新，不需要重建窗口。
+    let snapshot = I18nCatalog::snapshot(locale);
     i18n.set_locale(locale.as_str().into());
-    i18n.set_app_title(I18nCatalog::text(locale, TextKey::AppTitle).into());
-    i18n.set_nav_welcome(I18nCatalog::text(locale, TextKey::NavWelcome).into());
-    i18n.set_nav_configure(I18nCatalog::text(locale, TextKey::NavConfigure).into());
-    i18n.set_nav_search(I18nCatalog::text(locale, TextKey::NavSearch).into());
-    i18n.set_nav_tasks(I18nCatalog::text(locale, TextKey::NavTasks).into());
-    i18n.set_welcome_title(I18nCatalog::text(locale, TextKey::WelcomeTitle).into());
-    i18n.set_welcome_introduction(I18nCatalog::text(locale, TextKey::WelcomeIntroduction).into());
-    i18n.set_welcome_step_configure_number(I18nCatalog::text(locale, TextKey::WelcomeStepConfigureNumber).into());
-    i18n.set_welcome_step_configure_description(
-        I18nCatalog::text(locale, TextKey::WelcomeStepConfigureDescription).into(),
-    );
-    i18n.set_welcome_step_configure_page(I18nCatalog::text(locale, TextKey::WelcomeStepConfigurePage).into());
-    i18n.set_welcome_step_search_number(I18nCatalog::text(locale, TextKey::WelcomeStepSearchNumber).into());
-    i18n.set_welcome_step_search_description(I18nCatalog::text(locale, TextKey::WelcomeStepSearchDescription).into());
-    i18n.set_welcome_step_search_page(I18nCatalog::text(locale, TextKey::WelcomeStepSearchPage).into());
-    i18n.set_welcome_step_tasks_number(I18nCatalog::text(locale, TextKey::WelcomeStepTasksNumber).into());
-    i18n.set_welcome_step_tasks_description(I18nCatalog::text(locale, TextKey::WelcomeStepTasksDescription).into());
-    i18n.set_welcome_step_tasks_page(I18nCatalog::text(locale, TextKey::WelcomeStepTasksPage).into());
-    i18n.set_welcome_dependencies_title(I18nCatalog::text(locale, TextKey::WelcomeDependenciesTitle).into());
-    i18n.set_welcome_dependency_slint(I18nCatalog::text(locale, TextKey::WelcomeDependencySlint).into());
-    i18n.set_welcome_dependency_webbrowser(I18nCatalog::text(locale, TextKey::WelcomeDependencyWebbrowser).into());
-    i18n.set_welcome_dependency_windows_sys(I18nCatalog::text(locale, TextKey::WelcomeDependencyWindowsSys).into());
-    i18n.set_welcome_dependency_slint_build(I18nCatalog::text(locale, TextKey::WelcomeDependencySlintBuild).into());
-    i18n.set_welcome_thanks(I18nCatalog::text(locale, TextKey::WelcomeThanks).into());
-    i18n.set_welcome_project_label(I18nCatalog::text(locale, TextKey::WelcomeProjectLabel).into());
-    i18n.set_welcome_project_url(I18nCatalog::text(locale, TextKey::WelcomeProjectUrl).into());
+    apply_i18n_snapshot(i18n, snapshot);
+}
+
+fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
+    i18n.set_app_title(snapshot.app_title.into());
+    i18n.set_nav_welcome(snapshot.nav_welcome.into());
+    i18n.set_nav_configure(snapshot.nav_configure.into());
+    i18n.set_nav_search(snapshot.nav_search.into());
+    i18n.set_nav_tasks(snapshot.nav_tasks.into());
+    i18n.set_welcome_title(snapshot.welcome_title.into());
+    i18n.set_welcome_introduction(snapshot.welcome_introduction.into());
+    i18n.set_welcome_step_configure_number(snapshot.welcome_step_configure_number.into());
+    i18n.set_welcome_step_configure_description(snapshot.welcome_step_configure_description.into());
+    i18n.set_welcome_step_configure_page(snapshot.welcome_step_configure_page.into());
+    i18n.set_welcome_step_search_number(snapshot.welcome_step_search_number.into());
+    i18n.set_welcome_step_search_description(snapshot.welcome_step_search_description.into());
+    i18n.set_welcome_step_search_page(snapshot.welcome_step_search_page.into());
+    i18n.set_welcome_step_tasks_number(snapshot.welcome_step_tasks_number.into());
+    i18n.set_welcome_step_tasks_description(snapshot.welcome_step_tasks_description.into());
+    i18n.set_welcome_step_tasks_page(snapshot.welcome_step_tasks_page.into());
+    i18n.set_welcome_dependencies_title(snapshot.welcome_dependencies_title.into());
+    i18n.set_welcome_dependency_slint(snapshot.welcome_dependency_slint.into());
+    i18n.set_welcome_dependency_webbrowser(snapshot.welcome_dependency_webbrowser.into());
+    i18n.set_welcome_dependency_windows_sys(snapshot.welcome_dependency_windows_sys.into());
+    i18n.set_welcome_dependency_slint_build(snapshot.welcome_dependency_slint_build.into());
+    i18n.set_welcome_thanks(snapshot.welcome_thanks.into());
+    i18n.set_welcome_project_label(snapshot.welcome_project_label.into());
+    i18n.set_welcome_project_url(snapshot.welcome_project_url.into());
 }
