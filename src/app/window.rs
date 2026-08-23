@@ -66,7 +66,11 @@ pub fn run() -> Result<(), slint::PlatformError> {
     ui.set_current_route(navigation.current().index());
     // Slint 只发出目标索引，Rust 侧用 NavigationState 负责合法性校验。
     let ui_weak = ui.as_weak();
+    let busy_ui = ui.as_weak();
     ui.on_route_requested(move |index| {
+        if busy_ui.upgrade().is_some_and(|ui| ui.get_search_busy()) {
+            return;
+        }
         if navigation.navigate_to_index(index) {
             if let Some(ui) = ui_weak.upgrade() {
                 ui.set_current_route(navigation.current().index());
@@ -83,6 +87,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
         apply_theme,
         set_i18n,
     );
+    crate::app::search_window::install(&ui, storage, Rc::clone(&locale_state));
 
     ui.on_project_url_requested(|| {
         let _ = webbrowser::open(PROJECT_URL);
@@ -203,4 +208,39 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_configure_picker_cancelled(snapshot.configure_picker_cancelled.into());
     i18n.set_configure_picker_failed(snapshot.configure_picker_failed.into());
     i18n.set_configure_searching(snapshot.configure_searching.into());
+    i18n.set_search_title(snapshot.search_title.into());
+    i18n.set_search_introduction(snapshot.search_introduction.into());
+    i18n.set_search_url_label(snapshot.search_url_label.into());
+    i18n.set_search_url_placeholder(snapshot.search_url_placeholder.into());
+    i18n.set_search_start(snapshot.search_start.into());
+    i18n.set_search_stop(snapshot.search_stop.into());
+    i18n.set_search_download_path_label(snapshot.search_download_path_label.into());
+    i18n.set_search_download_path_placeholder(snapshot.search_download_path_placeholder.into());
+    i18n.set_search_browse_folder(snapshot.search_browse_folder.into());
+    i18n.set_search_use_default_path(snapshot.search_use_default_path.into());
+    i18n.set_search_start_download(snapshot.search_start_download.into());
+    i18n.set_search_results_title(snapshot.search_results_title.into());
+    i18n.set_search_format_id(snapshot.search_format_id.into());
+    i18n.set_search_format_note(snapshot.search_format_note.into());
+    i18n.set_search_extension(snapshot.search_extension.into());
+    i18n.set_search_resolution(snapshot.search_resolution.into());
+    i18n.set_search_bitrate(snapshot.search_bitrate.into());
+    i18n.set_search_file_size(snapshot.search_file_size.into());
+    i18n.set_search_video_codec(snapshot.search_video_codec.into());
+    i18n.set_search_audio_codec(snapshot.search_audio_codec.into());
+    i18n.set_search_video_title(snapshot.search_video_title.into());
+    i18n.set_search_no_results(snapshot.search_no_results.into());
+    i18n.set_search_searching_template(snapshot.search_searching_template.into());
+    i18n.set_search_success(snapshot.search_success.into());
+    i18n.set_search_failed(snapshot.search_failed.into());
+    i18n.set_search_cancelled(snapshot.search_cancelled.into());
+    i18n.set_search_timeout(snapshot.search_timeout.into());
+    i18n.set_search_error_path_whitespace(snapshot.search_error_path_whitespace.into());
+    i18n.set_search_error_path_missing(snapshot.search_error_path_missing.into());
+    i18n.set_search_error_path_file(snapshot.search_error_path_file.into());
+    i18n.set_search_error_config(snapshot.search_error_config.into());
+    i18n.set_search_error_ytdlp(snapshot.search_error_ytdlp.into());
+    i18n.set_search_error_process(snapshot.search_error_process.into());
+    i18n.set_search_error_metadata(snapshot.search_error_metadata.into());
+    i18n.set_search_error_unexpected(snapshot.search_error_unexpected.into());
 }

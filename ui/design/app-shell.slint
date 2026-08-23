@@ -7,6 +7,7 @@ import { Theme } from "theme.slint";
 export component AppShell inherits Rectangle {
     in property <int> current-route: 0;
     in property <length> content-height: 0px;
+    in property <bool> navigation-enabled: true;
     callback route-requested(int);
 
     // 用独立 Text 计算当前语言标签的宽度，避免按钮尺寸反向决定侧栏宽度。
@@ -61,24 +62,28 @@ export component AppShell inherits Rectangle {
                     label: I18n.nav-welcome;
                     route-index: 0;
                     selected: root.current-route == 0;
+                    button-enabled: root.navigation-enabled;
                     clicked(index) => { root.route-requested(index); }
                 }
                 nav-configure := NavigationButton {
                     label: I18n.nav-configure;
                     route-index: 1;
                     selected: root.current-route == 1;
+                    button-enabled: root.navigation-enabled;
                     clicked(index) => { root.route-requested(index); }
                 }
                 nav-search := NavigationButton {
                     label: I18n.nav-search;
                     route-index: 2;
                     selected: root.current-route == 2;
+                    button-enabled: root.navigation-enabled;
                     clicked(index) => { root.route-requested(index); }
                 }
                 nav-tasks := NavigationButton {
                     label: I18n.nav-tasks;
                     route-index: 3;
                     selected: root.current-route == 3;
+                    button-enabled: root.navigation-enabled;
                     clicked(index) => { root.route-requested(index); }
                 }
             }
