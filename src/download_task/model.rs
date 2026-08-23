@@ -95,6 +95,8 @@ pub(crate) struct ClientConfig {
     pub(crate) yt_dlp_path: PathBuf,
     /// 可选的网络代理地址。
     pub(crate) proxy: Option<String>,
-    /// 当前客户端使用的元数据检索超时时间。
-    pub(crate) timeout: Duration,
+    /// 当前客户端使用的元数据检索超时时间；`None` 表示不设超时。
+    pub(crate) timeout: Option<Duration>,
+    /// 后续下载任务使用的存放位置；当前检索阶段只保存，不校验也不传入下载参数。
+    pub(crate) storage_path: PathBuf,
 }

@@ -4,8 +4,6 @@ use std::time::Duration;
 /// 检索错误保留类别和进程诊断，不暴露完整命令行以避免泄露代理认证信息。
 #[derive(Debug)]
 pub enum DownloadTaskError {
-    EmptyUrl,
-    InvalidTimeout,
     ExecutableNotFound(PathBuf),
     Spawn(std::io::Error),
     Io(std::io::Error),
@@ -24,8 +22,6 @@ pub enum DownloadTaskError {
 impl std::fmt::Display for DownloadTaskError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EmptyUrl => write!(formatter, "检索地址不能为空。"),
-            Self::InvalidTimeout => write!(formatter, "检索超时时间必须大于零。"),
             Self::ExecutableNotFound(path) => write!(formatter, "找不到 yt-dlp 文件：{}。", path.display()),
             Self::Spawn(error) => write!(formatter, "无法启动 yt-dlp：{error}"),
             Self::Io(error) => write!(formatter, "读取 yt-dlp 输出失败：{error}"),

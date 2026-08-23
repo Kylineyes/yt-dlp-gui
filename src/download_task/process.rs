@@ -80,7 +80,7 @@ pub(crate) fn run_metadata(
             kill_child(&mut child);
             break Termination::Cancelled;
         }
-        if started_at.elapsed() >= config.timeout {
+        if config.timeout.is_some_and(|timeout| started_at.elapsed() >= timeout) {
             kill_child(&mut child);
             break Termination::TimedOut;
         }
@@ -98,7 +98,9 @@ pub(crate) fn run_metadata(
 
     match termination {
         Termination::Cancelled => Err(DownloadTaskError::Cancelled),
-        Termination::TimedOut => Err(DownloadTaskError::Timeout(config.timeout)),
+        Termination::TimedOut => Err(DownloadTaskError::Timeout(
+            config.timeout.expect("超时终止只会在配置了超时时间时发生"),
+        )),
         Termination::Exited(_) if !status.success() => Err(DownloadTaskError::ProcessFailed {
             status: status.code(),
             stderr,
