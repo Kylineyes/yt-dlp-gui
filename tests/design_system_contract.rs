@@ -42,6 +42,7 @@ fn theme_values_have_stable_serialization() {
 
 #[test]
 fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
+    assert_eq!(Locale::DEFAULT, Locale::EnUs);
     assert_eq!(Locale::parse("en-US"), Locale::EnUs);
     assert_eq!(Locale::parse("zh_CN"), Locale::ZhCn);
     assert_eq!(Locale::parse("unknown"), Locale::DEFAULT);
@@ -88,10 +89,53 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
         TextKey::ConfigureSaved,
         TextKey::ConfigureValidationError,
         TextKey::ConfigureStorageError,
+        TextKey::ConfigureProgramSettings,
+        TextKey::ConfigureDownloadSettings,
+        TextKey::ConfigureThirdParty,
+        TextKey::ConfigureFfmpegPathLabel,
+        TextKey::ConfigureFfmpegPathPlaceholder,
+        TextKey::ConfigureDownloadPathLabel,
+        TextKey::ConfigureDownloadPathPlaceholder,
+        TextKey::ConfigureProxyLabel,
+        TextKey::ConfigureProxyPlaceholder,
+        TextKey::ConfigureConcurrentLabel,
+        TextKey::ConfigureConcurrentPlaceholder,
+        TextKey::ConfigureLanguageEnglish,
+        TextKey::ConfigureLanguageChinese,
+        TextKey::ConfigureBrowseFile,
+        TextKey::ConfigureBrowseFolder,
+        TextKey::ConfigureAutoFind,
+        TextKey::ConfigureConcurrentHelp,
+        TextKey::ConfigureErrorRequired,
+        TextKey::ConfigureErrorWhitespace,
+        TextKey::ConfigureErrorMissingFile,
+        TextKey::ConfigureErrorNotFile,
+        TextKey::ConfigureErrorMissingDirectory,
+        TextKey::ConfigureErrorNotDirectory,
+        TextKey::ConfigureErrorInvalidNumber,
+        TextKey::ConfigureErrorInvalidOption,
+        TextKey::ConfigureErrorInvalidToolName,
+        TextKey::ConfigureErrorInvalidToolExtension,
+        TextKey::ConfigureToolNotFound,
+        TextKey::ConfigurePickerCancelled,
+        TextKey::ConfigurePickerFailed,
+        TextKey::ConfigureSearching,
     ] {
         assert!(!I18nCatalog::text(Locale::ZhCn, key).is_empty());
         assert!(!I18nCatalog::text(Locale::EnUs, key).is_empty());
     }
+}
+
+#[test]
+fn concurrent_limit_copy_describes_unlimited_zero() {
+    assert_eq!(
+        I18nCatalog::text(Locale::ZhCn, TextKey::ConfigureConcurrentHelp),
+        "0 表示无并发限制。"
+    );
+    assert_eq!(
+        I18nCatalog::text(Locale::EnUs, TextKey::ConfigureConcurrentHelp),
+        "0 means no concurrency limit."
+    );
 }
 
 #[test]

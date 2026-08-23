@@ -2,6 +2,7 @@ import { AppShell } from "design/app-shell.slint";
 import { DialogWindow, DialogButtonKind, DialogButtonLayout, DialogTitleKind } from "dialog-window.slint";
 import { I18n } from "design/i18n.slint";
 import { Theme } from "design/theme.slint";
+import { ConfigurePage } from "pages/configure-page.slint";
 import { WelcomePage } from "pages/welcome-page.slint";
 
 export { I18n } from "design/i18n.slint";
@@ -17,18 +18,76 @@ export component AppWindow inherits Window {
     callback route-requested(int);
     callback project-url-requested();
 
+    in-out property <string> configure-yt-dlp-path: "";
+    in-out property <string> configure-ffmpeg-path: "";
+    in-out property <string> configure-download-path: "";
+    in-out property <string> configure-proxy: "";
+    in-out property <string> configure-concurrent-downloads: "0";
+    in-out property <string> configure-language: "en-US";
+    in-out property <string> configure-theme: "system";
+    in-out property <int> configure-concurrent-index: 0;
+    in-out property <int> configure-language-index: 0;
+    in-out property <int> configure-theme-index: 0;
+    in-out property <string> configure-yt-dlp-error: "";
+    in-out property <string> configure-ffmpeg-error: "";
+    in-out property <string> configure-download-error: "";
+    in-out property <string> configure-proxy-error: "";
+    in-out property <string> configure-concurrent-error: "";
+    in-out property <string> configure-option-error: "";
+    in-out property <string> configure-status: "";
+    in-out property <bool> configure-busy: false;
+    in-out property <bool> configure-suppress-callbacks: false;
+    callback configure-save-requested();
+    callback configure-reset-requested();
+    callback configure-browse-ytdlp-requested();
+    callback configure-browse-ffmpeg-requested();
+    callback configure-browse-download-requested();
+    callback configure-auto-find-ytdlp-requested();
+    callback configure-auto-find-ffmpeg-requested();
+    callback configure-field-edited(string, string);
+
     app-shell := AppShell {
         x: 0px;
         y: 0px;
         width: 100%;
         height: 100%;
         current-route <=> root.current-route;
-        content-height: welcome-page.intrinsic-height;
+        content-height: root.current-route == 1 ? configure-page.intrinsic-height : welcome-page.intrinsic-height;
         route-requested(index) => { root.route-requested(index); }
 
         welcome-page := WelcomePage {
             visible: root.current-route == 0;
             project-url-requested => { root.project-url-requested(); }
+        }
+        configure-page := ConfigurePage {
+            visible: root.current-route == 1;
+            yt-dlp-path <=> root.configure-yt-dlp-path;
+            ffmpeg-path <=> root.configure-ffmpeg-path;
+            download-path <=> root.configure-download-path;
+            proxy <=> root.configure-proxy;
+            concurrent-downloads <=> root.configure-concurrent-downloads;
+            language <=> root.configure-language;
+            theme-mode <=> root.configure-theme;
+            concurrent-index <=> root.configure-concurrent-index;
+            language-index <=> root.configure-language-index;
+            theme-index <=> root.configure-theme-index;
+            yt-dlp-error: root.configure-yt-dlp-error;
+            ffmpeg-error: root.configure-ffmpeg-error;
+            download-error: root.configure-download-error;
+            proxy-error: root.configure-proxy-error;
+            concurrent-error: root.configure-concurrent-error;
+            option-error: root.configure-option-error;
+            status-text: root.configure-status;
+            busy: root.configure-busy;
+            suppress-callbacks: root.configure-suppress-callbacks;
+            save-requested => { root.configure-save-requested(); }
+            reset-requested => { root.configure-reset-requested(); }
+            browse-ytdlp-requested => { root.configure-browse-ytdlp-requested(); }
+            browse-ffmpeg-requested => { root.configure-browse-ffmpeg-requested(); }
+            browse-download-requested => { root.configure-browse-download-requested(); }
+            auto-find-ytdlp-requested => { root.configure-auto-find-ytdlp-requested(); }
+            auto-find-ffmpeg-requested => { root.configure-auto-find-ffmpeg-requested(); }
+            field-edited(field, value) => { root.configure-field-edited(field, value); }
         }
     }
 }

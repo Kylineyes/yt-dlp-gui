@@ -22,6 +22,20 @@ pub struct EnvironmentConfig {
 }
 
 impl EnvironmentConfig {
+    /// 配置页面首次打开时使用的草稿默认值。
+    pub fn draft_default() -> Self {
+        Self {
+            version: super::CONFIG_VERSION.to_string(),
+            yt_dlp_path: String::new(),
+            ffmpeg_path: String::new(),
+            default_download_path: String::new(),
+            theme: "system".to_string(),
+            language: "en-US".to_string(),
+            concurrent_downloads: 0,
+            proxy: String::new(),
+        }
+    }
+
     /// 按固定列顺序读取 config 表，列顺序必须与数据库查询保持一致。
     pub(super) fn from_row(row: &Row<'_>) -> Result<Self, SqlError> {
         Ok(Self {

@@ -1,13 +1,18 @@
 slint::include_modules!();
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::time::Duration;
 
 const PROJECT_URL: &str = "https://github.com/Kylineyes/yt-dlp-gui";
 
 // 主题和 i18n 在窗口进入事件循环前初始化，避免首帧显示未解析状态。
+use crate::app::configure::{
+    find_on_path, normalize_draft, validate, ConfigureError, ConfigureField, ConfigureValidationError,
+};
 use crate::app::dialog::{DialogButtons, DialogRequest, DialogService, DialogTitle, DialogVisualState};
 use crate::app::navigation::NavigationState;
-use crate::design_system::i18n::{I18nCatalog, I18nSnapshot, Locale};
+use crate::design_system::i18n::{I18nCatalog, I18nSnapshot, Locale, TextKey};
 use crate::design_system::theme::{
     dark_theme_available, system_theme, EffectiveTheme as RustEffectiveTheme, TextScale as RustTextScale,
     ThemeMode as RustThemeMode,
@@ -48,12 +53,19 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let mut navigation = NavigationState::new();
     let mode = configuration
         .as_ref()
-        .map(|configuration| theme_mode(&configuration.theme))
+        .map(|configuration| RustThemeMode::parse(&configuration.theme))
         .unwrap_or(RustThemeMode::DEFAULT);
+    let mode_state = Rc::new(RefCell::new(mode));
+    let draft = Rc::new(RefCell::new(
+        configuration
+            .clone()
+            .unwrap_or_else(crate::storage::EnvironmentConfig::draft_default),
+    ));
     let locale = configuration
         .as_ref()
         .map(|configuration| Locale::parse(&configuration.language))
         .unwrap_or(Locale::DEFAULT);
+    let locale_state = Rc::new(Cell::new(locale));
     let effective = mode.resolve(system_theme(), dark_theme_available());
 
     {
@@ -68,20 +80,21 @@ pub fn run() -> Result<(), slint::PlatformError> {
         set_i18n(&i18n, locale);
     }
 
-    let theme_timer = if mode == RustThemeMode::System {
-        // 轮询 Windows 主题设置，更新令牌而不重建窗口或丢失页面状态。
+    let theme_timer = {
         let ui_weak = ui.as_weak();
+        let mode_state = Rc::clone(&mode_state);
         let timer = slint::Timer::default();
         timer.start(slint::TimerMode::Repeated, Duration::from_secs(1), move || {
             if let Some(ui) = ui_weak.upgrade() {
-                let effective = mode.resolve(system_theme(), dark_theme_available());
-                ui.global::<Theme>()
-                    .set_effective_theme(slint_effective_theme(effective));
+                let mode = *mode_state.borrow();
+                if mode == RustThemeMode::System {
+                    let effective = mode.resolve(system_theme(), dark_theme_available());
+                    ui.global::<Theme>()
+                        .set_effective_theme(slint_effective_theme(effective));
+                }
             }
         });
         Some(timer)
-    } else {
-        None
     };
 
     ui.set_current_route(navigation.current().index());
@@ -95,6 +108,288 @@ pub fn run() -> Result<(), slint::PlatformError> {
         }
     });
 
+    {
+        let draft = Rc::clone(&draft);
+        ui.set_configure_yt_dlp_path(draft.borrow().yt_dlp_path.clone().into());
+        ui.set_configure_ffmpeg_path(draft.borrow().ffmpeg_path.clone().into());
+        ui.set_configure_download_path(draft.borrow().default_download_path.clone().into());
+        ui.set_configure_proxy(draft.borrow().proxy.clone().into());
+        let draft = draft.borrow();
+        ui.set_configure_concurrent_downloads(draft.concurrent_downloads.to_string().into());
+        ui.set_configure_concurrent_index(draft.concurrent_downloads as i32);
+        ui.set_configure_language(draft.language.clone().into());
+        ui.set_configure_language_index(if draft.language == "zh-CN" { 1 } else { 0 });
+        ui.set_configure_theme(draft.theme.clone().into());
+        ui.set_configure_theme_index(match draft.theme.as_str() {
+            "light" => 1,
+            "dark" => 2,
+            _ => 0,
+        });
+    }
+
+    let validation_timer = Rc::new(RefCell::new(slint::Timer::default()));
+    let reset_guard = Rc::new(Cell::new(false));
+    let last_error = Rc::new(RefCell::new(None::<ConfigureValidationError>));
+    {
+        let draft = Rc::clone(&draft);
+        let validation_timer = Rc::clone(&validation_timer);
+        let ui_weak = ui.as_weak();
+        let mode_state = Rc::clone(&mode_state);
+        let reset_guard = Rc::clone(&reset_guard);
+        let locale_state = Rc::clone(&locale_state);
+        let last_error = Rc::clone(&last_error);
+        ui.on_configure_field_edited(move |field, value| {
+            if reset_guard.get() {
+                return;
+            }
+            let value = value.to_string();
+            {
+                let mut draft = draft.borrow_mut();
+                match field.as_str() {
+                    "yt-dlp-path" => draft.yt_dlp_path = value.clone(),
+                    "ffmpeg-path" => draft.ffmpeg_path = value.clone(),
+                    "download-path" => draft.default_download_path = value.clone(),
+                    "proxy" => draft.proxy = value.clone(),
+                    "concurrent-downloads" => draft.concurrent_downloads = value.parse().unwrap_or(-1),
+                    "language" => draft.language = value.clone(),
+                    "theme" => draft.theme = value.clone(),
+                    _ => return,
+                }
+            }
+            if let Some(ui) = ui_weak.upgrade() {
+                match field.as_str() {
+                    "theme" => {
+                        let mode = RustThemeMode::parse(&value);
+                        *mode_state.borrow_mut() = mode;
+                        apply_theme(&ui, mode);
+                    }
+                    "language" => {
+                        let locale = Locale::parse(&value);
+                        locale_state.set(locale);
+                        set_i18n(&ui.global::<I18n>(), locale);
+                        if let Some(error) = last_error.borrow().as_ref() {
+                            set_validation_error(&ui, Some(error), locale);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            schedule_validation(
+                &validation_timer,
+                Rc::clone(&draft),
+                ui_weak.clone(),
+                Rc::clone(&last_error),
+                Rc::clone(&locale_state),
+            );
+        });
+    }
+
+    {
+        let draft = Rc::clone(&draft);
+        let ui_weak = ui.as_weak();
+        let mode_state = Rc::clone(&mode_state);
+        let locale_state = Rc::clone(&locale_state);
+        let last_error = Rc::clone(&last_error);
+        ui.on_configure_save_requested(move || {
+            let configuration = normalize_draft(draft.borrow().clone());
+            if let Err(error) = validate(&configuration) {
+                *last_error.borrow_mut() = Some(error.clone());
+                if let Some(ui) = ui_weak.upgrade() {
+                    set_validation_error(&ui, Some(&error), locale_state.get());
+                }
+                return;
+            }
+            *last_error.borrow_mut() = None;
+            match storage.save_configuration(configuration.clone()) {
+                Ok(()) => {
+                    *draft.borrow_mut() = configuration.clone();
+                    let mode = RustThemeMode::parse(&configuration.theme);
+                    *mode_state.borrow_mut() = mode;
+                    if let Some(ui) = ui_weak.upgrade() {
+                        apply_theme(&ui, mode);
+                        let saved_locale = Locale::parse(&configuration.language);
+                        locale_state.set(saved_locale);
+                        set_i18n(&ui.global::<I18n>(), saved_locale);
+                        ui.set_configure_status(
+                            I18nCatalog::text(
+                                Locale::parse(&configuration.language),
+                                crate::design_system::i18n::TextKey::ConfigureSaved,
+                            )
+                            .into(),
+                        );
+                    }
+                }
+                Err(_) => {
+                    if let Some(ui) = ui_weak.upgrade() {
+                        ui.set_configure_status(
+                            I18nCatalog::text(
+                                Locale::parse(&configuration.language),
+                                crate::design_system::i18n::TextKey::ConfigureStorageError,
+                            )
+                            .into(),
+                        );
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let draft = Rc::clone(&draft);
+        let ui_weak = ui.as_weak();
+        let mode_state = Rc::clone(&mode_state);
+        let locale_state = Rc::clone(&locale_state);
+        let validation_timer = Rc::clone(&validation_timer);
+        let reset_guard = Rc::clone(&reset_guard);
+        let last_error = Rc::clone(&last_error);
+        ui.on_configure_reset_requested(move || {
+            reset_guard.set(true);
+            ui_weak.upgrade().map(|ui| ui.set_configure_suppress_callbacks(true));
+            let configuration = crate::storage::EnvironmentConfig::draft_default();
+            *draft.borrow_mut() = configuration.clone();
+            validation_timer.borrow_mut().stop();
+            *last_error.borrow_mut() = None;
+            *mode_state.borrow_mut() = RustThemeMode::parse(&configuration.theme);
+            locale_state.set(Locale::parse(&configuration.language));
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.set_configure_yt_dlp_path(configuration.yt_dlp_path.into());
+                ui.set_configure_ffmpeg_path(configuration.ffmpeg_path.into());
+                ui.set_configure_download_path(configuration.default_download_path.into());
+                ui.set_configure_proxy(configuration.proxy.into());
+                ui.set_configure_concurrent_downloads(configuration.concurrent_downloads.to_string().into());
+                ui.set_configure_concurrent_index(0);
+                ui.set_configure_language(configuration.language.clone().into());
+                ui.set_configure_language_index(0);
+                ui.set_configure_theme(configuration.theme.clone().into());
+                ui.set_configure_theme_index(0);
+                let reset_mode = RustThemeMode::parse(&configuration.theme);
+                let reset_locale = Locale::parse(&configuration.language);
+                apply_theme(&ui, reset_mode);
+                set_i18n(&ui.global::<I18n>(), reset_locale);
+                clear_validation_errors(&ui);
+                ui.set_configure_status("".into());
+            }
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.set_configure_suppress_callbacks(false);
+            }
+            reset_guard.set(false);
+        });
+    }
+
+    {
+        let draft = Rc::clone(&draft);
+        let validation_timer = Rc::clone(&validation_timer);
+        let locale_state = Rc::clone(&locale_state);
+        let last_error = Rc::clone(&last_error);
+        let ui_weak = ui.as_weak();
+        ui.on_configure_auto_find_ytdlp_requested(move || {
+            if let Some(path) = find_on_path("yt-dlp.exe") {
+                draft.borrow_mut().yt_dlp_path = path.display().to_string();
+                if let Some(ui) = ui_weak.upgrade() {
+                    ui.set_configure_yt_dlp_path(path.display().to_string().into());
+                }
+                schedule_validation(
+                    &validation_timer,
+                    Rc::clone(&draft),
+                    ui_weak.clone(),
+                    Rc::clone(&last_error),
+                    Rc::clone(&locale_state),
+                );
+            }
+        });
+    }
+    {
+        let draft = Rc::clone(&draft);
+        let validation_timer = Rc::clone(&validation_timer);
+        let locale_state = Rc::clone(&locale_state);
+        let last_error = Rc::clone(&last_error);
+        let ui_weak = ui.as_weak();
+        ui.on_configure_auto_find_ffmpeg_requested(move || {
+            if let Some(path) = find_on_path("ffmpeg.exe") {
+                draft.borrow_mut().ffmpeg_path = path.display().to_string();
+                if let Some(ui) = ui_weak.upgrade() {
+                    ui.set_configure_ffmpeg_path(path.display().to_string().into());
+                }
+                schedule_validation(
+                    &validation_timer,
+                    Rc::clone(&draft),
+                    ui_weak.clone(),
+                    Rc::clone(&last_error),
+                    Rc::clone(&locale_state),
+                );
+            }
+        });
+    }
+    {
+        let draft = Rc::clone(&draft);
+        let validation_timer = Rc::clone(&validation_timer);
+        let locale_state = Rc::clone(&locale_state);
+        let last_error = Rc::clone(&last_error);
+        let ui_weak = ui.as_weak();
+        ui.on_configure_browse_ytdlp_requested(move || {
+            if let Some(path) = crate::app::configure::picker::choose_executable() {
+                let value = path.display().to_string();
+                draft.borrow_mut().yt_dlp_path = value.clone();
+                if let Some(ui) = ui_weak.upgrade() {
+                    ui.set_configure_yt_dlp_path(value.into());
+                }
+                schedule_validation(
+                    &validation_timer,
+                    Rc::clone(&draft),
+                    ui_weak.clone(),
+                    Rc::clone(&last_error),
+                    Rc::clone(&locale_state),
+                );
+            }
+        });
+    }
+    {
+        let draft = Rc::clone(&draft);
+        let validation_timer = Rc::clone(&validation_timer);
+        let locale_state = Rc::clone(&locale_state);
+        let last_error = Rc::clone(&last_error);
+        let ui_weak = ui.as_weak();
+        ui.on_configure_browse_ffmpeg_requested(move || {
+            if let Some(path) = crate::app::configure::picker::choose_executable() {
+                let value = path.display().to_string();
+                draft.borrow_mut().ffmpeg_path = value.clone();
+                if let Some(ui) = ui_weak.upgrade() {
+                    ui.set_configure_ffmpeg_path(value.into());
+                }
+                schedule_validation(
+                    &validation_timer,
+                    Rc::clone(&draft),
+                    ui_weak.clone(),
+                    Rc::clone(&last_error),
+                    Rc::clone(&locale_state),
+                );
+            }
+        });
+    }
+    {
+        let draft = Rc::clone(&draft);
+        let validation_timer = Rc::clone(&validation_timer);
+        let locale_state = Rc::clone(&locale_state);
+        let last_error = Rc::clone(&last_error);
+        let ui_weak = ui.as_weak();
+        ui.on_configure_browse_download_requested(move || {
+            if let Some(path) = crate::app::configure::picker::choose_directory() {
+                let value = path.display().to_string();
+                draft.borrow_mut().default_download_path = value.clone();
+                if let Some(ui) = ui_weak.upgrade() {
+                    ui.set_configure_download_path(value.into());
+                }
+                schedule_validation(
+                    &validation_timer,
+                    Rc::clone(&draft),
+                    ui_weak.clone(),
+                    Rc::clone(&last_error),
+                    Rc::clone(&locale_state),
+                );
+            }
+        });
+    }
+
     ui.on_project_url_requested(|| {
         let _ = webbrowser::open(PROJECT_URL);
     });
@@ -104,13 +399,66 @@ pub fn run() -> Result<(), slint::PlatformError> {
     result
 }
 
-fn theme_mode(value: &str) -> RustThemeMode {
-    match value {
-        "light" => RustThemeMode::Light,
-        "dark" => RustThemeMode::Dark,
-        "system" => RustThemeMode::System,
-        _ => RustThemeMode::DEFAULT,
+fn apply_theme(ui: &AppWindow, mode: RustThemeMode) {
+    let effective = mode.resolve(system_theme(), dark_theme_available());
+    let theme = ui.global::<Theme>();
+    theme.set_mode(slint_theme_mode(mode));
+    theme.set_effective_theme(slint_effective_theme(effective));
+}
+
+fn set_validation_error(ui: &AppWindow, error: Option<&ConfigureValidationError>, locale: Locale) {
+    clear_validation_errors(ui);
+    let Some(error) = error else { return };
+    let key = match error.error {
+        ConfigureError::EmptyRequiredPath => TextKey::ConfigureErrorRequired,
+        ConfigureError::HasLeadingOrTrailingWhitespace => TextKey::ConfigureErrorWhitespace,
+        ConfigureError::MissingFile(_) => TextKey::ConfigureErrorMissingFile,
+        ConfigureError::NotAFile(_) => TextKey::ConfigureErrorNotFile,
+        ConfigureError::MissingDirectory => TextKey::ConfigureErrorMissingDirectory,
+        ConfigureError::NotADirectory => TextKey::ConfigureErrorNotDirectory,
+        ConfigureError::InvalidConcurrentDownloads => TextKey::ConfigureErrorInvalidNumber,
+        ConfigureError::InvalidLanguage | ConfigureError::InvalidTheme | ConfigureError::InvalidPath(_) => {
+            TextKey::ConfigureErrorInvalidOption
+        }
+        ConfigureError::InvalidToolName(_) => TextKey::ConfigureErrorInvalidToolName,
+        ConfigureError::InvalidToolExtension(_) => TextKey::ConfigureErrorInvalidToolExtension,
+    };
+    let message: slint::SharedString = I18nCatalog::text(locale, key).into();
+    match error.field {
+        ConfigureField::YtDlpPath => ui.set_configure_yt_dlp_error(message),
+        ConfigureField::FfmpegPath => ui.set_configure_ffmpeg_error(message),
+        ConfigureField::DefaultDownloadPath => ui.set_configure_download_error(message),
+        ConfigureField::Proxy => ui.set_configure_proxy_error(message),
+        ConfigureField::ConcurrentDownloads => ui.set_configure_concurrent_error(message),
+        ConfigureField::Language | ConfigureField::Theme => ui.set_configure_option_error(message),
     }
+}
+
+fn schedule_validation(
+    timer: &Rc<RefCell<slint::Timer>>,
+    draft: Rc<RefCell<crate::storage::EnvironmentConfig>>,
+    ui_weak: slint::Weak<AppWindow>,
+    last_error: Rc<RefCell<Option<ConfigureValidationError>>>,
+    locale_state: Rc<Cell<Locale>>,
+) {
+    timer
+        .borrow_mut()
+        .start(slint::TimerMode::SingleShot, Duration::from_millis(500), move || {
+            let error = validate(&draft.borrow()).err();
+            *last_error.borrow_mut() = error.clone();
+            if let Some(ui) = ui_weak.upgrade() {
+                set_validation_error(&ui, error.as_ref(), locale_state.get());
+            }
+        });
+}
+
+fn clear_validation_errors(ui: &AppWindow) {
+    ui.set_configure_yt_dlp_error("".into());
+    ui.set_configure_ffmpeg_error("".into());
+    ui.set_configure_download_error("".into());
+    ui.set_configure_proxy_error("".into());
+    ui.set_configure_concurrent_error("".into());
+    ui.set_configure_option_error("".into());
 }
 
 fn slint_theme_mode(mode: RustThemeMode) -> ThemeMode {
@@ -185,4 +533,35 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_configure_saved(snapshot.configure_saved.into());
     i18n.set_configure_validation_error(snapshot.configure_validation_error.into());
     i18n.set_configure_storage_error(snapshot.configure_storage_error.into());
+    i18n.set_configure_program_settings(snapshot.configure_program_settings.into());
+    i18n.set_configure_download_settings(snapshot.configure_download_settings.into());
+    i18n.set_configure_third_party(snapshot.configure_third_party.into());
+    i18n.set_configure_ffmpeg_path_label(snapshot.configure_ffmpeg_path_label.into());
+    i18n.set_configure_ffmpeg_path_placeholder(snapshot.configure_ffmpeg_path_placeholder.into());
+    i18n.set_configure_download_path_label(snapshot.configure_download_path_label.into());
+    i18n.set_configure_download_path_placeholder(snapshot.configure_download_path_placeholder.into());
+    i18n.set_configure_proxy_label(snapshot.configure_proxy_label.into());
+    i18n.set_configure_proxy_placeholder(snapshot.configure_proxy_placeholder.into());
+    i18n.set_configure_concurrent_label(snapshot.configure_concurrent_label.into());
+    i18n.set_configure_concurrent_placeholder(snapshot.configure_concurrent_placeholder.into());
+    i18n.set_configure_language_english(snapshot.configure_language_english.into());
+    i18n.set_configure_language_chinese(snapshot.configure_language_chinese.into());
+    i18n.set_configure_browse_file(snapshot.configure_browse_file.into());
+    i18n.set_configure_browse_folder(snapshot.configure_browse_folder.into());
+    i18n.set_configure_auto_find(snapshot.configure_auto_find.into());
+    i18n.set_configure_concurrent_help(snapshot.configure_concurrent_help.into());
+    i18n.set_configure_error_required(snapshot.configure_error_required.into());
+    i18n.set_configure_error_whitespace(snapshot.configure_error_whitespace.into());
+    i18n.set_configure_error_missing_file(snapshot.configure_error_missing_file.into());
+    i18n.set_configure_error_not_file(snapshot.configure_error_not_file.into());
+    i18n.set_configure_error_missing_directory(snapshot.configure_error_missing_directory.into());
+    i18n.set_configure_error_not_directory(snapshot.configure_error_not_directory.into());
+    i18n.set_configure_error_invalid_number(snapshot.configure_error_invalid_number.into());
+    i18n.set_configure_error_invalid_option(snapshot.configure_error_invalid_option.into());
+    i18n.set_configure_error_invalid_tool_name(snapshot.configure_error_invalid_tool_name.into());
+    i18n.set_configure_error_invalid_tool_extension(snapshot.configure_error_invalid_tool_extension.into());
+    i18n.set_configure_tool_not_found(snapshot.configure_tool_not_found.into());
+    i18n.set_configure_picker_cancelled(snapshot.configure_picker_cancelled.into());
+    i18n.set_configure_picker_failed(snapshot.configure_picker_failed.into());
+    i18n.set_configure_searching(snapshot.configure_searching.into());
 }
