@@ -56,6 +56,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
         .map(|configuration| RustThemeMode::parse(&configuration.theme))
         .unwrap_or(RustThemeMode::DEFAULT);
     let mode_state = Rc::new(RefCell::new(mode));
+    // draft 只承载页面未保存的编辑态，只有保存成功后才会写入 Storage。
     let draft = Rc::new(RefCell::new(
         configuration
             .clone()
@@ -81,6 +82,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
     }
 
     let theme_timer = {
+        // System 模式只轮询有效主题；用户选择和配置草稿本身不会被改写。
         let ui_weak = ui.as_weak();
         let mode_state = Rc::clone(&mode_state);
         let timer = slint::Timer::default();
@@ -127,7 +129,9 @@ pub fn run() -> Result<(), slint::PlatformError> {
         });
     }
 
+    // 防抖只保留最后一次编辑结果，避免每次按键都访问文件系统。
     let validation_timer = Rc::new(RefCell::new(slint::Timer::default()));
+    // 两层保护分别覆盖 Rust 回调和 Slint 双向绑定的回流。
     let reset_guard = Rc::new(Cell::new(false));
     let last_error = Rc::new(RefCell::new(None::<ConfigureValidationError>));
     {
@@ -243,6 +247,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
         let reset_guard = Rc::clone(&reset_guard);
         let last_error = Rc::clone(&last_error);
         ui.on_configure_reset_requested(move || {
+            // 批量更新下拉和输入值时禁止回调，否则绑定回流会覆盖默认草稿。
             reset_guard.set(true);
             ui_weak.upgrade().map(|ui| ui.set_configure_suppress_callbacks(true));
             let configuration = crate::storage::EnvironmentConfig::draft_default();
@@ -434,6 +439,7 @@ fn set_validation_error(ui: &AppWindow, error: Option<&ConfigureValidationError>
     }
 }
 
+// 文件和目录校验可能阻塞 UI，因此只在用户停止编辑 500ms 后执行一次。
 fn schedule_validation(
     timer: &Rc<RefCell<slint::Timer>>,
     draft: Rc<RefCell<crate::storage::EnvironmentConfig>>,

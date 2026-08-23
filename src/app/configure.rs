@@ -58,6 +58,7 @@ pub fn find_on_path(executable_name: &str) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
+// 扩展名和固定文件名同时校验，避免把任意 exe 当作目标工具保存。
 fn validate_tool_path(field: ConfigureField, value: &str, expected_name: &str) -> Result<(), ConfigureValidationError> {
     if value.is_empty() {
         return Err(ConfigureValidationError {
