@@ -21,31 +21,30 @@ pub struct DownloadTaskClient {
 }
 
 impl DownloadTaskClient {
-    pub fn new(yt_dlp_path: impl Into<PathBuf>, proxy: Option<String>) -> Self {
+    /// 创建客户端；超时时间为零时表示不设超时，存放位置只保存不校验。
+    pub fn new(
+        yt_dlp_path: impl Into<PathBuf>,
+        proxy: Option<String>,
+        timeout: Duration,
+        storage_path: impl Into<PathBuf>,
+    ) -> Self {
         Self {
             config: ClientConfig {
                 yt_dlp_path: yt_dlp_path.into(),
                 proxy: proxy.filter(|value| !value.trim().is_empty()),
-                timeout: DEFAULT_METADATA_TIMEOUT,
+                timeout: (!timeout.is_zero()).then_some(timeout),
+                storage_path: storage_path.into(),
             },
         }
     }
 
-    pub fn with_timeout(
-        yt_dlp_path: impl Into<PathBuf>,
-        proxy: Option<String>,
-        timeout: Duration,
-    ) -> Result<Self, DownloadTaskError> {
-        if timeout.is_zero() {
-            return Err(DownloadTaskError::InvalidTimeout);
-        }
-        let mut client = Self::new(yt_dlp_path, proxy);
-        client.config.timeout = timeout;
-        Ok(client)
-    }
-
     pub fn verify_version(&self) -> Result<YtDlpVersion, DownloadTaskError> {
         process::verify_executable(&self.config)
+    }
+
+    /// 返回后续下载任务要使用的存放位置；构造时不会检查路径是否存在。
+    pub fn storage_path(&self) -> &std::path::Path {
+        &self.config.storage_path
     }
 
     /// 在独立线程中检索 URL，并通过回调把状态和元数据转发给调用方。
@@ -54,9 +53,6 @@ impl DownloadTaskClient {
         F: Fn(MediaMessage) + Send + 'static,
     {
         let url = url.into();
-        if url.trim().is_empty() {
-            return Err(DownloadTaskError::EmptyUrl);
-        }
         let cancelled = Arc::new(AtomicBool::new(false));
         let shared = Arc::new(SharedState::default());
         let worker_cancelled = Arc::clone(&cancelled);
