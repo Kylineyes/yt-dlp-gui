@@ -25,6 +25,10 @@ pub enum StorageError {
     Schema(SqlError),
     /// 配置数据库中的主题值不是 `system`、`light` 或 `dark`。
     InvalidTheme(String),
+    /// 配置数据库中的语言不是当前支持的 locale。
+    InvalidLanguage(String),
+    /// 最大并发下载数不在支持范围内。
+    InvalidConcurrentDownloads(i8),
     /// 数据库中的配置版本不是当前支持的版本。
     UnsupportedConfigurationVersion(String),
     /// SQLite 更新操作失败。
@@ -46,6 +50,8 @@ impl std::fmt::Display for StorageError {
             Self::Read(error) => write!(formatter, "无法读取环境配置：{error}"),
             Self::Schema(error) => write!(formatter, "无法初始化存储表结构：{error}"),
             Self::InvalidTheme(theme) => write!(formatter, "不支持的主题配置：{theme}。"),
+            Self::InvalidLanguage(language) => write!(formatter, "不支持的界面语言：{language}。"),
+            Self::InvalidConcurrentDownloads(value) => write!(formatter, "不支持的并发下载数：{value}。"),
             Self::UnsupportedConfigurationVersion(version) => write!(
                 formatter,
                 "不支持的配置版本：{version}，当前支持版本为 {}。",

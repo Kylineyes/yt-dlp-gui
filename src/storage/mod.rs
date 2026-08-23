@@ -51,9 +51,7 @@ impl Storage {
                     configuration.version.clone(),
                 ));
             }
-            if !matches!(configuration.theme.as_str(), "system" | "light" | "dark") {
-                return Err(StorageError::InvalidTheme(configuration.theme.clone()));
-            }
+            validate_configuration(configuration)?;
         }
         STORAGE
             .set(Self {
@@ -120,9 +118,7 @@ impl Storage {
         if configuration.version != CONFIG_VERSION {
             return Err(StorageError::UnsupportedConfigurationVersion(configuration.version));
         }
-        if !matches!(configuration.theme.as_str(), "system" | "light" | "dark") {
-            return Err(StorageError::InvalidTheme(configuration.theme));
-        }
+        validate_configuration(&configuration)?;
         {
             let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
             database::save_configuration(&mut connection, &configuration)?;
@@ -167,9 +163,23 @@ impl Storage {
     }
 
     fn update_configuration(&self, update: impl FnOnce(&mut EnvironmentConfig)) -> Result<(), StorageError> {
-        let mut configuration = self.configuration()?;
-        let configuration = configuration.as_mut().ok_or(StorageError::ConfigurationMissing)?;
-        update(configuration);
-        self.save_configuration(configuration.clone())
+        let mut configuration = self.configuration()?.ok_or(StorageError::ConfigurationMissing)?;
+        update(&mut configuration);
+        self.save_configuration(configuration)
     }
+}
+
+fn validate_configuration(configuration: &EnvironmentConfig) -> Result<(), StorageError> {
+    if !matches!(configuration.theme.as_str(), "system" | "light" | "dark") {
+        return Err(StorageError::InvalidTheme(configuration.theme.clone()));
+    }
+    if !matches!(configuration.language.as_str(), "zh-CN" | "en-US") {
+        return Err(StorageError::InvalidLanguage(configuration.language.clone()));
+    }
+    if !(0..=16).contains(&configuration.concurrent_downloads) {
+        return Err(StorageError::InvalidConcurrentDownloads(
+            configuration.concurrent_downloads,
+        ));
+    }
+    Ok(())
 }
