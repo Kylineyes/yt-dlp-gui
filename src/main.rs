@@ -4,7 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_path = yt_dlp_gui::storage::Storage::resolve_database_path(args.config_path)?;
 
     if let Err(error) = yt_dlp_gui::storage::Storage::initialize(database_path) {
-        return yt_dlp_gui::app::window::show_storage_error(error);
+        return yt_dlp_gui::app::startup_dialog::show_storage_error(error);
     }
 
     yt_dlp_gui::app::window::run()?;
