@@ -15,6 +15,7 @@ component Field inherits VerticalLayout {
     in-out property <string> value;
     private property <length> button-width: 2 * (Theme.font-size-body * 8 + 2 * Theme.spacing-medium) + Theme.spacing-small;
     private property <length> min-editor-width: 240px;
+    // 断点保证输入框保留可读宽度；空间不足时才把操作按钮移到下一行。
     private property <bool> inline: self.width >= button-width + min-editor-width + Theme.spacing-small;
     spacing: Theme.spacing-small;
     Text { text: root.label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
@@ -71,6 +72,7 @@ export component ConfigurePage inherits Rectangle {
     in property <string> option-error: "";
     in property <string> status-text: "";
     in property <bool> busy: false;
+    // Reset 批量改值时屏蔽 selected/edited，避免双向绑定把旧值写回草稿。
     in property <bool> suppress-callbacks: false;
     out property <length> intrinsic-height: content.preferred-height;
 
