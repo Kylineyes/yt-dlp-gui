@@ -33,6 +33,24 @@ pub enum StorageError {
     UnsupportedConfigurationVersion(String),
     /// SQLite 更新操作失败。
     Write(SqlError),
+    /// 下载任务输入不满足持久化约束。
+    InvalidDownloadInput,
+    /// 下载任务进度不满足持久化约束。
+    InvalidDownloadProgress,
+    /// 下载任务或流不存在。
+    DownloadNotFound(i64),
+    /// 下载流的任务不存在。
+    DownloadStreamTaskNotFound(i64),
+    /// 下载任务状态迁移不合法。
+    InvalidDownloadStatusTransition,
+    /// 数据库中保存了未知的下载任务状态。
+    InvalidStoredDownloadStatus(String),
+    /// 数据库中保存了未知的媒体类型。
+    InvalidStoredMediaType(String),
+    /// 当前数据库版本高于程序支持的版本。
+    UnsupportedStorageSchemaVersion(i64),
+    /// 下载流标识在同一任务中重复。
+    DuplicateDownloadStream,
 }
 
 impl std::fmt::Display for StorageError {
@@ -58,6 +76,17 @@ impl std::fmt::Display for StorageError {
                 super::CONFIG_VERSION
             ),
             Self::Write(error) => write!(formatter, "无法保存环境配置：{error}"),
+            Self::InvalidDownloadInput => write!(formatter, "下载任务输入无效。"),
+            Self::InvalidDownloadProgress => write!(formatter, "下载任务进度无效。"),
+            Self::DownloadNotFound(id) => write!(formatter, "下载任务不存在：{id}。"),
+            Self::DownloadStreamTaskNotFound(id) => write!(formatter, "下载流所属任务不存在：{id}。"),
+            Self::InvalidDownloadStatusTransition => write!(formatter, "下载任务状态迁移无效。"),
+            Self::InvalidStoredDownloadStatus(status) => write!(formatter, "数据库中的下载状态无效：{status}。"),
+            Self::InvalidStoredMediaType(media_type) => write!(formatter, "数据库中的媒体类型无效：{media_type}。"),
+            Self::UnsupportedStorageSchemaVersion(version) => {
+                write!(formatter, "不支持的存储结构版本：{version}。")
+            }
+            Self::DuplicateDownloadStream => write!(formatter, "下载任务中的流标识重复。"),
         }
     }
 }
