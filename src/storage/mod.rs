@@ -1,5 +1,6 @@
 mod config;
 mod database;
+mod download;
 mod error;
 mod path;
 pub mod schema;
@@ -10,6 +11,10 @@ use std::sync::{Mutex, OnceLock};
 use rusqlite::Connection;
 
 pub use config::EnvironmentConfig;
+pub use download::{
+    DownloadProgress, DownloadStreamMediaType, DownloadStreamProgress, DownloadTask, DownloadTaskDraft,
+    DownloadTaskFilter, DownloadTaskStatus, DownloadTaskStream, DownloadTaskStreamDraft, DownloadTaskWithStreams,
+};
 pub use error::StorageError;
 
 /// 当前程序能够直接读取的配置格式版本。
@@ -166,6 +171,87 @@ impl Storage {
         let mut configuration = self.configuration()?.ok_or(StorageError::ConfigurationMissing)?;
         update(&mut configuration);
         self.save_configuration(configuration)
+    }
+
+    /// 原子创建下载任务及其初始流记录，任一流写入失败都会回滚整个任务。
+    pub fn create_download_task(
+        &self,
+        draft: DownloadTaskDraft,
+        streams: Vec<DownloadTaskStreamDraft>,
+    ) -> Result<DownloadTask, StorageError> {
+        draft.validate()?;
+        for stream in &streams {
+            stream.validate()?;
+        }
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::create_download_task(&mut connection, &draft, &streams)
+    }
+
+    /// 为已有任务新增一个下载流记录。
+    pub fn create_download_stream(
+        &self,
+        task_id: i64,
+        draft: DownloadTaskStreamDraft,
+    ) -> Result<DownloadTaskStream, StorageError> {
+        draft.validate()?;
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::create_download_stream(&mut connection, task_id, &draft)
+    }
+
+    /// 读取单个任务及其全部流快照；不存在时返回 `None`。
+    pub fn get_download_task(&self, id: i64) -> Result<Option<DownloadTaskWithStreams>, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::get_download_task(&connection, id)
+    }
+
+    /// 按更新时间倒序读取任务列表，并应用状态和数量筛选。
+    pub fn list_download_tasks(&self, filter: DownloadTaskFilter) -> Result<Vec<DownloadTask>, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::list_download_tasks(&connection, filter)
+    }
+
+    /// 按状态机规则更新任务状态，并记录生命周期时间戳。
+    pub fn update_download_status(&self, id: i64, status: DownloadTaskStatus, now: i64) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::update_download_status(&mut connection, id, status, now)
+    }
+
+    /// 将任务标记为完成，并保存最终输出路径。
+    pub fn complete_download_task(&self, id: i64, output_path: String, finished_at: i64) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::complete_download_task(&mut connection, id, output_path, finished_at)
+    }
+
+    /// 将任务标记为失败，并保存受控的错误摘要。
+    pub fn fail_download_task(
+        &self,
+        id: i64,
+        error_code: Option<String>,
+        error_message: String,
+        finished_at: i64,
+    ) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::fail_download_task(&mut connection, id, error_code, error_message, finished_at)
+    }
+
+    /// 将任务标记为已取消并记录终态时间。
+    pub fn cancel_download_task(&self, id: i64, finished_at: i64) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::cancel_download_task(&mut connection, id, finished_at)
+    }
+
+    /// 更新任务进度；不会隐式改变任务状态。
+    pub fn update_download_progress(&self, id: i64, progress: DownloadProgress) -> Result<(), StorageError> {
+        progress.validate()?;
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::update_download_progress(&mut connection, id, progress)
+    }
+
+    /// 更新单个下载流进度；不会自动聚合到任务进度。
+    pub fn update_download_stream_progress(&self, id: i64, progress: DownloadProgress) -> Result<(), StorageError> {
+        progress.validate()?;
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::update_download_stream_progress(&mut connection, id, progress)
     }
 }
 
