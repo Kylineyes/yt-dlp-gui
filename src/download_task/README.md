@@ -5,11 +5,14 @@
 - yt-dlp 文件版本验证；
 - 视频 URL 异步元数据检索；
 - 视频和媒体格式 JSON 解析；
-- 任务取消；
-- 可选任务超时；
+- 异步真实下载任务；
+- yt-dlp 结构化下载进度解析；
+- 多流进度聚合；
+- 下载取消和超时；
+- 下载完成后最终文件路径读取；
 - 下载业务后续所需的存放位置配置。
 
-模块通过独立线程运行 yt-dlp，不阻塞调用线程。当前元数据检索使用 `--skip-download`，后续具体下载业务继续在本模块中扩展。
+模块通过独立线程运行 yt-dlp，不阻塞调用线程。元数据检索使用 `--skip-download`，真实下载通过独立的 `DownloadTaskClient::download` 调用。
 
 文档中的示例路径、代理和 URL 都是占位内容。示例 URL 使用 `.invalid` 保留域名：
 
@@ -30,9 +33,12 @@ https://download-task.invalid/watch?v=metadata-fixture
 5. 立即保存返回的 `SearchHandle`，用于取消任务或等待结果。
 6. 在 `MediaMessage::Metadata` 回调中读取 `VideoInfo`，更新页面中的标题、缩略图和格式列表。
 7. 检索完成后，通过 `SearchHandle::wait` 获取最终结果。
-8. 用户选择媒体格式后，后续下载业务使用 `storage_path` 作为保存位置，并基于 `MediaFormat` 组装下载参数。
+8. 用户选择视频格式和音频格式后，构造 `DownloadRequest` 并调用 `download`。
+9. 立即保存返回的 `DownloadHandle`，用于取消、读取实时进度或等待结果。
+10. 在 `DownloadMessage` 回调中更新任务进度、合并状态和终态。
+11. 完成后从 `DownloadResult::output_path` 读取最终文件路径。
 
-### 理想路径示例
+### 元数据检索示例
 
 ```rust
 use std::time::Duration;
@@ -79,7 +85,67 @@ fn inspect_video() -> Result<(), DownloadTaskError> {
 }
 ```
 
-GUI 接入时，回调运行在检索 worker 线程中，不能直接修改 Slint 控件；应把消息转发到 Slint 事件循环。GUI 线程也不应直接调用长时间阻塞的 `wait()`，可以在后台任务中等待后再转发结果。
+### 下载请求示例
+
+```rust
+use std::path::PathBuf;
+use std::time::Duration;
+use yt_dlp_gui::download_task::{
+    DownloadMessage, DownloadOptions, DownloadRequest, DownloadTaskClient, VideoInfo,
+};
+
+fn start_download(client: &DownloadTaskClient, video: VideoInfo) -> Result<(), Box<dyn std::error::Error>> {
+    let request = DownloadRequest {
+        task_id: 1001,
+        source_url: "https://download-task.invalid/watch?v=download-fixture".to_owned(),
+        video,
+        selected_video_format_id: "137".to_owned(),
+        selected_audio_format_id: "251".to_owned(),
+        output_template: "%(title)s.%(ext)s".to_owned(),
+        target_directory: PathBuf::from("download-output"),
+        temporary_directory: PathBuf::from("download-temp"),
+        merge_output_format: "mp4".to_owned(),
+        options: DownloadOptions {
+            rate_limit: Some("2M".to_owned()),
+            retries: Some(3),
+            fragment_retries: Some(5),
+            file_access_retries: Some(3),
+            concurrent_fragments: Some(4),
+        },
+    };
+
+    let handle = client.download(request, |message| match message {
+        DownloadMessage::Started => println!("开始下载"),
+        DownloadMessage::StreamProgress(stream) => {
+            println!(
+                "流 {} 下载中：{:?}，速度 {:?}",
+                stream.stream_key,
+                stream.media_type,
+                stream.speed_bytes_per_second
+            );
+        }
+        DownloadMessage::Progress(progress) => {
+            println!("任务进度：{:?}", progress.percent);
+        }
+        DownloadMessage::Merging => {
+            println!("开始合并");
+        }
+        DownloadMessage::Completed(result) => {
+            println!("下载完成：{:?}", result.output_path);
+        }
+        DownloadMessage::Cancelled => {
+            println!("下载已取消");
+        }
+        DownloadMessage::Failed(error) => {
+            println!("下载失败：{error}");
+        }
+    })?;
+    handle.wait()?;
+    Ok(())
+}
+```
+
+GUI 接入时，回调运行在 worker 线程中，不能直接修改 Slint 控件；应把消息转发到 Slint 事件循环。GUI 线程也不应直接调用长时间阻塞的 `wait()`，可以在后台任务中等待后再转发结果。
 
 ## 二、逐个函数说明
 
@@ -100,7 +166,7 @@ pub fn new(
 | --- | --- |
 | `yt_dlp_path` | yt-dlp 可执行文件路径，只保存，不在创建时验证 |
 | `proxy` | 可选代理地址；空字符串或全空白字符串会被视为没有代理 |
-| `timeout` | 元数据检索超时时间；零秒表示不设超时 |
+| `timeout` | 元数据检索和下载任务的超时时间；零秒表示不设超时 |
 | `storage_path` | 后续下载业务的存放位置，只保存，不检查路径是否存在 |
 
 该函数不会启动 yt-dlp，也不会创建下载任务。
@@ -111,7 +177,7 @@ pub fn new(
 pub fn storage_path(&self) -> &Path
 ```
 
-返回创建客户端时传入的存放位置。当前检索阶段不会访问、创建或验证该路径，后续下载业务可以使用它。
+返回创建客户端时传入的存放位置。检索阶段不会访问、创建或验证该路径；真实下载应显式传入 `DownloadRequest::target_directory`。
 
 ### `DownloadTaskClient::verify_version`
 
@@ -157,7 +223,60 @@ where
 -- <url>
 ```
 
-`--skip-download` 只针对当前元数据检索流程；后续下载业务可以在本模块中增加单独的调用方法。
+`--skip-download` 只针对当前元数据检索流程；真实下载使用 `DownloadTaskClient::download`。
+
+### `DownloadTaskClient::download`
+
+```rust
+pub fn download<F>(
+    &self,
+    request: DownloadRequest,
+    on_message: F,
+) -> Result<DownloadHandle, DownloadTaskError>
+where
+    F: Fn(DownloadMessage) + Send + 'static
+```
+
+启动异步下载任务，并立即返回 `DownloadHandle`。
+
+`download` 会先验证 `DownloadRequest`。空字段、负任务 ID 或非 `mp4`/`mkv` 的合并容器会返回 `InvalidDownloadRequest`，不会启动子进程。
+
+当前下载参数为：
+
+```text
+--check-formats
+--newline
+--progress-delta 0.5
+--progress-template <download-template>
+--progress-template <postprocess-template>
+--print after_move:%(filepath)s
+--no-simulate
+--paths home=<target-directory>
+--paths temp=<temporary-directory>
+--output <output-template>
+--continue
+--no-overwrites
+--part
+--merge-output-format <mp4|mkv>
+[--proxy <proxy>]
+[--limit-rate <rate-limit>]
+[--retries <n>]
+[--fragment-retries <n>]
+[--file-access-retries <n>]
+[--concurrent-fragments <n>]
+-f <video-format-id>+<audio-format-id>
+-- <source-url>
+```
+
+说明：
+
+- `--no-simulate` 确保输出 `after_move` 路径时仍执行真实下载；
+- `--check-formats` 在下载前检查所选格式；
+- `--continue`、`--no-overwrites` 和 `--part` 支持断点续传并防止覆盖；
+- `--progress-delta 0.5` 限制进度输出频率；
+- `--newline` 保证每行是一个独立进度记录；
+- 代理、限速、重试和分片并发参数只在使用可选配置时传入；
+- 模块不使用 shell 拼接命令，避免参数注入。
 
 ### `SearchHandle::cancel`
 
@@ -165,7 +284,7 @@ where
 pub fn cancel(&self)
 ```
 
-请求取消当前任务。函数只设置取消标志，不等待 worker 线程结束。需要确认任务已经回收时，应继续调用 `wait()`。
+请求取消当前元数据检索任务。函数只设置取消标志，不等待 worker 线程结束。需要确认任务已经回收时，应继续调用 `wait()`。
 
 重复调用是安全的，不会重复终止进程。
 
@@ -198,30 +317,87 @@ pub fn latest_result(&self) -> Option<VideoInfo>
 pub fn wait(self) -> Result<VideoInfo, DownloadTaskError>
 ```
 
-等待任务完成，回收 worker 线程，并返回最终结果。
+等待元数据检索完成，回收 worker 线程，并返回最终结果。
 
 该函数会消耗 `SearchHandle`，同一个句柄只能调用一次 `wait()`。
 
 - 成功时返回 `Ok(VideoInfo)`。
 - 取消、超时、进程失败或解析失败时返回对应的 `DownloadTaskError`。
 
-### `SearchHandle::drop`
+### `DownloadHandle::cancel`
 
-`SearchHandle` 被丢弃时会自动发出取消请求，避免调用方忘记取消而留下后台 yt-dlp 进程。
+```rust
+pub fn cancel(&self)
+```
+
+请求取消当前下载任务。worker 会终止 yt-dlp 子进程，并在收尾后报告 `Cancelled`。
+
+### `DownloadHandle::is_cancelled`
+
+```rust
+pub fn is_cancelled(&self) -> bool
+```
+
+返回是否已经发出取消请求。
+
+### `DownloadHandle::latest_progress`
+
+```rust
+pub fn latest_progress(&self) -> Option<DownloadProgress>
+```
+
+读取最近一次聚合后的任务级进度快照。尚未收到任何进度时返回 `None`。
+
+### `DownloadHandle::wait`
+
+```rust
+pub fn wait(self) -> Result<DownloadResult, DownloadTaskError>
+```
+
+等待下载完成，回收 worker 线程，并返回最终结果。
+
+该函数会消耗 `DownloadHandle`，同一个句柄只能调用一次 `wait()`。
+
+- 成功时返回 `Ok(DownloadResult)`。
+- 取消、超时、进程失败或解析失败时返回对应的 `DownloadTaskError`。
+
+### `DownloadHandle::drop`
+
+`DownloadHandle` 被丢弃时会自动发出取消请求，避免调用方忘记取消而留下后台 yt-dlp 进程。
+
+### 纯函数
+
+```rust
+pub fn parse_download_progress_line(
+    line: &str,
+    video_format_id: &str,
+    audio_format_id: &str,
+) -> Result<Option<StreamProgress>, DownloadTaskError>
+
+pub fn aggregate_download_progress(
+    task_id: i64,
+    streams: &[StreamProgress],
+    updated_at: i64,
+) -> DownloadProgress
+```
+
+`parse_download_progress_line` 解析单行下载进度：
+
+- `download:` 行返回 `Some(StreamProgress)`；
+- `postprocess:` 和 `after_move:` 行返回 `None`；
+- 无效字段、未知格式 ID 或未知状态返回 `ProgressParse`。
+
+`aggregate_download_progress` 汇总多个流进度。准确 `total_bytes` 优先；任一流缺少准确总量但存在估算总量时使用估算值并标记 `total_is_estimate`；没有任何可靠总大小时，百分比和 ETA 保持 `None`。
 
 ## 三、逐个结构体和枚举说明
 
 ### `YtDlpVersion`
-
-表示 yt-dlp 的版本信息。
 
 | 字段 | 类型 | 作用 |
 | --- | --- | --- |
 | `value` | `String` | yt-dlp 输出的原始版本字符串 |
 
 ### `VideoInfo`
-
-表示 yt-dlp 返回的单个视频元数据，是页面展示和后续下载业务的主要输入结构。
 
 | 字段 | 类型 | 作用 |
 | --- | --- | --- |
@@ -237,11 +413,7 @@ pub fn wait(self) -> Result<VideoInfo, DownloadTaskError>
 | `upload_date` | `Option<String>` | 发布日期，通常为 `YYYYMMDD` |
 | `formats` | `Vec<MediaFormat>` | 可用媒体格式列表 |
 
-`id` 和 `title` 是必要字段；其他字段缺失时通常为 `None`。没有 `formats` 时返回空列表。
-
 ### `MediaFormat`
-
-表示单个视频、音频或其他媒体格式的属性，是后续格式选择和下载参数构造的输入。
 
 | 字段 | 类型 | 作用 |
 | --- | --- | --- |
@@ -262,50 +434,146 @@ pub fn wait(self) -> Result<VideoInfo, DownloadTaskError>
 | `protocol` | `Option<String>` | yt-dlp 使用的传输协议 |
 | `url` | `Option<String>` | 当前格式的媒体地址，可能是临时地址 |
 
-### `MediaMessage`
+### `DownloadRequest`
 
-表示检索任务通过回调发送的状态消息。
+| 字段 | 类型 | 作用 |
+| --- | --- | --- |
+| `task_id` | `i64` | 持久化任务标识，由调用层指定 |
+| `source_url` | `String` | 要下载的 URL |
+| `video` | `VideoInfo` | 已解析的视频元数据 |
+| `selected_video_format_id` | `String` | 视频流格式 ID |
+| `selected_audio_format_id` | `String` | 音频流格式 ID |
+| `output_template` | `String` | yt-dlp `--output` 文件名模板 |
+| `target_directory` | `PathBuf` | `--paths home` 最终目录 |
+| `temporary_directory` | `PathBuf` | `--paths temp` 临时目录 |
+| `merge_output_format` | `String` | 仅支持 `mp4` 或 `mkv` |
+| `options` | `DownloadOptions` | 可选下载参数 |
+
+### `DownloadOptions`
+
+| 字段 | 类型 | 作用 |
+| --- | --- | --- |
+| `rate_limit` | `Option<String>` | `--limit-rate` 值，例如 `2M` |
+| `retries` | `Option<u32>` | `--retries` |
+| `fragment_retries` | `Option<u32>` | `--fragment-retries` |
+| `file_access_retries` | `Option<u32>` | `--file-access-retries` |
+| `concurrent_fragments` | `Option<u32>` | `--concurrent-fragments` |
+
+### `StreamProgress`
+
+| 字段 | 类型 | 作用 |
+| --- | --- | --- |
+| `stream_key` | `String` | 流标识，通常为格式 ID |
+| `format_id` | `Option<String>` | 解析得到的格式 ID |
+| `media_type` | `DownloadMediaType` | `Video` 或 `Audio` |
+| `status` | `DownloadStreamStatus` | `Downloading` 或 `Finished` |
+| `downloaded_bytes` | `i64` | 已下载字节数，缺失时按 0 处理 |
+| `total_bytes` | `Option<i64>` | 准确总大小 |
+| `total_bytes_estimate` | `Option<i64>` | 估算总大小 |
+| `speed_bytes_per_second` | `Option<i64>` | 实时速度 |
+| `elapsed_seconds` | `Option<i64>` | 已用秒数 |
+| `eta_seconds` | `Option<i64>` | 预计剩余秒数 |
+| `percent` | `Option<u8>` | 0 到 100 的百分比 |
+| `started_at` | `Option<i64>` | 流开始时间戳 |
+| `finished_at` | `Option<i64>` | 流结束时间戳 |
+
+### `DownloadProgress`
+
+| 字段 | 类型 | 作用 |
+| --- | --- | --- |
+| `task_id` | `i64` | 任务标识 |
+| `stage` | `DownloadStage` | 当前任务阶段 |
+| `downloaded_bytes` | `i64` | 各流已下载字节数之和 |
+| `total_bytes` | `Option<i64>` | 各流准确总大小之和 |
+| `total_bytes_estimate` | `Option<i64>` | 含估算值时的总大小 |
+| `speed_bytes_per_second` | `Option<i64>` | 各流速度之和 |
+| `elapsed_seconds` | `Option<i64>` | 各流耗时最大值 |
+| `eta_seconds` | `Option<i64>` | 基于剩余字节和速度的预计秒数 |
+| `percent` | `Option<u8>` | 聚合百分比，范围为 0 到 100 |
+| `total_is_estimate` | `bool` | 总大小是否包含估算来源 |
+| `active_stream` | `Option<String>` | 当前仍在下载的流标识 |
+| `updated_at` | `i64` | 聚合时间戳 |
+
+### `DownloadResult`
+
+| 字段 | 类型 | 作用 |
+| --- | --- | --- |
+| `task_id` | `i64` | 任务标识 |
+| `output_path` | `Option<PathBuf>` | yt-dlp 通过 `after_move` 报告的最终文件路径 |
+
+### `MediaMessage`
 
 | 枚举值 | 作用 |
 | --- | --- |
-| `Started` | worker 线程开始执行任务 |
+| `Started` | 检索 worker 开始执行 |
 | `Metadata(VideoInfo)` | JSON 已解析并得到视频元数据 |
 | `Finished` | 检索成功结束 |
-| `Cancelled` | 调用方主动取消任务 |
-| `TimedOut` | 检索超过配置的非零超时时间 |
+| `Cancelled` | 检索已取消 |
+| `TimedOut` | 检索超时 |
 
-成功时的消息顺序：
+成功顺序：
 
 ```text
 Started -> Metadata(VideoInfo) -> Finished
 ```
 
-取消时通常为：
+### `DownloadMessage`
 
-```text
-Started -> Cancelled
-```
-
-超时时通常为：
-
-```text
-Started -> TimedOut
-```
-
-### `ClientConfig`
-
-`ClientConfig` 是模块内部使用的配置结构，不对模块外公开。
-
-| 字段 | 作用 |
+| 枚举值 | 作用 |
 | --- | --- |
-| `yt_dlp_path` | yt-dlp 可执行文件路径 |
-| `proxy` | 可选代理地址 |
-| `timeout` | `Some(Duration)` 表示有超时，`None` 表示不设超时 |
-| `storage_path` | 后续下载业务使用的存放位置，只保存不校验 |
+| `Started` | 下载 worker 开始执行 |
+| `StreamProgress(StreamProgress)` | 单个流的实时进度 |
+| `Progress(DownloadProgress)` | 多流聚合后的任务进度 |
+| `Merging` | 进入合并阶段 |
+| `Completed(DownloadResult)` | 下载成功并得到最终结果 |
+| `Cancelled` | 下载被取消 |
+| `Failed(DownloadTaskError)` | 下载失败 |
 
-## 四、异常情况
+下载阶段的消息顺序通常为：
 
-异常分为客户端创建阶段、版本验证阶段、任务执行阶段和结果解析阶段。
+```text
+Started
+StreamProgress(...)
+Progress(...)
+StreamProgress(...)
+Progress(...)
+Merging
+Completed(DownloadResult)
+```
+
+取消和失败消息均为终态，收到后不应再期待后续消息。
+
+### `DownloadMediaType` / `DownloadStreamStatus` / `DownloadStage`
+
+```text
+DownloadMediaType: Video | Audio
+DownloadStreamStatus: Downloading | Finished
+DownloadStage: Preparing | Downloading | Merging | Completed
+```
+
+当前模块在收到下载进度时使用 `Downloading`，收到 `postprocess` 行时报告 `Merging`。
+
+## 四、进度模板和聚合规则
+
+模块使用两个进度模板：
+
+- 下载模板输出 `download:` 开头的九字段制表符分隔行；
+- 后处理模板输出 `postprocess:` 开头的阶段行；
+- `--print after_move:%(filepath)s` 输出 `after_move:` 最终路径行。
+
+`NA`、`N/A`、`none` 和空值统一解析为 `Option::None`，不会保存为字符串。
+
+多流聚合规则：
+
+- 已下载字节数为各流之和；
+- 准确总大小优先，缺少准确总大小时使用估算值；
+- 任一流缺少准确总大小但使用估算值时，`total_is_estimate` 为 `true`；
+- 没有任何可靠总大小时，百分比和 ETA 为 `None`；
+- 合并阶段不伪造合并百分比。
+
+## 五、异常情况
+
+异常分为客户端创建阶段、版本验证阶段、任务执行阶段、下载阶段和结果解析阶段。
 
 ### 1. 客户端创建阶段
 
@@ -313,13 +581,10 @@ Started -> TimedOut
 
 - yt-dlp 路径不存在不会在创建时失败；
 - 存放位置不存在不会在创建时失败；
-- 存放位置没有权限不会在创建时失败；
 - timeout 为零不会报错，而是表示不设超时；
 - proxy 为 `None` 或空白字符串时不会传入 `--proxy`。
 
 ### 2. 版本验证异常
-
-调用 `verify_version` 时可能出现：
 
 | 错误 | 原因 |
 | --- | --- |
@@ -328,64 +593,62 @@ Started -> TimedOut
 | `VersionCommandFailed` | `--version` 返回非零退出码 |
 | `VersionOutputEmpty` | yt-dlp 成功退出但没有输出版本字符串 |
 
-### 3. URL 和 yt-dlp 进程异常
-
-空字符串或无效 URL 不由 Rust 提前拦截，而是交给 yt-dlp：
-
-```rust
-let handle = client.inspect_url("", |_| {})?;
-match handle.wait() {
-    Err(DownloadTaskError::ProcessFailed { status, stderr }) => {
-        println!("yt-dlp 退出码：{status:?}");
-        println!("yt-dlp 错误：{stderr}");
-    }
-    result => println!("任务结果：{result:?}"),
-}
-```
-
-可能出现：
+### 3. 元数据检索异常
 
 | 错误 | 原因 |
 | --- | --- |
-| `ExecutableNotFound(path)` | worker 启动后发现 yt-dlp 文件不存在 |
-| `Spawn(error)` | yt-dlp 进程无法启动 |
-| `ProcessFailed` | yt-dlp 返回非零退出码，错误中包含退出码和 stderr |
+| `ProcessFailed` | yt-dlp 返回非零退出码，错误包含退出码和 stderr |
 | `Io(error)` | 读取 stdout/stderr 或回收进程失败 |
 | `Cancelled` | 调用方请求取消 |
 | `Timeout(timeout)` | 配置了非零 timeout，且任务超过该时间 |
+| `InvalidJson(message)` | stdout 不是有效 JSON |
+| `MissingField(field)` | 缺少必要字段，例如 `id` 或 `title` |
+| `InvalidField { field, message }` | 字段类型不正确 |
 
-### 4. JSON 解析异常
-
-yt-dlp 成功退出后，模块会解析 stdout JSON：
+### 4. 下载异常
 
 | 错误 | 原因 |
 | --- | --- |
-| `InvalidJson(message)` | stdout 不是有效 JSON，或顶层 JSON 不是对象 |
-| `MissingField(field)` | 缺少必要字段，例如 `id` 或 `title` |
-| `InvalidField { field, message }` | 字段类型不正确，例如字符串字段返回数组 |
+| `InvalidDownloadRequest(message)` | 下载请求字段为空、任务 ID 为负或合并容器不是 `mp4`/`mkv` |
+| `ExecutableNotFound(path)` | worker 启动后未找到 yt-dlp |
+| `Spawn(error)` | 下载进程无法启动 |
+| `ProgressParse(message)` | 进度行字段数量、数值、百分比、速度单位或格式 ID 无法解析 |
+| `DownloadProcessFailed { status, stderr }` | yt-dlp 下载返回非零退出码 |
+| `Timeout(timeout)` | 下载超过客户端配置的非零超时时间 |
+| `Cancelled` | 调用方取消下载 |
+
+下载失败保存的是受限的 stderr 摘要，不保存完整命令行、临时媒体 URL 或 proxy 认证信息。
 
 ### 5. 任务状态异常
 
 | 错误 | 原因 |
 | --- | --- |
-| `Poisoned` | 任务共享状态的互斥锁异常 |
-| `WorkerPanicked` | worker 线程异常结束，无法正常提供结果 |
+| `Poisoned` | 共享状态的互斥锁异常 |
+| `WorkerPanicked` | worker 线程异常结束 |
 
 ### 6. GUI 使用注意事项
 
 - 回调运行在 worker 线程，不要直接修改 Slint 控件。
 - 将回调消息转发到 Slint 事件循环后再更新 UI。
 - 不要在 UI 线程直接调用长时间阻塞的 `wait()`。
-- 取消按钮应保存 `SearchHandle`，点击时调用 `cancel()`。
-- 收到 `Metadata` 后可以读取 `VideoInfo.formats` 展示格式列表。
-- 后续下载按钮应使用 `storage_path` 和用户选择的 `MediaFormat` 构造下载任务。
+- 取消按钮应保存 `DownloadHandle`，点击时调用 `cancel()`。
+- 收到 `Progress` 后可更新任务进度条；收到 `StreamProgress` 后可更新单流详情。
+- 任务终态（`Completed`、`Cancelled`、`Failed`）后应停止接收更多消息。
 
-## 五、测试
+## 六、测试
 
 运行契约测试：
 
 ```text
 cargo test --test download_task_contract
 ```
+
+测试覆盖：
+
+- 元数据检索默认超时；
+- 缺失可执行文件；
+- 检索取消；
+- 结构化下载进度 fixture 解析；
+- 多流汇总和估算总大小。
 
 测试只使用占位路径和伪 URL，不包含真实本地路径、真实视频链接或真实视频 ID，也不依赖外部网络服务。

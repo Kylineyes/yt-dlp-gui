@@ -1,12 +1,14 @@
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
 use super::error::DownloadTaskError;
-use super::model::{ClientConfig, YtDlpVersion};
+use super::model::{ClientConfig, DownloadRequest, YtDlpVersion};
+use super::parser::{self, DownloadOutput};
 
 /// 版本按原始字符串保存，避免把 yt-dlp 的日期版本误当作 SemVer。
 pub(crate) fn verify_executable(config: &ClientConfig) -> Result<YtDlpVersion, DownloadTaskError> {
@@ -109,6 +111,176 @@ pub(crate) fn run_metadata(
     }
 }
 
+pub(crate) fn run_download<F>(
+    config: ClientConfig,
+    request: DownloadRequest,
+    cancelled: Arc<AtomicBool>,
+    mut on_output: F,
+) -> Result<Option<String>, DownloadTaskError>
+where
+    F: FnMut(DownloadOutput),
+{
+    request.validate().map_err(DownloadTaskError::InvalidDownloadRequest)?;
+    if cancelled.load(Ordering::Acquire) {
+        return Err(DownloadTaskError::Cancelled);
+    }
+    ensure_executable(&config.yt_dlp_path)?;
+
+    let mut command = Command::new(&config.yt_dlp_path);
+    command.args([
+        "--check-formats",
+        "--newline",
+        "--progress-delta",
+        "0.5",
+        "--progress-template",
+        &parser::progress_template(),
+        "--progress-template",
+        parser::postprocess_template(),
+        "--print",
+        "after_move:%(filepath)s",
+        "--no-simulate",
+        "--paths",
+        &format!("home={}", request.target_directory.display()),
+        "--paths",
+        &format!("temp={}", request.temporary_directory.display()),
+        "--output",
+        &request.output_template,
+        "--continue",
+        "--no-overwrites",
+        "--part",
+        "--merge-output-format",
+        &request.merge_output_format,
+    ]);
+    if let Some(proxy) = config.proxy.as_deref() {
+        command.args(["--proxy", proxy]);
+    }
+    if let Some(value) = &request.options.rate_limit {
+        command.args(["--limit-rate", value]);
+    }
+    for (name, value) in [
+        ("--retries", request.options.retries),
+        ("--fragment-retries", request.options.fragment_retries),
+        ("--file-access-retries", request.options.file_access_retries),
+        ("--concurrent-fragments", request.options.concurrent_fragments),
+    ] {
+        if let Some(value) = value {
+            command.args([name, &value.to_string()]);
+        }
+    }
+    command
+        .arg("-f")
+        .arg(format!(
+            "{}+{}",
+            request.selected_video_format_id, request.selected_audio_format_id
+        ))
+        .arg("--")
+        .arg(&request.source_url)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = command.spawn().map_err(DownloadTaskError::Spawn)?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| DownloadTaskError::Io(std::io::Error::other("缺少 stdout 管道")))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| DownloadTaskError::Io(std::io::Error::other("缺少 stderr 管道")))?;
+    let (line_sender, line_receiver) = mpsc::channel();
+    let stdout_thread = thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            if line_sender.send(line).is_err() {
+                break;
+            }
+        }
+    });
+    let stderr_thread = thread::spawn(move || read_pipe(stderr));
+
+    let started_at = Instant::now();
+    enum Termination {
+        Exited(std::process::ExitStatus),
+        Cancelled,
+        TimedOut,
+        Failed(DownloadTaskError),
+    }
+    let termination = loop {
+        if cancelled.load(Ordering::Acquire) {
+            kill_child(&mut child);
+            break Termination::Cancelled;
+        }
+        if config.timeout.is_some_and(|timeout| started_at.elapsed() >= timeout) {
+            kill_child(&mut child);
+            break Termination::TimedOut;
+        }
+        match child.try_wait().map_err(DownloadTaskError::Io)? {
+            Some(status) => break Termination::Exited(status),
+            None => match line_receiver.recv_timeout(std::time::Duration::from_millis(25)) {
+                Ok(Ok(line))
+                    if line.starts_with("download:")
+                        || line.starts_with("postprocess:")
+                        || line.starts_with("after_move:") =>
+                {
+                    if let Err(error) = parser::parse_download_line(
+                        &line,
+                        &request.selected_video_format_id,
+                        &request.selected_audio_format_id,
+                    )
+                    .map(|output| {
+                        if let Some(output) = output {
+                            on_output(output);
+                        }
+                    }) {
+                        break Termination::Failed(error);
+                    }
+                }
+                Ok(Err(error)) => break Termination::Failed(DownloadTaskError::Io(error)),
+                Ok(Ok(_)) | Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => {}
+            },
+        }
+    };
+    stdout_thread.join().map_err(|_| DownloadTaskError::WorkerPanicked)?;
+    let status = match termination {
+        Termination::Exited(status) => Some(status),
+        Termination::Cancelled | Termination::TimedOut | Termination::Failed(_) => {
+            child.wait().map_err(DownloadTaskError::Io)?;
+            None
+        }
+    };
+    while let Ok(Ok(line)) = line_receiver.try_recv() {
+        if let Ok(Some(output)) = parser::parse_download_line(
+            &line,
+            &request.selected_video_format_id,
+            &request.selected_audio_format_id,
+        ) {
+            on_output(output);
+        }
+    }
+    let stderr = join_output(stderr_thread)?;
+    match termination {
+        Termination::Cancelled => return Err(DownloadTaskError::Cancelled),
+        Termination::TimedOut => {
+            return Err(DownloadTaskError::Timeout(
+                config.timeout.expect("超时终止只会在配置了超时时间时发生"),
+            ))
+        }
+        Termination::Failed(error) => return Err(error),
+        Termination::Exited(_) => {}
+    }
+    if !status.is_some_and(|status| status.success()) {
+        return Err(DownloadTaskError::DownloadProcessFailed {
+            status: status.and_then(|status| status.code()),
+            stderr: limit_stderr(stderr),
+        });
+    }
+    Ok(None)
+}
+
+fn limit_stderr(stderr: String) -> String {
+    const MAX_STDERR_BYTES: usize = 4096;
+    stderr.chars().take(MAX_STDERR_BYTES).collect()
+}
 fn ensure_executable(path: &std::path::Path) -> Result<(), DownloadTaskError> {
     if path.is_file() {
         Ok(())

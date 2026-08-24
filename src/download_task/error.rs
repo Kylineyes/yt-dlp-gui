@@ -17,8 +17,10 @@ pub enum DownloadTaskError {
     Cancelled,
     Poisoned,
     WorkerPanicked,
+    InvalidDownloadRequest(String),
+    ProgressParse(String),
+    DownloadProcessFailed { status: Option<i32>, stderr: String },
 }
-
 impl std::fmt::Display for DownloadTaskError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -44,6 +46,11 @@ impl std::fmt::Display for DownloadTaskError {
             Self::Cancelled => write!(formatter, "yt-dlp 检索已取消。"),
             Self::Poisoned => write!(formatter, "yt-dlp 检索任务状态异常。"),
             Self::WorkerPanicked => write!(formatter, "yt-dlp 检索任务异常结束。"),
+            Self::InvalidDownloadRequest(message) => write!(formatter, "下载请求无效：{message}"),
+            Self::ProgressParse(message) => write!(formatter, "yt-dlp 下载进度无效：{message}"),
+            Self::DownloadProcessFailed { status, stderr } => {
+                write!(formatter, "yt-dlp 下载失败（退出码 {:?}）：{}", status, stderr.trim())
+            }
         }
     }
 }
