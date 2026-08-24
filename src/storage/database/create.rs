@@ -24,8 +24,48 @@ pub(crate) fn create_download_task(
 
 fn insert_download_task(transaction: &Transaction<'_>, draft: &DownloadTaskDraft) -> rusqlite::Result<i64> {
     transaction.execute(
-        "INSERT INTO download_tasks (source_url, video_id, title, thumbnail_url, duration_seconds, target_path, output_path, selected_format, status, created_at, updated_at, yt_dlp_version) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'pending', ?9, ?9, ?10)",
-        params![draft.source_url, draft.video_id, draft.title, draft.thumbnail_url, draft.duration_seconds, draft.target_path, draft.output_path, draft.selected_format, draft.created_at, draft.yt_dlp_version],
+        "
+insert into download_tasks (
+    source_url,
+    video_id,
+    title,
+    thumbnail_url,
+    duration_seconds,
+    target_path,
+    output_path,
+    selected_format,
+    status,
+    created_at,
+    updated_at,
+    yt_dlp_version
+)
+values (
+    ?1,
+    ?2,
+    ?3,
+    ?4,
+    ?5,
+    ?6,
+    ?7,
+    ?8,
+    'pending',
+    ?9,
+    ?9,
+    ?10
+)
+",
+        params![
+            draft.source_url,
+            draft.video_id,
+            draft.title,
+            draft.thumbnail_url,
+            draft.duration_seconds,
+            draft.target_path,
+            draft.output_path,
+            draft.selected_format,
+            draft.created_at,
+            draft.yt_dlp_version,
+        ],
     )?;
     Ok(transaction.last_insert_rowid())
 }
@@ -36,8 +76,48 @@ fn insert_download_stream(
     draft: &DownloadTaskStreamDraft,
 ) -> rusqlite::Result<i64> {
     transaction.execute(
-        "INSERT INTO download_task_streams (task_id, stream_key, format_id, media_type, extension, width, height, video_codec, audio_codec, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'pending', ?10, ?10)",
-        params![task_id, draft.stream_key, draft.format_id, draft.media_type.as_str(), draft.extension, draft.width, draft.height, draft.video_codec, draft.audio_codec, draft.created_at],
+        "
+insert into download_task_streams (
+    task_id,
+    stream_key,
+    format_id,
+    media_type,
+    extension,
+    width,
+    height,
+    video_codec,
+    audio_codec,
+    status,
+    created_at,
+    updated_at
+)
+values (
+    ?1,
+    ?2,
+    ?3,
+    ?4,
+    ?5,
+    ?6,
+    ?7,
+    ?8,
+    ?9,
+    'pending',
+    ?10,
+    ?10
+)
+",
+        params![
+            task_id,
+            draft.stream_key,
+            draft.format_id,
+            draft.media_type.as_str(),
+            draft.extension,
+            draft.width,
+            draft.height,
+            draft.video_codec,
+            draft.audio_codec,
+            draft.created_at,
+        ],
     )?;
     Ok(transaction.last_insert_rowid())
 }

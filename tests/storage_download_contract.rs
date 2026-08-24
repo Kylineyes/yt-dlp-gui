@@ -4,7 +4,13 @@ use yt_dlp_gui::storage::{DownloadProgress, DownloadTaskDraft, DownloadTaskStatu
 
 fn connection() -> Connection {
     let connection = Connection::open_in_memory().unwrap();
-    connection.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+    connection
+        .execute_batch(
+            "
+pragma foreign_keys = on;
+",
+        )
+        .unwrap();
     initialize_schema(&connection).unwrap();
     connection
 }
@@ -28,28 +34,62 @@ fn task(created_at: i64) -> DownloadTaskDraft {
 fn initializes_download_schema_and_keeps_config_empty() {
     let connection = connection();
     let config_count: i64 = connection
-        .query_row("SELECT COUNT(*) FROM config", [], |row| row.get(0))
+        .query_row(
+            "
+select
+    count(*)
+from
+    config
+",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     let version: i64 = connection
         .query_row(
-            "SELECT version FROM storage_schema_versions WHERE domain = 'download_tasks'",
+            "
+select
+    version
+from
+    storage_schema_versions
+where
+    domain = 'download_tasks'
+",
             [],
             |row| row.get(0),
         )
         .unwrap();
     let table_count: i64 = connection
         .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('download_tasks', 'download_task_streams')",
+            "
+select
+    count(*)
+from
+    sqlite_master
+where
+    type = 'table'
+    and name in (
+        'download_tasks',
+        'download_task_streams'
+    )
+",
             [],
             |row| row.get(0),
         )
         .unwrap();
+
     assert_eq!(config_count, 0);
     assert_eq!(version, DOWNLOAD_SCHEMA_VERSION);
     assert_eq!(table_count, 2);
     assert_eq!(
         connection
-            .query_row("PRAGMA foreign_keys", [], |row| row.get::<_, i64>(0))
+            .query_row(
+                "
+pragma foreign_keys
+",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
             .unwrap(),
         1
     );
@@ -60,7 +100,16 @@ fn repeated_schema_initialization_is_idempotent() {
     let connection = connection();
     initialize_schema(&connection).unwrap();
     let versions: i64 = connection
-        .query_row("SELECT COUNT(*) FROM storage_schema_versions", [], |row| row.get(0))
+        .query_row(
+            "
+select
+    count(*)
+from
+    storage_schema_versions
+",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(versions, 1);
 }
@@ -71,33 +120,103 @@ fn task_and_stream_rows_round_trip_and_cascade() {
     let mut task_connection = connection;
     let draft = task(100);
     let transaction = task_connection.transaction().unwrap();
-    transaction.execute(
-        "INSERT INTO download_tasks (source_url, video_id, title, target_path, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, 'pending', ?5, ?5)",
-        rusqlite::params![draft.source_url, draft.video_id, draft.title, draft.target_path, draft.created_at],
-    ).unwrap();
+    transaction
+        .execute(
+            "
+insert into download_tasks (
+    source_url,
+    video_id,
+    title,
+    target_path,
+    status,
+    created_at,
+    updated_at
+)
+values (
+    ?1,
+    ?2,
+    ?3,
+    ?4,
+    'pending',
+    ?5,
+    ?5
+)
+",
+            rusqlite::params![
+                draft.source_url,
+                draft.video_id,
+                draft.title,
+                draft.target_path,
+                draft.created_at,
+            ],
+        )
+        .unwrap();
     let task_id = transaction.last_insert_rowid();
-    transaction.execute(
-        "INSERT INTO download_task_streams (task_id, stream_key, media_type, status, created_at, updated_at) VALUES (?1, 'video', 'video', 'pending', 100, 100)",
-        [task_id],
-    ).unwrap();
+    transaction
+        .execute(
+            "
+insert into download_task_streams (
+    task_id,
+    stream_key,
+    media_type,
+    status,
+    created_at,
+    updated_at
+)
+values (
+    ?1,
+    'video',
+    'video',
+    'pending',
+    100,
+    100
+)
+",
+            [task_id],
+        )
+        .unwrap();
     transaction.commit().unwrap();
+
     assert_eq!(
         task_connection
             .query_row(
-                "SELECT COUNT(*) FROM download_task_streams WHERE task_id = ?1",
+                "
+select
+    count(*)
+from
+    download_task_streams
+where
+    task_id = ?1
+",
                 [task_id],
-                |row| row.get::<_, i64>(0)
+                |row| row.get::<_, i64>(0),
             )
             .unwrap(),
         1
     );
     task_connection
-        .execute("DELETE FROM download_tasks WHERE id = ?1", [task_id])
+        .execute(
+            "
+delete from
+    download_tasks
+where
+    id = ?1
+",
+            [task_id],
+        )
         .unwrap();
     assert_eq!(
         task_connection
-            .query_row("SELECT COUNT(*) FROM download_task_streams", [], |row| row
-                .get::<_, i64>(0))
+            .query_row(
+                "
+select
+    count(*)
+from
+    download_task_streams
+",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
             .unwrap(),
         0
     );
@@ -106,10 +225,29 @@ fn task_and_stream_rows_round_trip_and_cascade() {
 #[test]
 fn schema_rejects_invalid_progress_and_media_type() {
     let connection = connection();
-    let error = connection.execute(
-        "INSERT INTO download_tasks (source_url, target_path, status, progress_percent, created_at, updated_at) VALUES ('url', 'path', 'pending', 101, 1, 1)",
-        [],
-    ).unwrap_err();
+    let error = connection
+        .execute(
+            "
+insert into download_tasks (
+    source_url,
+    target_path,
+    status,
+    progress_percent,
+    created_at,
+    updated_at
+)
+values (
+    'url',
+    'path',
+    'pending',
+    101,
+    1,
+    1
+)
+",
+            [],
+        )
+        .unwrap_err();
     assert!(error.to_string().contains("CHECK"));
 }
 
@@ -126,18 +264,52 @@ fn progress_type_boundary_is_represented() {
         updated_at: 10,
     };
     assert_eq!(progress.progress_percent, Some(100));
-    assert_eq!(DownloadTaskStatus::Pending.is_terminal(), false);
+    assert!(!DownloadTaskStatus::Pending.is_terminal());
 }
 
 #[test]
 fn duplicate_stream_key_is_rejected() {
     let connection = connection();
-    connection.execute(
-        "INSERT INTO download_tasks (source_url, target_path, status, created_at, updated_at) VALUES ('url', 'path', 'pending', 1, 1)",
-        [],
-    ).unwrap();
+    connection
+        .execute(
+            "
+insert into download_tasks (
+    source_url,
+    target_path,
+    status,
+    created_at,
+    updated_at
+)
+values (
+    'url',
+    'path',
+    'pending',
+    1,
+    1
+)
+",
+            [],
+        )
+        .unwrap();
     let id = connection.last_insert_rowid();
-    let sql = "INSERT INTO download_task_streams (task_id, stream_key, media_type, status, created_at, updated_at) VALUES (?1, 'same', 'video', 'pending', 1, 1)";
+    let sql = "
+insert into download_task_streams (
+    task_id,
+    stream_key,
+    media_type,
+    status,
+    created_at,
+    updated_at
+)
+values (
+    ?1,
+    'same',
+    'video',
+    'pending',
+    1,
+    1
+)
+";
     connection.execute(sql, [id]).unwrap();
     assert!(connection.execute(sql, [id]).is_err());
 }

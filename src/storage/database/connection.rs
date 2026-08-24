@@ -8,10 +8,20 @@ use super::super::error::StorageError;
 pub(crate) fn open_database(database_path: &Path) -> Result<Connection, StorageError> {
     let connection = Connection::open(database_path).map_err(StorageError::Open)?;
     connection
-        .execute_batch("PRAGMA foreign_keys = ON;")
+        .execute_batch(
+            "
+pragma foreign_keys = on;
+",
+        )
         .map_err(StorageError::Open)?;
     let enabled: i64 = connection
-        .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
+        .query_row(
+            "
+pragma foreign_keys
+",
+            [],
+            |row| row.get(0),
+        )
         .map_err(StorageError::Read)?;
     if enabled != 1 {
         return Err(StorageError::Write(rusqlite::Error::InvalidQuery));

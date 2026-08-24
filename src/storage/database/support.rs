@@ -3,8 +3,63 @@ use rusqlite::{Result, Row};
 use super::super::download::{DownloadStreamMediaType, DownloadTask, DownloadTaskStatus, DownloadTaskStream};
 use super::super::error::StorageError;
 
-pub(crate)const TASK_SELECT: &str = "SELECT id, source_url, video_id, title, thumbnail_url, duration_seconds, target_path, output_path, selected_format, status, progress_percent, downloaded_bytes, total_bytes, total_bytes_estimate, speed_bytes_per_second, elapsed_seconds, eta_seconds, created_at, started_at, finished_at, updated_at, yt_dlp_version, error_code, error_message FROM download_tasks";
-pub(crate)const STREAM_SELECT: &str = "SELECT id, task_id, stream_key, format_id, media_type, extension, width, height, video_codec, audio_codec, status, progress_percent, downloaded_bytes, total_bytes, total_bytes_estimate, speed_bytes_per_second, elapsed_seconds, eta_seconds, created_at, started_at, finished_at, updated_at FROM download_task_streams WHERE task_id = ?1 ORDER BY id";
+pub(crate) const TASK_SELECT: &str = r#"
+select
+    id,
+    source_url,
+    video_id,
+    title,
+    thumbnail_url,
+    duration_seconds,
+    target_path,
+    output_path,
+    selected_format,
+    status,
+    progress_percent,
+    downloaded_bytes,
+    total_bytes,
+    total_bytes_estimate,
+    speed_bytes_per_second,
+    elapsed_seconds,
+    eta_seconds,
+    created_at,
+    started_at,
+    finished_at,
+    updated_at,
+    yt_dlp_version,
+    error_code,
+    error_message
+from
+    download_tasks
+"#;
+
+pub(crate) const STREAM_SELECT: &str = r#"
+select
+    id,
+    task_id,
+    stream_key,
+    format_id,
+    media_type,
+    extension,
+    width,
+    height,
+    video_codec,
+    audio_codec,
+    status,
+    progress_percent,
+    downloaded_bytes,
+    total_bytes,
+    total_bytes_estimate,
+    speed_bytes_per_second,
+    elapsed_seconds,
+    eta_seconds,
+    created_at,
+    started_at,
+    finished_at,
+    updated_at
+from
+    download_task_streams
+"#;
 
 pub(crate) fn map_task(row: &Row<'_>) -> Result<DownloadTask> {
     Ok(DownloadTask {
@@ -18,7 +73,7 @@ pub(crate) fn map_task(row: &Row<'_>) -> Result<DownloadTask> {
         output_path: row.get(7)?,
         selected_format: row.get(8)?,
         status: DownloadTaskStatus::parse(row.get(9)?).map_err(|_| rusqlite::Error::InvalidQuery)?,
-        progress_percent: row.get::<_, Option<i64>>(10)?.map(|v| v as u8),
+        progress_percent: row.get::<_, Option<i64>>(10)?.map(|value| value as u8),
         downloaded_bytes: row.get(11)?,
         total_bytes: row.get(12)?,
         total_bytes_estimate: row.get(13)?,
@@ -48,7 +103,7 @@ pub(crate) fn map_stream(row: &Row<'_>) -> Result<DownloadTaskStream> {
         video_codec: row.get(8)?,
         audio_codec: row.get(9)?,
         status: DownloadTaskStatus::parse(row.get(10)?).map_err(|_| rusqlite::Error::InvalidQuery)?,
-        progress_percent: row.get::<_, Option<i64>>(11)?.map(|v| v as u8),
+        progress_percent: row.get::<_, Option<i64>>(11)?.map(|value| value as u8),
         downloaded_bytes: row.get(12)?,
         total_bytes: row.get(13)?,
         total_bytes_estimate: row.get(14)?,
@@ -63,8 +118,5 @@ pub(crate) fn map_stream(row: &Row<'_>) -> Result<DownloadTaskStream> {
 }
 
 pub(crate) fn map_download_write_error(error: rusqlite::Error) -> StorageError {
-    match error {
-        rusqlite::Error::SqliteFailure(_, _) => StorageError::Write(error),
-        _ => StorageError::Write(error),
-    }
+    StorageError::Write(error)
 }

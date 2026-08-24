@@ -4,17 +4,57 @@ use super::super::download::{DownloadTask, DownloadTaskFilter, DownloadTaskStrea
 use super::super::error::StorageError;
 use super::support::{map_stream, map_task, STREAM_SELECT, TASK_SELECT};
 
+const TASK_BY_ID_SUFFIX: &str = r#"
+where
+    id = ?1
+"#;
+
+const STREAMS_BY_TASK_SUFFIX: &str = r#"
+where
+    task_id = ?1
+order by
+    id
+"#;
+
+const STREAM_BY_ID_SUFFIX: &str = r#"
+where
+    id = ?1
+"#;
+
+const TASK_LIST_WITH_STATUS_SUFFIX: &str = r#"
+where
+    status = ?1
+order by
+    updated_at desc,
+    id desc
+limit
+    ?2
+"#;
+
+const TASK_LIST_SUFFIX: &str = r#"
+order by
+    updated_at desc,
+    id desc
+limit
+    ?1
+"#;
+
 /// 读取任务及其关联流，列映射集中在 support 模块维护。
 pub(crate) fn get_download_task(
     connection: &Connection,
     id: i64,
 ) -> Result<Option<DownloadTaskWithStreams>, StorageError> {
+    let task_sql = format!("{TASK_SELECT}{TASK_BY_ID_SUFFIX}");
     let task = connection
-        .query_row(TASK_SELECT, [id], map_task)
+        .query_row(&task_sql, [id], map_task)
         .optional()
         .map_err(StorageError::Read)?;
-    let Some(task) = task else { return Ok(None) };
-    let mut statement = connection.prepare(STREAM_SELECT).map_err(StorageError::Read)?;
+    let Some(task) = task else {
+        return Ok(None);
+    };
+
+    let streams_sql = format!("{STREAM_SELECT}{STREAMS_BY_TASK_SUFFIX}");
+    let mut statement = connection.prepare(&streams_sql).map_err(StorageError::Read)?;
     let streams = statement
         .query_map([id], map_stream)
         .map_err(StorageError::Read)?
@@ -28,16 +68,12 @@ pub(crate) fn list_download_tasks(
     connection: &Connection,
     filter: DownloadTaskFilter,
 ) -> Result<Vec<DownloadTask>, StorageError> {
-    let mut sql = String::from(TASK_SELECT);
-    if filter.status.is_some() {
-        sql.push_str(" WHERE status = ?1");
-    }
-    sql.push_str(if filter.status.is_some() {
-        " ORDER BY updated_at DESC, id DESC LIMIT ?2"
-    } else {
-        " ORDER BY updated_at DESC, id DESC LIMIT ?1"
-    });
     let limit = filter.limit.unwrap_or(100).min(1000) as i64;
+    let sql = if filter.status.is_some() {
+        format!("{TASK_SELECT}{TASK_LIST_WITH_STATUS_SUFFIX}")
+    } else {
+        format!("{TASK_SELECT}{TASK_LIST_SUFFIX}")
+    };
     let mut statement = connection.prepare(&sql).map_err(StorageError::Read)?;
     let rows = match filter.status {
         Some(status) => statement.query_map(params![status.as_str(), limit], map_task),
@@ -51,8 +87,9 @@ pub(crate) fn get_download_stream(
     connection: &Connection,
     id: i64,
 ) -> Result<Option<DownloadTaskStream>, StorageError> {
+    let sql = format!("{STREAM_SELECT}{STREAM_BY_ID_SUFFIX}");
     connection
-        .query_row(STREAM_SELECT, [id], map_stream)
+        .query_row(&sql, [id], map_stream)
         .optional()
         .map_err(StorageError::Read)
 }
