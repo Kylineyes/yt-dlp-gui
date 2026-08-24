@@ -13,9 +13,18 @@ pub(crate) fn update_download_status(
 ) -> Result<(), StorageError> {
     let transaction = connection.transaction().map_err(StorageError::Write)?;
     let current = transaction
-        .query_row("SELECT status FROM download_tasks WHERE id = ?1", [id], |row| {
-            row.get::<_, String>(0)
-        })
+        .query_row(
+            "
+select
+    status
+from
+    download_tasks
+where
+    id = ?1
+",
+            [id],
+            |row| row.get::<_, String>(0),
+        )
         .optional()
         .map_err(StorageError::Read)?
         .ok_or(StorageError::DownloadNotFound(id))?;
@@ -25,7 +34,22 @@ pub(crate) fn update_download_status(
     }
     let started = matches!(status, DownloadTaskStatus::Downloading).then_some(now);
     let finished = status.is_terminal().then_some(now);
-    transaction.execute("UPDATE download_tasks SET status = ?1, started_at = COALESCE(started_at, ?2), finished_at = ?3, updated_at = ?4 WHERE id = ?5", params![status.as_str(), started, finished, now, id]).map_err(StorageError::Write)?;
+    transaction
+        .execute(
+            "
+update
+    download_tasks
+set
+    status = ?1,
+    started_at = coalesce(started_at, ?2),
+    finished_at = ?3,
+    updated_at = ?4
+where
+    id = ?5
+",
+            params![status.as_str(), started, finished, now, id],
+        )
+        .map_err(StorageError::Write)?;
     transaction.commit().map_err(StorageError::Write)
 }
 
@@ -93,9 +117,18 @@ fn finish_download_task(
     }
     let transaction = connection.transaction().map_err(StorageError::Write)?;
     let current = transaction
-        .query_row("SELECT status FROM download_tasks WHERE id = ?1", [id], |row| {
-            row.get::<_, String>(0)
-        })
+        .query_row(
+            "
+select
+    status
+from
+    download_tasks
+where
+    id = ?1
+",
+            [id],
+            |row| row.get::<_, String>(0),
+        )
         .optional()
         .map_err(StorageError::Read)?
         .ok_or(StorageError::DownloadNotFound(id))?;
@@ -105,8 +138,27 @@ fn finish_download_task(
     }
     transaction
         .execute(
-            "UPDATE download_tasks SET status = ?1, output_path = COALESCE(?2, output_path), error_code = ?3, error_message = ?4, finished_at = ?5, updated_at = ?5 WHERE id = ?6",
-            params![target_status.as_str(), output_path, error_code, error_message, finished_at, id],
+            "
+update
+    download_tasks
+set
+    status = ?1,
+    output_path = coalesce(?2, output_path),
+    error_code = ?3,
+    error_message = ?4,
+    finished_at = ?5,
+    updated_at = ?5
+where
+    id = ?6
+",
+            params![
+                target_status.as_str(),
+                output_path,
+                error_code,
+                error_message,
+                finished_at,
+                id
+            ],
         )
         .map_err(map_download_write_error)?;
     transaction.commit().map_err(StorageError::Write)
