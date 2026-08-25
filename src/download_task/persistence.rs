@@ -15,6 +15,7 @@ pub(crate) struct PersistedDownload {
     storage: &'static Storage,
     task_id: i64,
     stream_ids: HashMap<String, i64>,
+    stream_statuses: HashMap<String, DownloadTaskStatus>,
     last_progress_write: Option<Instant>,
     merging: bool,
 }
@@ -79,13 +80,19 @@ impl PersistedDownload {
             .ok_or_else(|| DownloadTaskError::Storage("刚创建的下载任务无法读取".to_owned()))?;
         let stream_ids = stored
             .streams
+            .iter()
+            .map(|stream| (stream.stream_key.clone(), stream.id))
+            .collect();
+        let stream_statuses = stored
+            .streams
             .into_iter()
-            .map(|stream| (stream.stream_key, stream.id))
+            .map(|stream| (stream.stream_key, stream.status))
             .collect();
         Ok(Self {
             storage,
             task_id: task.id,
             stream_ids,
+            stream_statuses,
             last_progress_write: None,
             merging: false,
         })
@@ -112,22 +119,97 @@ impl PersistedDownload {
         Ok(true)
     }
 
-    pub(crate) fn write_progress(&mut self, task_progress: &DownloadProgress, stream: &StreamProgress, force: bool) {
+    pub(crate) fn write_progress(
+        &mut self,
+        task_progress: &DownloadProgress,
+        stream: &StreamProgress,
+        force: bool,
+    ) -> Result<(), DownloadTaskError> {
+        let stream_id = self.stream_ids.get(&stream.stream_key).copied();
+        if let Some(stream_id) = stream_id {
+            self.ensure_stream_downloading(&stream.stream_key, stream_id, task_progress.updated_at)?;
+        }
         let should_write = force
             || self
                 .last_progress_write
                 .is_none_or(|last_write| last_write.elapsed() >= PROGRESS_WRITE_INTERVAL);
         if !should_write {
-            return;
+            return Ok(());
         }
         self.last_progress_write = Some(Instant::now());
         let _ = self
             .storage
             .update_download_progress(self.task_id, stored_task_progress(task_progress));
-        if let Some(stream_id) = self.stream_ids.get(&stream.stream_key) {
+        if let Some(stream_id) = stream_id {
             let _ = self
                 .storage
-                .update_download_stream_progress(*stream_id, stored_stream_progress(stream, task_progress.updated_at));
+                .update_download_stream_progress(stream_id, stored_stream_progress(stream, task_progress.updated_at));
+        }
+        if stream.status == super::model::DownloadStreamStatus::Finished {
+            if let Some(stream_id) = stream_id {
+                self.complete_stream(&stream.stream_key, stream_id, task_progress.updated_at)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_stream_downloading(
+        &mut self,
+        stream_key: &str,
+        stream_id: i64,
+        now: i64,
+    ) -> Result<(), DownloadTaskError> {
+        let status = self
+            .stream_statuses
+            .get(stream_key)
+            .copied()
+            .ok_or_else(|| DownloadTaskError::Storage(format!("未找到下载流映射：{stream_key}")))?;
+        match status {
+            DownloadTaskStatus::Pending => {
+                self.storage
+                    .update_download_stream_status(stream_id, DownloadTaskStatus::Preparing, now)
+                    .map_err(storage_error)?;
+                self.stream_statuses
+                    .insert(stream_key.to_owned(), DownloadTaskStatus::Preparing);
+                self.storage
+                    .update_download_stream_status(stream_id, DownloadTaskStatus::Downloading, now)
+                    .map_err(storage_error)?;
+                self.stream_statuses
+                    .insert(stream_key.to_owned(), DownloadTaskStatus::Downloading);
+            }
+            DownloadTaskStatus::Preparing => {
+                self.storage
+                    .update_download_stream_status(stream_id, DownloadTaskStatus::Downloading, now)
+                    .map_err(storage_error)?;
+                self.stream_statuses
+                    .insert(stream_key.to_owned(), DownloadTaskStatus::Downloading);
+            }
+            DownloadTaskStatus::Downloading => {}
+            DownloadTaskStatus::Completed | DownloadTaskStatus::Cancelled | DownloadTaskStatus::Failed => {
+                return Err(DownloadTaskError::Storage(format!("下载流已处于终态：{stream_key}")))
+            }
+            DownloadTaskStatus::Merging => {
+                return Err(DownloadTaskError::Storage(format!("下载流状态无效：{stream_key}")))
+            }
+        }
+        Ok(())
+    }
+
+    fn complete_stream(&mut self, stream_key: &str, stream_id: i64, now: i64) -> Result<(), DownloadTaskError> {
+        match self.stream_statuses.get(stream_key).copied() {
+            Some(DownloadTaskStatus::Downloading) => {
+                self.storage
+                    .complete_download_stream(stream_id, now)
+                    .map_err(storage_error)?;
+                self.stream_statuses
+                    .insert(stream_key.to_owned(), DownloadTaskStatus::Completed);
+                Ok(())
+            }
+            Some(DownloadTaskStatus::Completed) => Ok(()),
+            Some(status) => Err(DownloadTaskError::Storage(format!(
+                "下载流无法完成，当前状态为 {status:?}：{stream_key}"
+            ))),
+            None => Err(DownloadTaskError::Storage(format!("未找到下载流映射：{stream_key}"))),
         }
     }
 
@@ -152,13 +234,15 @@ impl PersistedDownload {
             .map_err(storage_error)
     }
 
-    pub(crate) fn cancel(&self, now: i64) -> Result<(), DownloadTaskError> {
+    pub(crate) fn cancel(&mut self, now: i64) -> Result<(), DownloadTaskError> {
+        self.finish_active_streams(DownloadTaskStatus::Cancelled, now)?;
         self.storage
             .cancel_download_task(self.task_id, now)
             .map_err(storage_error)
     }
 
-    pub(crate) fn fail(&self, error: &DownloadTaskError, now: i64) -> Result<(), DownloadTaskError> {
+    pub(crate) fn fail(&mut self, error: &DownloadTaskError, now: i64) -> Result<(), DownloadTaskError> {
+        self.finish_active_streams(DownloadTaskStatus::Failed, now)?;
         self.storage
             .fail_download_task(
                 self.task_id,
@@ -167,6 +251,32 @@ impl PersistedDownload {
                 now,
             )
             .map_err(storage_error)
+    }
+
+    fn finish_active_streams(&mut self, target: DownloadTaskStatus, now: i64) -> Result<(), DownloadTaskError> {
+        let active_streams = self
+            .stream_statuses
+            .iter()
+            .filter_map(|(stream_key, status)| (!status.is_terminal()).then(|| stream_key.clone()))
+            .collect::<Vec<_>>();
+        for stream_key in active_streams {
+            let stream_id = self
+                .stream_ids
+                .get(&stream_key)
+                .copied()
+                .ok_or_else(|| DownloadTaskError::Storage(format!("未找到下载流映射：{stream_key}")))?;
+            if matches!(target, DownloadTaskStatus::Cancelled) {
+                self.storage
+                    .cancel_download_stream(stream_id, now)
+                    .map_err(storage_error)?;
+            } else if matches!(target, DownloadTaskStatus::Failed) {
+                self.storage
+                    .fail_download_stream(stream_id, now)
+                    .map_err(storage_error)?;
+            }
+            self.stream_statuses.insert(stream_key, target);
+        }
+        Ok(())
     }
 }
 
