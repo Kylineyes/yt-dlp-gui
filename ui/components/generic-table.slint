@@ -1,0 +1,249 @@
+import { Theme } from "../design/theme.slint";
+
+// 表头排序状态由组件展示，实际数据顺序由使用方的数据模型维护。
+// 这样组件可以保持通用，不需要知道文本、数字或业务对象的比较规则。
+export enum TableSortDirection {
+    unsorted,
+    ascending,
+    descending,
+}
+
+// 每一列只描述显示和交互契约，不携带业务字段名。
+// width-weight 是相对宽度权重；使用方可以通过它控制不同列的视觉比例。
+export struct TableColumn {
+    title: string,
+    sortable: bool,
+    width-weight: float,
+    sort-direction: TableSortDirection,
+}
+
+// source-index 始终指向过滤前的数据行，用于把显示事件映射回底层数据。
+// cells 的顺序必须与 TableColumn 的顺序一致，文本字体由组件统一使用主题字体。
+export struct TableRow {
+    source-index: int,
+    cells: [string],
+    checked: bool,
+}
+
+component TableSortMark inherits Text {
+    in property <TableSortDirection> direction;
+    width: Theme.font-size-body;
+    height: 100%;
+    vertical-alignment: center;
+    horizontal-alignment: center;
+    font-family: Theme.ui-font-family;
+    font-size: Theme.font-size-body;
+    color: root.direction == TableSortDirection.unsorted ? Theme.text-muted : Theme.accent;
+    // ↕/↑/↓ 是排序语义图标，不承载任何业务文案，因此不需要 i18n 键。
+    text: root.direction == TableSortDirection.ascending ? "↑" : root.direction == TableSortDirection.descending ? "↓" : "↕";
+}
+
+component TableCheckBox inherits Rectangle {
+    in property <bool> checked;
+    callback toggled();
+    width: Theme.control-min-height;
+    height: Theme.control-min-height;
+    background: transparent;
+
+    Rectangle {
+        x: (parent.width - Theme.font-size-body-large) / 2;
+        y: (parent.height - Theme.font-size-body-large) / 2;
+        width: Theme.font-size-body-large;
+        height: Theme.font-size-body-large;
+        border-width: Theme.border-width-default;
+        border-color: root.checked ? Theme.accent : Theme.border-strong;
+        border-radius: Theme.corner-radius-small;
+        background: root.checked ? Theme.accent : Theme.surface-primary;
+
+        if root.checked : Text {
+            width: parent.width;
+            height: parent.height;
+            text: "✓";
+            color: Theme.accent-on;
+            font-family: Theme.ui-font-family;
+            font-size: Theme.font-size-body;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    TouchArea {
+        clicked => { root.toggled(); }
+    }
+}
+
+// 通用表格只负责布局、主题和鼠标事件分发。
+// 使用方通过 columns/rows 输入数据，通过回调接入排序、过滤、选中和勾选逻辑。
+export component GenericTable inherits Rectangle {
+    // 表头和行数据都由使用方传入，组件不限制数组长度。
+    in property <[TableColumn]> columns: [];
+    in property <[TableRow]> rows: [];
+
+    // rows-selectable 默认为 false，避免普通展示表格意外产生选择状态。
+    in property <bool> rows-selectable: false;
+    in property <bool> show-check-column: false;
+    in property <int> selected-source-row: -1;
+
+    callback sort-requested(column: int, direction: TableSortDirection);
+    callback selection-requested(source-row: int);
+    callback left-clicked(source-row: int);
+    callback right-clicked(source-row: int);
+    callback middle-clicked(source-row: int);
+    callback check-toggled(source-row: int, checked: bool);
+
+    // 供 PageScrollHost 或外层布局使用的稳定内容高度契约。
+    out property <length> intrinsic-height: table-content.preferred-height;
+    out property <length> intrinsic-width: table-content.preferred-width;
+
+    private property <length> minimum-column-width: Theme.control-min-height * 3;
+    private property <length> leading-column-width: show-check-column ? Theme.control-min-height : 0px;
+    min-width: leading-column-width + columns.length * minimum-column-width;
+    height: table-content.preferred-height;
+    background: Theme.surface-primary;
+    border-width: Theme.border-width-default;
+    border-color: Theme.border-default;
+    border-radius: Theme.corner-radius-small;
+    clip: true;
+
+    function next-sort(direction: TableSortDirection) -> TableSortDirection {
+        return direction == TableSortDirection.unsorted ? TableSortDirection.ascending : direction == TableSortDirection.ascending ? TableSortDirection.descending : TableSortDirection.unsorted;
+    }
+
+    // 只有可排序列响应点击；不可排序列不会误发排序回调。
+    function request-sort(index: int) {
+        if (columns[index].sortable) {
+            sort-requested(index, next-sort(columns[index].sort-direction));
+        }
+    }
+
+    // 所有鼠标按钮都在同一个入口分发，保证回调收到过滤前的 source-index。
+    function dispatch-pointer(row: TableRow, button: PointerEventButton) {
+        if (!rows-selectable) {
+            return;
+        }
+        selection-requested(row.source-index);
+        if (button == PointerEventButton.left) {
+            left-clicked(row.source-index);
+        } else if (button == PointerEventButton.right) {
+            right-clicked(row.source-index);
+        } else if (button == PointerEventButton.middle) {
+            middle-clicked(row.source-index);
+        }
+    }
+
+    table-content := VerticalLayout {
+        spacing: Theme.spacing-compact;
+
+        Rectangle {
+            height: Theme.control-min-height;
+            background: Theme.surface-elevated;
+            border-width: Theme.border-width-default;
+            border-color: Theme.border-default;
+            HorizontalLayout {
+                height: parent.height;
+                spacing: Theme.spacing-compact;
+
+                if root.show-check-column : Rectangle {
+                    width: root.leading-column-width;
+                    height: parent.height;
+                    Rectangle {
+                        x: parent.width - Theme.border-width-default;
+                        width: Theme.border-width-default;
+                        height: parent.height;
+                        background: Theme.border-default;
+                    }
+                }
+
+                for column[index] in root.columns : Rectangle {
+                    min-width: root.minimum-column-width;
+                    horizontal-stretch: max(column.width-weight, 1.0);
+                    height: parent.height;
+                    background: Theme.surface-elevated;
+
+                    HorizontalLayout {
+                        x: Theme.spacing-small;
+                        width: parent.width - 2 * Theme.spacing-small;
+                        height: parent.height;
+                        spacing: Theme.spacing-compact;
+                        Text {
+                            horizontal-stretch: 1;
+                            height: parent.height;
+                            text: column.title;
+                            color: column.sortable ? Theme.text-primary : Theme.text-secondary;
+                            font-family: Theme.ui-font-family;
+                            font-size: Theme.font-size-body;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        if column.sortable : TableSortMark {
+                            direction: column.sort-direction;
+                        }
+                    }
+                    TouchArea {
+                        enabled: column.sortable;
+                        clicked => { root.request-sort(index); }
+                    }
+                    Rectangle {
+                        x: parent.width - Theme.border-width-default;
+                        width: Theme.border-width-default;
+                        height: parent.height;
+                        background: Theme.border-default;
+                    }
+                }
+            }
+        }
+
+        for row[index] in root.rows : Rectangle {
+            height: Theme.control-min-height;
+            background: row.source-index == root.selected-source-row ? Theme.surface-elevated : Theme.surface-primary;
+            border-width: row.source-index == root.selected-source-row ? Theme.focus-ring-width : Theme.border-width-default;
+            border-color: row.source-index == root.selected-source-row ? Theme.focus-ring : Theme.border-default;
+            border-radius: Theme.corner-radius-small;
+
+            // 将整行点击区域放在内容布局之前，后面的勾选控件可以优先接收点击。
+            TouchArea {
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.up) {
+                        root.dispatch-pointer(row, event.button);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                x: Theme.spacing-compact;
+                width: parent.width - 2 * Theme.spacing-compact;
+                height: parent.height;
+                spacing: Theme.spacing-compact;
+
+                if root.show-check-column : TableCheckBox {
+                    checked: row.checked;
+                    toggled => { root.check-toggled(row.source-index, !row.checked); }
+                }
+
+                for cell[column-index] in row.cells : Rectangle {
+                    min-width: root.minimum-column-width;
+                    horizontal-stretch: root.columns.length > column-index ? max(root.columns[column-index].width-weight, 1.0) : 1.0;
+                    height: parent.height;
+                    clip: true;
+                    Text {
+                        x: Theme.spacing-small;
+                        width: parent.width - 2 * Theme.spacing-small;
+                        height: parent.height;
+                        text: cell;
+                        color: Theme.text-primary;
+                        font-family: Theme.ui-font-family;
+                        font-size: Theme.font-size-body;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    Rectangle {
+                        x: parent.width - Theme.border-width-default;
+                        width: Theme.border-width-default;
+                        height: parent.height;
+                        background: Theme.border-default;
+                    }
+                }
+            }
+        }
+    }
+}
