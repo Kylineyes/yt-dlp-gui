@@ -195,8 +195,10 @@ fn install_search(
             return;
         }
         let (sender, receiver) = mpsc::channel();
+        let ffmpeg_path = (!configuration.ffmpeg_path.trim().is_empty()).then(|| configuration.ffmpeg_path.into());
         let client = DownloadTaskClient::new(
             configuration.yt_dlp_path,
+            ffmpeg_path,
             Some(configuration.proxy),
             DEFAULT_METADATA_TIMEOUT,
             ui.get_search_download_path().to_string(),

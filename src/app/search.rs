@@ -250,6 +250,11 @@ pub fn classify_failure(error: &DownloadTaskError) -> SearchFailure {
         DownloadTaskError::InvalidJson(_)
         | DownloadTaskError::MissingField(_)
         | DownloadTaskError::InvalidField { .. } => SearchFailure::Metadata,
+        DownloadTaskError::InvalidDownloadRequest(_)
+        | DownloadTaskError::ProgressParse(_)
+        | DownloadTaskError::Storage(_)
+        | DownloadTaskError::OutputPathMissing => SearchFailure::Unexpected,
+        DownloadTaskError::DownloadProcessFailed { .. } => SearchFailure::Process,
         DownloadTaskError::Poisoned | DownloadTaskError::WorkerPanicked => SearchFailure::Unexpected,
     }
 }

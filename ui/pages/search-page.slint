@@ -277,6 +277,15 @@ export component SearchPage inherits Rectangle {
                     font-weight: FontWeight.bold;
                     height: Theme.title-line-box;
                 }
+                if root.video-title != "" : Text {
+                    text: I18n.search-video-title + ": " + root.video-title;
+                    color: Theme.text-primary;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-body-large;
+                    height: Theme.body-line-box;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
                 Rectangle {
                     height: Theme.control-min-height;
                     background: Theme.surface-elevated;
@@ -322,15 +331,6 @@ export component SearchPage inherits Rectangle {
                     }
                     TouchArea { clicked => { root.result-selected(index); } }
                 }
-                }
-                if root.video-title != "" : Text {
-                    text: I18n.search-video-title + ": " + root.video-title;
-                    color: Theme.text-primary;
-                    font-family: Theme.ui-font-family;
-                    font-size: Theme.font-size-body-large;
-                    height: Theme.body-line-box;
-                    vertical-alignment: center;
-                    overflow: elide;
                 }
                 if root.results.length == 0 : Text {
                     text: I18n.search-no-results;
