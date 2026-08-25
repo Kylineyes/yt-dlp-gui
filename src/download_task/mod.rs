@@ -353,6 +353,10 @@ impl SearchHandle {
         self.cancelled.store(true, Ordering::Release);
     }
 
+    pub fn cancellation_token(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.cancelled)
+    }
+
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Acquire)
     }

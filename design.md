@@ -84,6 +84,7 @@ ThemeMode = Light | Dark | System
 | `spacing-small` | 8 px | 控件内部和紧邻元素间距 |
 | `spacing-medium` | 16 px | 常规内容间距、按钮水平内边距 |
 | `spacing-large` | 24 px | 页面内容和分组间距 |
+| `spacing-compact` | 2 px | 表格行之间的紧凑间距 |
 | `sidebar-padding` | 20 px | 侧边栏水平内边距 |
 | `sidebar-min-width` | 160 px | 侧边栏最小逻辑宽度 |
 | `sidebar-gap` | 8 px | 侧边栏按钮垂直间距 |

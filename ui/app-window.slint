@@ -4,6 +4,7 @@ import { I18n } from "design/i18n.slint";
 import { Theme } from "design/theme.slint";
 import { ConfigurePage } from "pages/configure-page.slint";
 import { WelcomePage } from "pages/welcome-page.slint";
+import { SearchPage, SearchResultRow } from "pages/search-page.slint";
 
 export { I18n } from "design/i18n.slint";
 export { EffectiveTheme, TextScale, Theme, ThemeMode } from "design/theme.slint";
@@ -46,18 +47,67 @@ export component AppWindow inherits Window {
     callback configure-auto-find-ffmpeg-requested();
     callback configure-field-edited(string, string);
 
+    in-out property <string> search-url: "";
+    in-out property <string> search-download-path: "";
+    in-out property <string> search-path-error: "";
+    in-out property <string> search-status: "";
+    in-out property <string> search-video-title: "";
+    in-out property <int> search-status-kind: 0;
+    in-out property <bool> search-busy: false;
+    in-out property <bool> search-can-search: false;
+    in-out property <bool> search-can-download: false;
+    in-out property <int> search-selected-index: -1;
+    in-out property <int> search-sort-column: -1;
+    in-out property <int> search-sort-direction: 0;
+    in-out property <[SearchResultRow]> search-results: [];
+    callback search-requested();
+    callback search-stop-requested();
+    callback search-browse-download-requested();
+    callback search-use-default-download-requested();
+    callback search-download-requested();
+    callback search-url-edited(string);
+    callback search-download-path-edited(string);
+    callback search-result-selected(int);
+    callback search-result-sort-requested(int);
+
     app-shell := AppShell {
         x: 0px;
         y: 0px;
         width: 100%;
         height: 100%;
         current-route <=> root.current-route;
-        content-height: root.current-route == 1 ? configure-page.intrinsic-height : welcome-page.intrinsic-height;
+        navigation-enabled: !root.search-busy;
+        content-height: root.current-route == 1 ? configure-page.intrinsic-height : root.current-route == 2 ? search-page.intrinsic-height : welcome-page.intrinsic-height;
         route-requested(index) => { root.route-requested(index); }
 
         welcome-page := WelcomePage {
             visible: root.current-route == 0;
             project-url-requested => { root.project-url-requested(); }
+        }
+        search-page := SearchPage {
+            visible: root.current-route == 2;
+            url <=> root.search-url;
+            download-path <=> root.search-download-path;
+            path-error: root.search-path-error;
+            status-text: root.search-status;
+            video-title: root.search-video-title;
+            status-kind: root.search-status-kind;
+            busy: root.search-busy;
+            can-search: root.search-can-search;
+            can-download: root.search-can-download;
+            selected-index: root.search-selected-index;
+            sort-column: root.search-sort-column;
+            sort-direction: root.search-sort-direction;
+            results: root.search-results;
+            search-requested => { root.search-requested(); }
+            stop-requested => { root.search-stop-requested(); }
+            browse-download-requested => { root.search-browse-download-requested(); }
+            use-default-download-requested => { root.search-use-default-download-requested(); }
+            download-requested => { root.search-download-requested(); }
+            url-edited(value) => { root.search-url-edited(value); }
+            download-path-edited(value) => { root.search-download-path-edited(value); }
+            result-selected(index) => { root.search-result-selected(index); }
+            result-sort-requested(column) => { root.search-result-sort-requested(column); }
         }
         configure-page := ConfigurePage {
             visible: root.current-route == 1;
