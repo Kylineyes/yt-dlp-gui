@@ -14,6 +14,7 @@ export struct TableColumn {
     title: string,
     sortable: bool,
     width-weight: float,
+    font-family: string,
     sort-direction: TableSortDirection,
 }
 
@@ -116,13 +117,14 @@ export component GenericTable inherits Rectangle {
         }
     }
 
-    // 所有鼠标按钮都在同一个入口分发，保证回调收到过滤前的 source-index。
+    // 只有左键点击会改变选择；右键和中键只分别触发各自的上下文操作回调。
+    // 所有回调参数都使用过滤前的 source-index。
     function dispatch-pointer(row: TableRow, button: PointerEventButton) {
         if (!rows-selectable) {
             return;
         }
-        selection-requested(row.source-index);
         if (button == PointerEventButton.left) {
+            selection-requested(row.source-index);
             left-clicked(row.source-index);
         } else if (button == PointerEventButton.right) {
             right-clicked(row.source-index);
@@ -170,7 +172,7 @@ export component GenericTable inherits Rectangle {
                             height: parent.height;
                             text: column.title;
                             color: column.sortable ? Theme.text-primary : Theme.text-secondary;
-                            font-family: Theme.ui-font-family;
+                            font-family: column.font-family == "" ? Theme.ui-font-family : column.font-family;
                             font-size: Theme.font-size-body;
                             vertical-alignment: center;
                             overflow: elide;
@@ -231,7 +233,7 @@ export component GenericTable inherits Rectangle {
                         height: parent.height;
                         text: cell;
                         color: Theme.text-primary;
-                        font-family: Theme.ui-font-family;
+                        font-family: root.columns.length > column-index && root.columns[column-index].font-family != "" ? root.columns[column-index].font-family : Theme.ui-font-family;
                         font-size: Theme.font-size-body;
                         vertical-alignment: center;
                         overflow: elide;

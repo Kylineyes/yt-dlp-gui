@@ -1,3 +1,11 @@
+/// 显示行的排序策略。
+///
+/// `Preordered` 是稳定的预排序契约：控制器只做过滤和快照映射，绝不对行再次排序。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TableSortStrategy {
+    Dictionary,
+    Preordered,
+}
 /// 表格排序方向。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TableSortDirection {
