@@ -1,7 +1,7 @@
 use super::filter::matches_value;
 use super::{
     compare_lexicographic, FilterSelection, TableColumn, TableError, TableFilter, TableRow, TableSort,
-    TableSortDirection, VisibleTableRow,
+    TableSortDirection, TableSortStrategy, VisibleTableRow,
 };
 
 /// 通用表格的数据控制器。
@@ -15,23 +15,19 @@ pub struct TableModel {
     rows: Vec<TableRow>,
     filters: Vec<TableFilter>,
     sort: Option<TableSort>,
+    sort_strategy: TableSortStrategy,
     selected_source_row: Option<usize>,
 }
 
 impl TableModel {
     pub fn new(columns: Vec<TableColumn>, rows: Vec<TableRow>) -> Result<Self, TableError> {
-        let expected = columns.len();
-        if let Some(row) = rows.iter().find(|row| row.cells.len() != expected) {
-            return Err(TableError::RowWidthMismatch {
-                expected,
-                actual: row.cells.len(),
-            });
-        }
+        Self::validate_rows(columns.len(), &rows)?;
         Ok(Self {
             columns,
             rows,
             filters: Vec::new(),
             sort: None,
+            sort_strategy: TableSortStrategy::Dictionary,
             selected_source_row: None,
         })
     }
@@ -50,6 +46,38 @@ impl TableModel {
 
     pub fn sort(&self) -> Option<TableSort> {
         self.sort
+    }
+
+    pub fn sort_strategy(&self) -> TableSortStrategy {
+        self.sort_strategy
+    }
+
+    /// 设置显示顺序策略。切换策略时清除旧排序状态，避免图标和实际顺序不一致。
+    pub fn set_sort_strategy(&mut self, strategy: TableSortStrategy) {
+        self.sort_strategy = strategy;
+        self.sort = None;
+    }
+
+    /// 用消费者已经排好顺序的结果替换原始行，并承诺不再进行二次排序。
+    pub fn replace_rows_preordered(&mut self, rows: Vec<TableRow>) -> Result<(), TableError> {
+        Self::validate_rows(self.columns.len(), &rows)?;
+        self.set_sort_strategy(TableSortStrategy::Preordered);
+        self.rows = rows;
+        self.selected_source_row = None;
+        Ok(())
+    }
+
+    /// 替换整个原始结果集合。替换会清除选中行，但保留过滤条件和排序策略。
+    pub fn replace_rows(&mut self, rows: Vec<TableRow>) -> Result<(), TableError> {
+        Self::validate_rows(self.columns.len(), &rows)?;
+        self.rows = rows;
+        self.selected_source_row = None;
+        Ok(())
+    }
+
+    /// `set_rows` 是 `replace_rows` 的语义别名，便于页面模型按常见命名调用。
+    pub fn set_rows(&mut self, rows: Vec<TableRow>) -> Result<(), TableError> {
+        self.replace_rows(rows)
     }
 
     pub fn selected_source_row(&self) -> Option<usize> {
@@ -98,6 +126,9 @@ impl TableModel {
 
     /// 切换指定列的排序状态：升序 -> 降序 -> 原始顺序。
     pub fn toggle_sort(&mut self, column: usize) -> Result<TableSortDirection, TableError> {
+        if self.sort_strategy == TableSortStrategy::Preordered {
+            return Err(TableError::SortingUnavailableForPreorderedRows);
+        }
         if column >= self.columns.len() {
             return Err(TableError::ColumnOutOfBounds(column));
         }
@@ -120,6 +151,9 @@ impl TableModel {
     }
 
     pub fn sort_by(&mut self, column: usize, direction: TableSortDirection) -> Result<(), TableError> {
+        if self.sort_strategy == TableSortStrategy::Preordered {
+            return Err(TableError::SortingUnavailableForPreorderedRows);
+        }
         if column >= self.columns.len() {
             return Err(TableError::ColumnOutOfBounds(column));
         }
@@ -156,16 +190,19 @@ impl TableModel {
             .map(|(index, _)| index)
             .collect();
 
-        if let Some(TableSort { column, direction }) = self.sort {
-            indices.sort_by(|&left, &right| {
-                let ordering = compare_lexicographic(&self.rows[left].cells[column], &self.rows[right].cells[column]);
-                if direction == TableSortDirection::Descending {
-                    ordering.reverse()
-                } else {
-                    ordering
-                }
-                .then_with(|| left.cmp(&right))
-            });
+        if self.sort_strategy == TableSortStrategy::Dictionary {
+            if let Some(TableSort { column, direction }) = self.sort {
+                indices.sort_by(|&left, &right| {
+                    let ordering =
+                        compare_lexicographic(&self.rows[left].cells[column], &self.rows[right].cells[column]);
+                    if direction == TableSortDirection::Descending {
+                        ordering.reverse()
+                    } else {
+                        ordering
+                    }
+                    .then_with(|| left.cmp(&right))
+                });
+            }
         }
 
         indices
@@ -177,6 +214,16 @@ impl TableModel {
                 selected: self.selected_source_row == Some(source_index),
             })
             .collect()
+    }
+
+    fn validate_rows(expected: usize, rows: &[TableRow]) -> Result<(), TableError> {
+        if let Some(row) = rows.iter().find(|row| row.cells.len() != expected) {
+            return Err(TableError::RowWidthMismatch {
+                expected,
+                actual: row.cells.len(),
+            });
+        }
+        Ok(())
     }
 
     fn matches_filters(&self, row: &TableRow) -> bool {

@@ -1,5 +1,8 @@
+use std::fs;
+
 use yt_dlp_gui::table::{
     FilterMatch, FilterSelection, TableColumn, TableError, TableFilter, TableModel, TableRow, TableSortDirection,
+    TableSortStrategy,
 };
 
 fn model() -> TableModel {
@@ -33,6 +36,15 @@ fn table_accepts_arbitrary_columns_and_rows_without_a_ui_specific_shape() {
 }
 
 #[test]
+fn columns_can_override_the_theme_font_for_monospace_values() {
+    let column = TableColumn::new("格式 ID", true, 1).font_family("Cascadia Mono");
+    assert_eq!(column.font_family, "Cascadia Mono");
+
+    let default_column = TableColumn::new("名称", false, 1);
+    assert!(default_column.font_family.is_empty());
+}
+
+#[test]
 fn rows_can_be_inserted_at_any_valid_position_and_keep_selection_identity() {
     let mut table = model();
     table.select_source_row(Some(2)).unwrap();
@@ -44,6 +56,70 @@ fn rows_can_be_inserted_at_any_valid_position_and_keep_selection_identity() {
     assert_eq!(table.selected_source_row(), Some(3));
     assert_eq!(table.rows()[1].cells[0], "Inserted");
     assert_eq!(table.visible_rows()[3].source_index, 3);
+}
+
+#[test]
+fn replacing_rows_clears_selection_and_rejects_malformed_replacements_atomically() {
+    let mut table = model();
+    table.select_source_row(Some(1)).unwrap();
+
+    table
+        .set_rows(vec![
+            TableRow::new(vec!["New A".into(), "视频".into(), "完成".into()]),
+            TableRow::new(vec!["New B".into(), "音频".into(), "等待".into()]),
+        ])
+        .unwrap();
+    assert_eq!(table.selected_source_row(), None);
+    assert_eq!(table.rows()[0].cells[0], "New A");
+
+    let result = table.replace_rows(vec![TableRow::new(vec!["bad".into()])]);
+    assert_eq!(result, Err(TableError::RowWidthMismatch { expected: 3, actual: 1 }));
+    assert_eq!(table.rows().len(), 2);
+    assert_eq!(table.rows()[0].cells[0], "New A");
+}
+
+#[test]
+fn preordered_replacements_preserve_consumer_order_without_secondary_sorting() {
+    let mut table = model();
+    table
+        .replace_rows_preordered(vec![
+            TableRow::new(vec!["Gamma".into(), "视频".into(), "完成".into()]),
+            TableRow::new(vec!["alpha".into(), "音频".into(), "等待".into()]),
+            TableRow::new(vec!["Beta".into(), "视频".into(), "完成".into()]),
+        ])
+        .unwrap();
+
+    assert_eq!(table.sort_strategy(), TableSortStrategy::Preordered);
+    assert_eq!(
+        table
+            .visible_rows()
+            .iter()
+            .map(|row| row.source_index)
+            .collect::<Vec<_>>(),
+        vec![0, 1, 2]
+    );
+    assert_eq!(
+        table.toggle_sort(0),
+        Err(TableError::SortingUnavailableForPreorderedRows)
+    );
+}
+
+#[test]
+fn right_and_middle_clicks_do_not_request_row_selection() {
+    let source = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/ui/components/generic-table.slint"
+    ))
+    .unwrap();
+    let dispatch = source.split("function dispatch-pointer").nth(1).unwrap();
+
+    assert!(dispatch
+        .contains("if (button == PointerEventButton.left) {\n            selection-requested(row.source-index);"));
+    assert!(
+        !dispatch.contains("selection-requested(row.source-index);\n        if (button == PointerEventButton.left)")
+    );
+    assert!(dispatch.contains("right-clicked(row.source-index);"));
+    assert!(dispatch.contains("middle-clicked(row.source-index);"));
 }
 
 #[test]

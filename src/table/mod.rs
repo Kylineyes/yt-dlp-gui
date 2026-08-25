@@ -10,4 +10,4 @@ pub use error::TableError;
 pub use filter::{FilterMatch, FilterSelection, TableFilter};
 pub use model::TableModel;
 pub use row::{TableRow, VisibleTableRow};
-pub use sort::{compare_lexicographic, TableSort, TableSortDirection};
+pub use sort::{compare_lexicographic, TableSort, TableSortDirection, TableSortStrategy};

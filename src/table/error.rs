@@ -5,4 +5,5 @@ pub enum TableError {
     ColumnOutOfBounds(usize),
     RowOutOfBounds(usize),
     ColumnNotSortable(usize),
+    SortingUnavailableForPreorderedRows,
 }
