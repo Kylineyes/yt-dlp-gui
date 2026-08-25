@@ -37,8 +37,10 @@ pub enum StorageError {
     InvalidDownloadInput,
     /// 下载任务进度不满足持久化约束。
     InvalidDownloadProgress,
-    /// 下载任务或流不存在。
+    /// 下载任务标识不存在。
     DownloadNotFound(i64),
+    /// 下载流标识不存在。
+    DownloadStreamNotFound(i64),
     /// 下载流的任务不存在。
     DownloadStreamTaskNotFound(i64),
     /// 下载任务状态迁移不合法。
@@ -79,8 +81,9 @@ impl std::fmt::Display for StorageError {
             Self::InvalidDownloadInput => write!(formatter, "下载任务输入无效。"),
             Self::InvalidDownloadProgress => write!(formatter, "下载任务进度无效。"),
             Self::DownloadNotFound(id) => write!(formatter, "下载任务不存在：{id}。"),
+            Self::DownloadStreamNotFound(id) => write!(formatter, "下载流不存在：{id}。"),
             Self::DownloadStreamTaskNotFound(id) => write!(formatter, "下载流所属任务不存在：{id}。"),
-            Self::InvalidDownloadStatusTransition => write!(formatter, "下载任务状态迁移无效。"),
+            Self::InvalidDownloadStatusTransition => write!(formatter, "下载状态迁移无效。"),
             Self::InvalidStoredDownloadStatus(status) => write!(formatter, "数据库中的下载状态无效：{status}。"),
             Self::InvalidStoredMediaType(media_type) => write!(formatter, "数据库中的媒体类型无效：{media_type}。"),
             Self::UnsupportedStorageSchemaVersion(version) => {

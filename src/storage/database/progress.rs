@@ -84,7 +84,7 @@ where
         )
         .optional()
         .map_err(StorageError::Read)?
-        .ok_or(StorageError::DownloadNotFound(id))?;
+        .ok_or(StorageError::DownloadStreamNotFound(id))?;
     if DownloadTaskStatus::parse(status)?.is_terminal() {
         return Err(StorageError::InvalidDownloadProgress);
     }
