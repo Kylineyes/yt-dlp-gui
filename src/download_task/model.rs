@@ -77,26 +77,134 @@ pub struct MediaFormat {
 /// 检索任务向调用方发送的状态消息。
 #[derive(Debug, Clone, PartialEq)]
 pub enum MediaMessage {
-    /// worker 线程已经开始处理检索。
     Started,
-    /// 已完成 JSON 解析并获得视频元数据。
     Metadata(VideoInfo),
-    /// 检索成功结束。
     Finished,
-    /// 检索被调用方主动取消。
     Cancelled,
-    /// 检索超过配置的超时时间。
     TimedOut,
+}
+
+pub const DEFAULT_PROGRESS_DELTA: f64 = 0.5;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DownloadMediaType {
+    Video,
+    Audio,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DownloadStreamStatus {
+    Downloading,
+    Finished,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DownloadStage {
+    Preparing,
+    Downloading,
+    Merging,
+    Completed,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DownloadRequest {
+    pub source_url: String,
+    pub video: VideoInfo,
+    pub selected_video_format_id: String,
+    pub selected_audio_format_id: String,
+    pub output_template: String,
+    pub target_directory: PathBuf,
+    pub temporary_directory: PathBuf,
+    pub merge_output_format: String,
+    pub options: DownloadOptions,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DownloadOptions {
+    pub rate_limit: Option<String>,
+    pub retries: Option<u32>,
+    pub fragment_retries: Option<u32>,
+    pub file_access_retries: Option<u32>,
+    pub concurrent_fragments: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamProgress {
+    pub stream_key: String,
+    pub format_id: Option<String>,
+    pub media_type: DownloadMediaType,
+    pub status: DownloadStreamStatus,
+    pub downloaded_bytes: i64,
+    pub total_bytes: Option<i64>,
+    pub total_bytes_estimate: Option<i64>,
+    pub speed_bytes_per_second: Option<i64>,
+    pub elapsed_seconds: Option<i64>,
+    pub eta_seconds: Option<i64>,
+    pub percent: Option<u8>,
+    pub started_at: Option<i64>,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DownloadProgress {
+    pub task_id: i64,
+    pub stage: DownloadStage,
+    pub downloaded_bytes: i64,
+    pub total_bytes: Option<i64>,
+    pub total_bytes_estimate: Option<i64>,
+    pub speed_bytes_per_second: Option<i64>,
+    pub elapsed_seconds: Option<i64>,
+    pub eta_seconds: Option<i64>,
+    pub percent: Option<u8>,
+    pub total_is_estimate: bool,
+    pub active_stream: Option<String>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DownloadResult {
+    pub task_id: i64,
+    pub output_path: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+pub enum DownloadMessage {
+    Started,
+    StreamProgress(StreamProgress),
+    Progress(DownloadProgress),
+    Merging,
+    Completed(DownloadResult),
+    Cancelled,
+    Failed(crate::download_task::DownloadTaskError),
+}
+
+impl DownloadRequest {
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        if self.source_url.trim().is_empty()
+            || self.selected_video_format_id.trim().is_empty()
+            || self.selected_audio_format_id.trim().is_empty()
+            || self.output_template.trim().is_empty()
+            || self.merge_output_format.trim().is_empty()
+        {
+            return Err("下载请求包含空字段".to_owned());
+        }
+        if !matches!(self.merge_output_format.as_str(), "mp4" | "mkv") {
+            return Err("合并容器只能是 mp4 或 mkv".to_owned());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ClientConfig {
     /// yt-dlp 可执行文件路径。
     pub(crate) yt_dlp_path: PathBuf,
+    /// 可选的 FFmpeg 可执行文件或 bin 目录路径。
+    pub(crate) ffmpeg_path: Option<PathBuf>,
     /// 可选的网络代理地址。
     pub(crate) proxy: Option<String>,
-    /// 当前客户端使用的元数据检索超时时间；`None` 表示不设超时。
+    /// 元数据检索和下载任务共用的超时时间；`None` 表示不设超时。
     pub(crate) timeout: Option<Duration>,
-    /// 后续下载任务使用的存放位置；当前检索阶段只保存，不校验也不传入下载参数。
+    /// 默认下载目录快照；下载请求仍需显式给出最终目录。
     pub(crate) storage_path: PathBuf,
 }

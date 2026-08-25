@@ -1,12 +1,15 @@
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
 use super::error::DownloadTaskError;
-use super::model::{ClientConfig, YtDlpVersion};
+use super::model::{ClientConfig, DownloadRequest, YtDlpVersion, DEFAULT_PROGRESS_DELTA};
+use super::parser::{self, DownloadOutput};
 
 /// 版本按原始字符串保存，避免把 yt-dlp 的日期版本误当作 SemVer。
 pub(crate) fn verify_executable(config: &ClientConfig) -> Result<YtDlpVersion, DownloadTaskError> {
@@ -42,6 +45,8 @@ pub(crate) fn run_metadata(
     }
     let mut command = Command::new(&config.yt_dlp_path);
     command.args([
+        "--encoding",
+        "utf-8",
         "--dump-single-json",
         "--skip-download",
         "--no-warnings",
@@ -107,6 +112,274 @@ pub(crate) fn run_metadata(
         }),
         Termination::Exited(_) => Ok(stdout.into_bytes()),
     }
+}
+
+pub(crate) fn run_download<F>(
+    config: ClientConfig,
+    request: DownloadRequest,
+    cancelled: Arc<AtomicBool>,
+    mut on_output: F,
+) -> Result<Option<String>, DownloadTaskError>
+where
+    F: FnMut(DownloadOutput) -> Result<(), DownloadTaskError>,
+{
+    request.validate().map_err(DownloadTaskError::InvalidDownloadRequest)?;
+    if cancelled.load(Ordering::Acquire) {
+        return Err(DownloadTaskError::Cancelled);
+    }
+    ensure_executable(&config.yt_dlp_path)?;
+
+    let mut command = Command::new(&config.yt_dlp_path);
+    let progress_delta = DEFAULT_PROGRESS_DELTA.to_string();
+    command.args([
+        "--encoding",
+        "utf-8",
+        "--check-formats",
+        "--newline",
+        "--progress",
+        "--progress-delta",
+        &progress_delta,
+        "--progress-template",
+        &parser::progress_template(),
+        "--progress-template",
+        parser::postprocess_template(),
+        "--print",
+        "after_move:after_move:%(filepath)s",
+        "--no-simulate",
+        "--paths",
+        &format!("home:{}", request.target_directory.display()),
+        "--paths",
+        &format!("temp:{}", request.temporary_directory.display()),
+        "--output",
+        &request.output_template,
+        "--continue",
+        "--no-overwrites",
+        "--part",
+        "--merge-output-format",
+        &request.merge_output_format,
+    ]);
+    if let Some(proxy) = config.proxy.as_deref() {
+        command.args(["--proxy", proxy]);
+    }
+    if let Some(ffmpeg_path) = config.ffmpeg_path.as_deref() {
+        command.arg("--ffmpeg-location").arg(ffmpeg_path);
+    }
+    if let Some(value) = &request.options.rate_limit {
+        command.args(["--limit-rate", value]);
+    }
+    for (name, value) in [
+        ("--retries", request.options.retries),
+        ("--fragment-retries", request.options.fragment_retries),
+        ("--file-access-retries", request.options.file_access_retries),
+        ("--concurrent-fragments", request.options.concurrent_fragments),
+    ] {
+        if let Some(value) = value {
+            command.args([name, &value.to_string()]);
+        }
+    }
+    command
+        .arg("-f")
+        .arg(format!(
+            "{}+{}",
+            request.selected_video_format_id, request.selected_audio_format_id
+        ))
+        .arg("--")
+        .arg(&request.source_url)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = command.spawn().map_err(DownloadTaskError::Spawn)?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| DownloadTaskError::Io(std::io::Error::other("缺少 stdout 管道")))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| DownloadTaskError::Io(std::io::Error::other("缺少 stderr 管道")))?;
+    let (line_sender, line_receiver) = mpsc::channel();
+    let stdout_thread = spawn_line_reader(stdout, line_sender.clone(), PipeKind::Stdout);
+    let stderr_thread = spawn_line_reader(stderr, line_sender, PipeKind::Stderr);
+
+    let started_at = Instant::now();
+    let mut output_path = None;
+    let mut stderr_summary = String::new();
+    enum Termination {
+        Exited(std::process::ExitStatus),
+        Cancelled,
+        TimedOut,
+        Failed(DownloadTaskError),
+    }
+    let termination = loop {
+        if cancelled.load(Ordering::Acquire) {
+            kill_child(&mut child);
+            break Termination::Cancelled;
+        }
+        if config.timeout.is_some_and(|timeout| started_at.elapsed() >= timeout) {
+            kill_child(&mut child);
+            break Termination::TimedOut;
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break Termination::Exited(status),
+            Err(error) => {
+                kill_child(&mut child);
+                break Termination::Failed(DownloadTaskError::Io(error));
+            }
+            Ok(None) => match line_receiver.recv_timeout(std::time::Duration::from_millis(25)) {
+                Ok(line) => {
+                    if let Err(error) =
+                        handle_pipe_line(line, &request, &mut output_path, &mut stderr_summary, &mut on_output)
+                    {
+                        kill_child(&mut child);
+                        break Termination::Failed(error);
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) | Err(RecvTimeoutError::Disconnected) => {}
+            },
+        }
+    };
+    let status = match &termination {
+        Termination::Exited(status) => Some(*status),
+        Termination::Cancelled | Termination::TimedOut | Termination::Failed(_) => {
+            child.wait().map_err(DownloadTaskError::Io)?;
+            None
+        }
+    };
+    stdout_thread.join().map_err(|_| DownloadTaskError::WorkerPanicked)?;
+    stderr_thread.join().map_err(|_| DownloadTaskError::WorkerPanicked)?;
+    let mut drain_error = None;
+    while let Ok(line) = line_receiver.try_recv() {
+        if drain_error.is_some() {
+            if line.kind == PipeKind::Stderr {
+                if let Ok(value) = line.value {
+                    append_stderr(&mut stderr_summary, &value);
+                }
+            }
+            continue;
+        }
+        if let Err(error) = handle_pipe_line(line, &request, &mut output_path, &mut stderr_summary, &mut on_output) {
+            drain_error = Some(error);
+        }
+    }
+    match termination {
+        Termination::Cancelled => return Err(DownloadTaskError::Cancelled),
+        Termination::TimedOut => {
+            return Err(DownloadTaskError::Timeout(
+                config.timeout.expect("超时终止只会在配置了超时时间时发生"),
+            ))
+        }
+        Termination::Failed(error) => return Err(error),
+        Termination::Exited(_) => {
+            if let Some(error) = drain_error {
+                return Err(error);
+            }
+        }
+    }
+    if !status.is_some_and(|status| status.success()) {
+        return Err(DownloadTaskError::DownloadProcessFailed {
+            status: status.and_then(|status| status.code()),
+            stderr: stderr_summary,
+        });
+    }
+    Ok(output_path)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PipeKind {
+    Stdout,
+    Stderr,
+}
+
+struct PipeLine {
+    kind: PipeKind,
+    value: Result<String, std::io::Error>,
+}
+
+fn spawn_line_reader<R>(reader: R, sender: mpsc::Sender<PipeLine>, kind: PipeKind) -> thread::JoinHandle<()>
+where
+    R: Read + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut reader = BufReader::new(reader);
+        let mut bytes = Vec::new();
+        loop {
+            bytes.clear();
+            match reader.read_until(b'\n', &mut bytes) {
+                Ok(0) => break,
+                Ok(_) => {
+                    while matches!(bytes.last(), Some(b'\n' | b'\r')) {
+                        bytes.pop();
+                    }
+                    let value = String::from_utf8_lossy(&bytes).into_owned();
+                    if sender.send(PipeLine { kind, value: Ok(value) }).is_err() {
+                        break;
+                    }
+                }
+                Err(error) => {
+                    let _ = sender.send(PipeLine {
+                        kind,
+                        value: Err(error),
+                    });
+                    break;
+                }
+            }
+        }
+    })
+}
+
+fn handle_pipe_line<F>(
+    pipe_line: PipeLine,
+    request: &DownloadRequest,
+    output_path: &mut Option<String>,
+    stderr_summary: &mut String,
+    on_output: &mut F,
+) -> Result<(), DownloadTaskError>
+where
+    F: FnMut(DownloadOutput) -> Result<(), DownloadTaskError>,
+{
+    let line = pipe_line.value.map_err(DownloadTaskError::Io)?;
+    if pipe_line.kind == PipeKind::Stderr {
+        append_stderr(stderr_summary, &line);
+    }
+    if line.starts_with("download:") || line.starts_with("postprocess:") || line.starts_with("after_move:") {
+        handle_download_line(&line, request, output_path, on_output)?;
+    }
+    Ok(())
+}
+
+fn append_stderr(stderr: &mut String, line: &str) {
+    const MAX_STDERR_CHARS: usize = 4096;
+    let mut current = stderr.chars().count();
+    if current >= MAX_STDERR_CHARS {
+        return;
+    }
+    if !stderr.is_empty() {
+        stderr.push('\n');
+        current += 1;
+    }
+    stderr.extend(line.chars().take(MAX_STDERR_CHARS.saturating_sub(current)));
+}
+
+fn handle_download_line<F>(
+    line: &str,
+    request: &DownloadRequest,
+    output_path: &mut Option<String>,
+    on_output: &mut F,
+) -> Result<(), DownloadTaskError>
+where
+    F: FnMut(DownloadOutput) -> Result<(), DownloadTaskError>,
+{
+    if let Some(output) = parser::parse_download_line(
+        line,
+        &request.selected_video_format_id,
+        &request.selected_audio_format_id,
+    )? {
+        if let DownloadOutput::OutputPath(path) = &output {
+            *output_path = Some(path.clone());
+        }
+        catch_unwind(AssertUnwindSafe(|| on_output(output))).map_err(|_| DownloadTaskError::WorkerPanicked)??;
+    }
+    Ok(())
 }
 
 fn ensure_executable(path: &std::path::Path) -> Result<(), DownloadTaskError> {
