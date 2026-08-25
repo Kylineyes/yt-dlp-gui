@@ -240,6 +240,35 @@ impl Storage {
         database::cancel_download_task(&mut connection, id, finished_at)
     }
 
+    /// 按流状态机规则更新下载流状态和生命周期时间戳。
+    pub fn update_download_stream_status(
+        &self,
+        stream_id: i64,
+        status: DownloadTaskStatus,
+        now: i64,
+    ) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::update_download_stream_status(&mut connection, stream_id, status, now)
+    }
+
+    /// 将下载流标记为完成，不隐式修改其进度字段。
+    pub fn complete_download_stream(&self, stream_id: i64, finished_at: i64) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::complete_download_stream(&mut connection, stream_id, finished_at)
+    }
+
+    /// 将下载流标记为失败；错误摘要由所属任务保存。
+    pub fn fail_download_stream(&self, stream_id: i64, finished_at: i64) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::fail_download_stream(&mut connection, stream_id, finished_at)
+    }
+
+    /// 将下载流标记为取消并记录终态时间。
+    pub fn cancel_download_stream(&self, stream_id: i64, finished_at: i64) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::cancel_download_stream(&mut connection, stream_id, finished_at)
+    }
+
     /// 更新任务进度；不会隐式改变任务状态。
     pub fn update_download_progress(&self, id: i64, progress: DownloadProgress) -> Result<(), StorageError> {
         progress.validate()?;

@@ -51,6 +51,16 @@ impl DownloadTaskStatus {
         )
     }
 
+    /// 下载流不参与任务级合并阶段，只允许下载阶段和三个终态。
+    pub(crate) const fn can_stream_transition_to(self, target: Self) -> bool {
+        matches!(
+            (self, target),
+            (Self::Pending, Self::Preparing | Self::Cancelled | Self::Failed)
+                | (Self::Preparing, Self::Downloading | Self::Cancelled | Self::Failed)
+                | (Self::Downloading, Self::Completed | Self::Cancelled | Self::Failed)
+        )
+    }
+
     pub const fn is_terminal(self) -> bool {
         matches!(self, Self::Completed | Self::Cancelled | Self::Failed)
     }

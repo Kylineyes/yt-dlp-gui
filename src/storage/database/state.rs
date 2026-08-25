@@ -163,3 +163,84 @@ where
         .map_err(map_download_write_error)?;
     transaction.commit().map_err(StorageError::Write)
 }
+
+/// 在事务内按流状态机更新状态和生命周期时间戳。
+pub(crate) fn update_download_stream_status(
+    connection: &mut Connection,
+    stream_id: i64,
+    status: DownloadTaskStatus,
+    now: i64,
+) -> Result<(), StorageError> {
+    if now < 0 {
+        return Err(StorageError::InvalidDownloadInput);
+    }
+
+    let transaction = connection.transaction().map_err(StorageError::Write)?;
+    let current = transaction
+        .query_row(
+            "
+select
+    status
+from
+    download_task_streams
+where
+    id = ?1
+",
+            [stream_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(StorageError::Read)?
+        .ok_or(StorageError::DownloadStreamNotFound(stream_id))?;
+    let current = DownloadTaskStatus::parse(current)?;
+    if !current.can_stream_transition_to(status) {
+        return Err(StorageError::InvalidDownloadStatusTransition);
+    }
+
+    let started_at = matches!(status, DownloadTaskStatus::Downloading).then_some(now);
+    let finished_at = status.is_terminal().then_some(now);
+    transaction
+        .execute(
+            "
+update
+    download_task_streams
+set
+    status = ?1,
+    started_at = coalesce(started_at, ?2),
+    finished_at = ?3,
+    updated_at = ?4
+where
+    id = ?5
+",
+            params![status.as_str(), started_at, finished_at, now, stream_id],
+        )
+        .map_err(StorageError::Write)?;
+    transaction.commit().map_err(StorageError::Write)
+}
+
+/// 将下载流标记为完成，不隐式修改其进度字段。
+pub(crate) fn complete_download_stream(
+    connection: &mut Connection,
+    stream_id: i64,
+    finished_at: i64,
+) -> Result<(), StorageError> {
+    update_download_stream_status(connection, stream_id, DownloadTaskStatus::Completed, finished_at)
+}
+
+/// 将下载流标记为失败；错误摘要继续由所属任务记录。
+pub(crate) fn fail_download_stream(
+    connection: &mut Connection,
+    stream_id: i64,
+    finished_at: i64,
+) -> Result<(), StorageError> {
+    update_download_stream_status(connection, stream_id, DownloadTaskStatus::Failed, finished_at)
+}
+
+/// 将下载流标记为取消并记录终态时间。
+pub(crate) fn cancel_download_stream(
+    connection: &mut Connection,
+    stream_id: i64,
+    finished_at: i64,
+) -> Result<(), StorageError> {
+    update_download_stream_status(connection, stream_id, DownloadTaskStatus::Cancelled, finished_at)
+}
