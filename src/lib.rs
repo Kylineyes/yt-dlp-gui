@@ -4,3 +4,4 @@ pub mod cli;
 pub mod design_system;
 pub mod download_task;
 pub mod storage;
+pub mod table;
