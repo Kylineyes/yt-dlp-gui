@@ -20,6 +20,44 @@ pub enum DownloadTaskError {
     InvalidDownloadRequest(String),
     ProgressParse(String),
     DownloadProcessFailed { status: Option<i32>, stderr: String },
+    Storage(String),
+    OutputPathMissing,
+}
+impl Clone for DownloadTaskError {
+    fn clone(&self) -> Self {
+        match self {
+            Self::ExecutableNotFound(path) => Self::ExecutableNotFound(path.clone()),
+            Self::Spawn(error) => Self::Spawn(std::io::Error::new(error.kind(), error.to_string())),
+            Self::Io(error) => Self::Io(std::io::Error::new(error.kind(), error.to_string())),
+            Self::VersionCommandFailed { status, stderr } => Self::VersionCommandFailed {
+                status: *status,
+                stderr: stderr.clone(),
+            },
+            Self::VersionOutputEmpty => Self::VersionOutputEmpty,
+            Self::ProcessFailed { status, stderr } => Self::ProcessFailed {
+                status: *status,
+                stderr: stderr.clone(),
+            },
+            Self::InvalidJson(message) => Self::InvalidJson(message.clone()),
+            Self::MissingField(field) => Self::MissingField(field),
+            Self::InvalidField { field, message } => Self::InvalidField {
+                field,
+                message: message.clone(),
+            },
+            Self::Timeout(timeout) => Self::Timeout(*timeout),
+            Self::Cancelled => Self::Cancelled,
+            Self::Poisoned => Self::Poisoned,
+            Self::WorkerPanicked => Self::WorkerPanicked,
+            Self::InvalidDownloadRequest(message) => Self::InvalidDownloadRequest(message.clone()),
+            Self::ProgressParse(message) => Self::ProgressParse(message.clone()),
+            Self::DownloadProcessFailed { status, stderr } => Self::DownloadProcessFailed {
+                status: *status,
+                stderr: stderr.clone(),
+            },
+            Self::Storage(message) => Self::Storage(message.clone()),
+            Self::OutputPathMissing => Self::OutputPathMissing,
+        }
+    }
 }
 impl std::fmt::Display for DownloadTaskError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -42,15 +80,17 @@ impl std::fmt::Display for DownloadTaskError {
             Self::InvalidJson(message) => write!(formatter, "yt-dlp 返回的媒体消息不是有效 JSON：{message}"),
             Self::MissingField(field) => write!(formatter, "yt-dlp 媒体消息缺少字段：{field}。"),
             Self::InvalidField { field, message } => write!(formatter, "yt-dlp 字段 {field} 无效：{message}"),
-            Self::Timeout(timeout) => write!(formatter, "yt-dlp 检索超过 {:?}。", timeout),
-            Self::Cancelled => write!(formatter, "yt-dlp 检索已取消。"),
-            Self::Poisoned => write!(formatter, "yt-dlp 检索任务状态异常。"),
-            Self::WorkerPanicked => write!(formatter, "yt-dlp 检索任务异常结束。"),
+            Self::Timeout(timeout) => write!(formatter, "yt-dlp 任务超过 {:?}。", timeout),
+            Self::Cancelled => write!(formatter, "yt-dlp 任务已取消。"),
+            Self::Poisoned => write!(formatter, "yt-dlp 任务状态异常。"),
+            Self::WorkerPanicked => write!(formatter, "yt-dlp 任务异常结束。"),
             Self::InvalidDownloadRequest(message) => write!(formatter, "下载请求无效：{message}"),
             Self::ProgressParse(message) => write!(formatter, "yt-dlp 下载进度无效：{message}"),
             Self::DownloadProcessFailed { status, stderr } => {
                 write!(formatter, "yt-dlp 下载失败（退出码 {:?}）：{}", status, stderr.trim())
             }
+            Self::Storage(message) => write!(formatter, "下载任务持久化失败：{message}"),
+            Self::OutputPathMissing => write!(formatter, "yt-dlp 下载完成但没有返回最终文件路径。"),
         }
     }
 }

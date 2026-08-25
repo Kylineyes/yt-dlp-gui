@@ -3,7 +3,6 @@ use serde_json::Value;
 use super::error::DownloadTaskError;
 use super::model::{
     DownloadMediaType, DownloadProgress, DownloadStage, DownloadStreamStatus, MediaFormat, StreamProgress, VideoInfo,
-    DEFAULT_PROGRESS_DELTA,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,8 +58,8 @@ pub(crate) fn parse_download_line(
         total_bytes: parse_i64(fields[3])?,
         total_bytes_estimate: parse_i64(fields[4])?,
         speed_bytes_per_second: parse_speed(fields[5])?,
-        elapsed_seconds: parse_i64(fields[6])?,
-        eta_seconds: parse_i64(fields[7])?,
+        elapsed_seconds: parse_seconds(fields[6])?,
+        eta_seconds: parse_seconds(fields[7])?,
         percent,
         started_at: None,
         finished_at: None,
@@ -70,22 +69,24 @@ pub(crate) fn parse_download_line(
 pub(crate) fn aggregate_progress(task_id: i64, streams: &[StreamProgress], updated_at: i64) -> DownloadProgress {
     let downloaded_bytes = streams.iter().map(|stream| stream.downloaded_bytes).sum();
     let total_bytes = streams.iter().map(|stream| stream.total_bytes).sum::<Option<i64>>();
-    let total_bytes_estimate = streams
+    let fallback_total = streams
         .iter()
         .map(|stream| stream.total_bytes.or(stream.total_bytes_estimate))
         .sum::<Option<i64>>();
-    let total_is_estimate = total_bytes.is_none() && total_bytes_estimate.is_some();
+    let total_bytes_estimate = total_bytes.is_none().then_some(fallback_total).flatten();
+    let total_is_estimate = total_bytes_estimate.is_some();
     let total = total_bytes.or(total_bytes_estimate);
     let percent = total.filter(|value| *value > 0).map(|value| {
         ((downloaded_bytes as f64 / value as f64) * 100.0)
             .clamp(0.0, 100.0)
             .round() as u8
     });
-    let speed_values = streams
+    let (speed_sum, speed_count) = streams
         .iter()
+        .filter(|stream| stream.status == DownloadStreamStatus::Downloading)
         .filter_map(|stream| stream.speed_bytes_per_second)
-        .collect::<Vec<_>>();
-    let speed_bytes_per_second = (!speed_values.is_empty()).then(|| speed_values.into_iter().sum());
+        .fold((0, 0), |(sum, count), speed| (sum + speed, count + 1));
+    let speed_bytes_per_second = (speed_count > 0).then_some(speed_sum);
     let elapsed_seconds = streams.iter().filter_map(|stream| stream.elapsed_seconds).max();
     let eta_seconds = total.filter(|value| *value > downloaded_bytes).and_then(|value| {
         speed_bytes_per_second
@@ -112,11 +113,11 @@ pub(crate) fn aggregate_progress(task_id: i64, streams: &[StreamProgress], updat
     }
 }
 pub(crate) fn progress_template() -> String {
-    "download:%(progress.status)s\t%(format_id)s\t%(progress.downloaded_bytes)s\t%(progress.total_bytes)s\t%(progress.total_bytes_estimate)s\t%(progress.speed)s\t%(progress.elapsed)s\t%(progress.eta)s\t%(progress._percent_str)s".to_owned()
+    "download:download:%(progress.status)s\t%(info.format_id)s\t%(progress.downloaded_bytes)s\t%(progress.total_bytes)s\t%(progress.total_bytes_estimate)s\t%(progress.speed)s\t%(progress.elapsed)s\t%(progress.eta)s\t%(progress._percent_str)s".to_owned()
 }
 
 pub(crate) fn postprocess_template() -> &'static str {
-    "postprocess:%(postprocessor_key)s"
+    "postprocess:postprocess:%(postprocessor_key)s"
 }
 
 fn value_string(value: &str) -> String {
@@ -132,6 +133,20 @@ fn parse_i64(value: &str) -> Result<Option<i64>, DownloadTaskError> {
         .parse::<i64>()
         .map(Some)
         .map_err(|_| DownloadTaskError::ProgressParse(format!("无效数值：{value}")))
+}
+
+fn parse_seconds(value: &str) -> Result<Option<i64>, DownloadTaskError> {
+    let value = value.trim();
+    if matches!(value, "" | "NA" | "N/A" | "none" | "None") {
+        return Ok(None);
+    }
+    let seconds = value
+        .parse::<f64>()
+        .map_err(|_| DownloadTaskError::ProgressParse(format!("无效秒数：{value}")))?;
+    if !seconds.is_finite() || seconds < 0.0 || seconds > i64::MAX as f64 {
+        return Err(DownloadTaskError::ProgressParse(format!("秒数超出范围：{value}")));
+    }
+    Ok(Some(seconds.round() as i64))
 }
 
 fn parse_percent(value: &str) -> Result<Option<u8>, DownloadTaskError> {
@@ -167,11 +182,6 @@ fn parse_speed(value: &str) -> Result<Option<i64>, DownloadTaskError> {
         unit => return Err(DownloadTaskError::ProgressParse(format!("未知速度单位：{unit}"))),
     };
     Ok(Some((number * multiplier) as i64))
-}
-
-#[allow(dead_code)]
-fn _progress_delta_default() -> f64 {
-    DEFAULT_PROGRESS_DELTA
 }
 
 /// 只提取页面展示和后续格式选择所需字段，未知 yt-dlp 字段会被保留在输入之外而忽略。

@@ -86,19 +86,19 @@ pub enum MediaMessage {
 
 pub const DEFAULT_PROGRESS_DELTA: f64 = 0.5;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DownloadMediaType {
     Video,
     Audio,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DownloadStreamStatus {
     Downloading,
     Finished,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DownloadStage {
     Preparing,
     Downloading,
@@ -108,7 +108,6 @@ pub enum DownloadStage {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DownloadRequest {
-    pub task_id: i64,
     pub source_url: String,
     pub video: VideoInfo,
     pub selected_video_format_id: String,
@@ -181,14 +180,13 @@ pub enum DownloadMessage {
 
 impl DownloadRequest {
     pub(crate) fn validate(&self) -> Result<(), String> {
-        if self.task_id < 0
-            || self.source_url.trim().is_empty()
+        if self.source_url.trim().is_empty()
             || self.selected_video_format_id.trim().is_empty()
             || self.selected_audio_format_id.trim().is_empty()
             || self.output_template.trim().is_empty()
             || self.merge_output_format.trim().is_empty()
         {
-            return Err("下载请求包含空字段或无效任务 ID".to_owned());
+            return Err("下载请求包含空字段".to_owned());
         }
         if !matches!(self.merge_output_format.as_str(), "mp4" | "mkv") {
             return Err("合并容器只能是 mp4 或 mkv".to_owned());
@@ -201,10 +199,12 @@ impl DownloadRequest {
 pub(crate) struct ClientConfig {
     /// yt-dlp 可执行文件路径。
     pub(crate) yt_dlp_path: PathBuf,
+    /// 可选的 FFmpeg 可执行文件或 bin 目录路径。
+    pub(crate) ffmpeg_path: Option<PathBuf>,
     /// 可选的网络代理地址。
     pub(crate) proxy: Option<String>,
-    /// 当前客户端使用的元数据检索超时时间；`None` 表示不设超时。
+    /// 元数据检索和下载任务共用的超时时间；`None` 表示不设超时。
     pub(crate) timeout: Option<Duration>,
-    /// 后续下载任务使用的存放位置；当前检索阶段只保存，不校验也不传入下载参数。
+    /// 默认下载目录快照；下载请求仍需显式给出最终目录。
     pub(crate) storage_path: PathBuf,
 }

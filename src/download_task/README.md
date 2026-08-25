@@ -9,10 +9,12 @@
 - yt-dlp 结构化下载进度解析；
 - 多流进度聚合；
 - 下载取消和超时；
-- 下载完成后最终文件路径读取；
-- 下载业务后续所需的存放位置配置。
+- 从 Storage 环境配置读取 yt-dlp、FFmpeg、代理和默认下载目录；
+- 创建下载任务与视频/音频流快照；
+- 任务状态、节流进度和终态持久化；
+- 下载完成后最终文件路径读取。
 
-模块通过独立线程运行 yt-dlp，不阻塞调用线程。元数据检索使用 `--skip-download`，真实下载通过独立的 `DownloadTaskClient::download` 调用。
+长时间运行的元数据检索和下载由独立线程执行。`download` 在返回句柄前会同步完成请求校验、yt-dlp 版本快照和 Storage 任务创建，因此调用方不应把这段短暂预处理放在对延迟极敏感的 UI 回调中。元数据检索使用 `--skip-download`，真实下载通过独立的 `DownloadTaskClient::download` 调用。
 
 文档中的示例路径、代理和 URL 都是占位内容。示例 URL 使用 `.invalid` 保留域名：
 
@@ -26,8 +28,8 @@ https://download-task.invalid/watch?v=metadata-fixture
 
 建议业务层按照下面顺序使用：
 
-1. 从用户配置或界面取得 yt-dlp 路径、proxy、超时时间和存放位置。
-2. 使用 `DownloadTaskClient::new` 创建客户端。
+1. 完成 `Storage::initialize` 并保存环境配置。
+2. 通常使用 `DownloadTaskClient::from_storage` 创建客户端；测试或特殊调用可使用 `new` 显式注入路径。
 3. 使用 `verify_version` 检查 yt-dlp 是否可执行，并展示版本信息。
 4. 用户提交 URL 后调用 `inspect_url`。
 5. 立即保存返回的 `SearchHandle`，用于取消任务或等待结果。
@@ -47,6 +49,7 @@ use yt_dlp_gui::download_task::{DownloadTaskClient, DownloadTaskError, MediaMess
 fn inspect_video() -> Result<(), DownloadTaskError> {
     let client = DownloadTaskClient::new(
         "yt-dlp.exe",
+        Some("ffmpeg.exe".into()),
         Some("http://proxy.invalid:8080".to_owned()),
         Duration::from_secs(20),
         "download-output",
@@ -96,7 +99,6 @@ use yt_dlp_gui::download_task::{
 
 fn start_download(client: &DownloadTaskClient, video: VideoInfo) -> Result<(), Box<dyn std::error::Error>> {
     let request = DownloadRequest {
-        task_id: 1001,
         source_url: "https://download-task.invalid/watch?v=download-fixture".to_owned(),
         video,
         selected_video_format_id: "137".to_owned(),
@@ -154,6 +156,7 @@ GUI 接入时，回调运行在 worker 线程中，不能直接修改 Slint 控�
 ```rust
 pub fn new(
     yt_dlp_path: impl Into<PathBuf>,
+    ffmpeg_path: Option<PathBuf>,
     proxy: Option<String>,
     timeout: Duration,
     storage_path: impl Into<PathBuf>,
@@ -165,11 +168,20 @@ pub fn new(
 | 参数 | 作用 |
 | --- | --- |
 | `yt_dlp_path` | yt-dlp 可执行文件路径，只保存，不在创建时验证 |
+| `ffmpeg_path` | 可选 FFmpeg 可执行文件或 bin 目录；下载时通过 `--ffmpeg-location` 传给 yt-dlp |
 | `proxy` | 可选代理地址；空字符串或全空白字符串会被视为没有代理 |
 | `timeout` | 元数据检索和下载任务的超时时间；零秒表示不设超时 |
 | `storage_path` | 后续下载业务的存放位置，只保存，不检查路径是否存在 |
 
 该函数不会启动 yt-dlp，也不会创建下载任务。
+
+### `DownloadTaskClient::from_storage`
+
+```rust
+pub fn from_storage(timeout: Duration) -> Result<Self, DownloadTaskError>
+```
+
+从已初始化的 `Storage` 环境配置读取 yt-dlp、FFmpeg、代理和默认下载目录。配置为空或 Storage 尚未初始化时返回 `DownloadTaskError::Storage`。这是应用层推荐使用的构造方式。
 
 ### `DownloadTaskClient::storage_path`
 
@@ -239,26 +251,28 @@ where
 
 启动异步下载任务，并立即返回 `DownloadHandle`。
 
-`download` 会先验证 `DownloadRequest`。空字段、负任务 ID 或非 `mp4`/`mkv` 的合并容器会返回 `InvalidDownloadRequest`，不会启动子进程。
+`download` 会先验证请求、检查 yt-dlp 版本，并通过当前 `Storage` 单例创建任务及两个初始流。空字段、找不到所选格式、流类型不匹配或非 `mp4`/`mkv` 的合并容器会返回 `InvalidDownloadRequest`，不会启动下载子进程。任务 ID 由数据库生成，可通过 `DownloadHandle::task_id()` 读取。
 
 当前下载参数为：
 
 ```text
 --check-formats
 --newline
+--progress
 --progress-delta 0.5
---progress-template <download-template>
---progress-template <postprocess-template>
---print after_move:%(filepath)s
+--progress-template download:download:<download-template>
+--progress-template postprocess:postprocess:<postprocess-template>
+--print after_move:after_move:%(filepath)s
 --no-simulate
---paths home=<target-directory>
---paths temp=<temporary-directory>
+--paths home:<target-directory>
+--paths temp:<temporary-directory>
 --output <output-template>
 --continue
 --no-overwrites
 --part
 --merge-output-format <mp4|mkv>
 [--proxy <proxy>]
+[--ffmpeg-location <ffmpeg-path>]
 [--limit-rate <rate-limit>]
 [--retries <n>]
 [--fragment-retries <n>]
@@ -271,6 +285,8 @@ where
 说明：
 
 - `--no-simulate` 确保输出 `after_move` 路径时仍执行真实下载；
+- `--print` 会隐式启用 quiet，因此显式增加 `--progress` 恢复结构化下载进度；
+- 模板中的第一个 `download:` / `postprocess:` / `after_move:` 是类型或时机选择器，第二个同名前缀才是实际输出文本；
 - `--check-formats` 在下载前检查所选格式；
 - `--continue`、`--no-overwrites` 和 `--part` 支持断点续传并防止覆盖；
 - `--progress-delta 0.5` 限制进度输出频率；
@@ -323,6 +339,14 @@ pub fn wait(self) -> Result<VideoInfo, DownloadTaskError>
 
 - 成功时返回 `Ok(VideoInfo)`。
 - 取消、超时、进程失败或解析失败时返回对应的 `DownloadTaskError`。
+
+### `DownloadHandle::task_id`
+
+```rust
+pub fn task_id(&self) -> i64
+```
+
+返回 Storage 创建的下载任务 ID，可用于任务页读取数据库快照。
 
 ### `DownloadHandle::cancel`
 
@@ -438,7 +462,6 @@ pub fn aggregate_download_progress(
 
 | 字段 | 类型 | 作用 |
 | --- | --- | --- |
-| `task_id` | `i64` | 持久化任务标识，由调用层指定 |
 | `source_url` | `String` | 要下载的 URL |
 | `video` | `VideoInfo` | 已解析的视频元数据 |
 | `selected_video_format_id` | `String` | 视频流格式 ID |
@@ -559,7 +582,7 @@ DownloadStage: Preparing | Downloading | Merging | Completed
 
 - 下载模板输出 `download:` 开头的九字段制表符分隔行；
 - 后处理模板输出 `postprocess:` 开头的阶段行；
-- `--print after_move:%(filepath)s` 输出 `after_move:` 最终路径行。
+- `--print after_move:after_move:%(filepath)s` 输出 `after_move:` 最终路径行。
 
 `NA`、`N/A`、`none` 和空值统一解析为 `Option::None`，不会保存为字符串。
 
@@ -570,6 +593,16 @@ DownloadStage: Preparing | Downloading | Merging | Completed
 - 任一流缺少准确总大小但使用估算值时，`total_is_estimate` 为 `true`；
 - 没有任何可靠总大小时，百分比和 ETA 为 `None`；
 - 合并阶段不伪造合并百分比。
+
+### 持久化策略
+
+- 调用 `download` 时原子创建主任务和视频/音频初始流，并立即进入 `preparing`；
+- worker 启动后立即迁移到 `downloading`；
+- 首次收到后处理事件时立即迁移到 `merging`；
+- 任务进度和当前流进度最多每 750ms 写入一次，流完成时强制写入；
+- 进度写入失败不会改变实际下载成功判断；
+- 完成、取消和失败终态立即写入，最终路径和受限错误摘要一并保存；
+- Storage 当前没有流级状态迁移 API，因此模块保存流进度，但不能把数据库中的单流状态迁移到 `downloading`/`completed`；该契约必须由 Storage 负责分支提供后才能接入。
 
 ## 五、异常情况
 
@@ -609,13 +642,15 @@ DownloadStage: Preparing | Downloading | Merging | Completed
 
 | 错误 | 原因 |
 | --- | --- |
-| `InvalidDownloadRequest(message)` | 下载请求字段为空、任务 ID 为负或合并容器不是 `mp4`/`mkv` |
+| `InvalidDownloadRequest(message)` | 下载请求为空、格式不存在、媒体类型不匹配或合并容器不是 `mp4`/`mkv` |
 | `ExecutableNotFound(path)` | worker 启动后未找到 yt-dlp |
 | `Spawn(error)` | 下载进程无法启动 |
 | `ProgressParse(message)` | 进度行字段数量、数值、百分比、速度单位或格式 ID 无法解析 |
 | `DownloadProcessFailed { status, stderr }` | yt-dlp 下载返回非零退出码 |
 | `Timeout(timeout)` | 下载超过客户端配置的非零超时时间 |
 | `Cancelled` | 调用方取消下载 |
+| `Storage(message)` | Storage 未初始化、配置缺失或任务状态/终态写入失败 |
+| `OutputPathMissing` | yt-dlp 成功退出但没有返回 `after_move` 最终路径 |
 
 下载失败保存的是受限的 stderr 摘要，不保存完整命令行、临时媒体 URL 或 proxy 认证信息。
 
@@ -637,18 +672,29 @@ DownloadStage: Preparing | Downloading | Merging | Completed
 
 ## 六、测试
 
-运行契约测试：
+运行自动化契约测试：
 
 ```text
 cargo test --test download_task_contract
+cargo test --test download_task_worker_contract
 ```
 
 测试覆盖：
 
-- 元数据检索默认超时；
-- 缺失可执行文件；
-- 检索取消；
-- 结构化下载进度 fixture 解析；
-- 多流汇总和估算总大小。
+- 元数据检索默认超时、缺失可执行文件和取消；
+- 结构化下载进度 fixture 解析及多流汇总；
+- fake yt-dlp 真实子进程启动和参数转发；
+- Storage 任务/流创建、进度、合并、完成、失败、超时和取消终态；
+- FFmpeg 路径、代理、格式组合、目标/临时目录和 `--no-simulate` 参数。
 
-测试只使用占位路径和伪 URL，不包含真实本地路径、真实视频链接或真实视频 ID，也不依赖外部网络服务。
+真实下载验收默认忽略，通过环境变量显式启用：
+
+```text
+YTDLP_GUI_TEST_YT_DLP=<yt-dlp-path>
+YTDLP_GUI_TEST_FFMPEG=<ffmpeg-path>
+YTDLP_GUI_TEST_URL=<video-url>
+YTDLP_GUI_TEST_PROXY=<optional-proxy>
+cargo test --test download_task_real_acceptance -- --ignored --nocapture
+```
+
+自动化测试只使用占位路径和伪 URL，不依赖外部网络。真实验收不把具体 URL、代理、下载目录或视频文件写入仓库。

@@ -41,6 +41,30 @@ fn aggregates_exact_and_estimated_stream_sizes() {
     assert_eq!(progress.total_bytes_estimate, Some(600));
     assert!(progress.total_is_estimate);
     assert_eq!(progress.percent, Some(25));
+    assert_eq!(progress.speed_bytes_per_second, Some(100));
+}
+
+#[test]
+fn keeps_estimate_empty_when_all_stream_totals_are_exact() {
+    let video = parse_download_progress_line(
+        "download:finished\t137\t400\t400\tNA\t100 B/s\t4\tNA\t100%",
+        "137",
+        "251",
+    )
+    .unwrap()
+    .unwrap();
+    let audio = parse_download_progress_line(
+        "download:downloading\t251\t50\t200\tNA\t50 B/s\t2\t3\t25%",
+        "137",
+        "251",
+    )
+    .unwrap()
+    .unwrap();
+    let progress = aggregate_download_progress(8, &[video, audio], 11);
+    assert_eq!(progress.total_bytes, Some(600));
+    assert_eq!(progress.total_bytes_estimate, None);
+    assert!(!progress.total_is_estimate);
+    assert_eq!(progress.speed_bytes_per_second, Some(50));
 }
 
 #[test]
@@ -50,13 +74,19 @@ fn exposes_twenty_second_default_timeout() {
 
 #[test]
 fn zero_timeout_disables_deadline() {
-    let client = DownloadTaskClient::new("yt-dlp.exe", None, Duration::ZERO, "fixture-output");
+    let client = DownloadTaskClient::new("yt-dlp.exe", None, None, Duration::ZERO, "fixture-output");
     assert!(client.inspect_url(FAKE_URL, |_| {}).is_ok());
 }
 
 #[test]
 fn empty_url_is_reported_by_yt_dlp() {
-    let client = DownloadTaskClient::new("path-that-does-not-exist.exe", None, Duration::ZERO, "fixture-output");
+    let client = DownloadTaskClient::new(
+        "path-that-does-not-exist.exe",
+        None,
+        None,
+        Duration::ZERO,
+        "fixture-output",
+    );
     let handle = client.inspect_url("", |_| {}).unwrap();
     assert!(matches!(
         handle.wait(),
@@ -66,7 +96,13 @@ fn empty_url_is_reported_by_yt_dlp() {
 
 #[test]
 fn verifies_missing_executable_without_spawning() {
-    let client = DownloadTaskClient::new("path-that-does-not-exist.exe", None, Duration::ZERO, "fixture-output");
+    let client = DownloadTaskClient::new(
+        "path-that-does-not-exist.exe",
+        None,
+        None,
+        Duration::ZERO,
+        "fixture-output",
+    );
     assert!(matches!(
         client.verify_version(),
         Err(DownloadTaskError::ExecutableNotFound(_))
@@ -75,7 +111,13 @@ fn verifies_missing_executable_without_spawning() {
 
 #[test]
 fn cancelled_task_reports_cancelled_terminal_message() {
-    let client = DownloadTaskClient::new("path-that-does-not-exist.exe", None, Duration::ZERO, "fixture-output");
+    let client = DownloadTaskClient::new(
+        "path-that-does-not-exist.exe",
+        None,
+        None,
+        Duration::ZERO,
+        "fixture-output",
+    );
     let messages = Arc::new(Mutex::new(Vec::new()));
     let captured = Arc::clone(&messages);
     let handle = client.inspect_url(FAKE_URL, move |message| {
