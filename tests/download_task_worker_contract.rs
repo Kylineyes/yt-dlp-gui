@@ -78,6 +78,12 @@ fn verify_success(target: &Path, temporary: &Path, ffmpeg_path: &Path) {
     assert_eq!(stored.task.selected_format.as_deref(), Some("160+251"));
     assert_eq!(stored.streams.len(), 2);
     assert!(stored.streams.iter().all(|stream| stream.progress_percent == Some(100)));
+    assert!(stored
+        .streams
+        .iter()
+        .all(|stream| stream.status == DownloadTaskStatus::Completed));
+    assert!(stored.streams.iter().all(|stream| stream.started_at.is_some()));
+    assert!(stored.streams.iter().all(|stream| stream.finished_at.is_some()));
 
     let args = std::fs::read_to_string(target.join("fake-args.txt")).unwrap();
     assert_argument_pair(&args, "--ffmpeg-location", &ffmpeg_path.to_string_lossy());
@@ -126,6 +132,10 @@ fn verify_process_failure(fake_yt_dlp: &Path, target: &Path, temporary: &Path, f
         .unwrap();
     assert_eq!(stored.task.status, DownloadTaskStatus::Failed);
     assert!(stored
+        .streams
+        .iter()
+        .all(|stream| stream.status == DownloadTaskStatus::Failed));
+    assert!(stored
         .task
         .error_message
         .as_ref()
@@ -157,6 +167,10 @@ fn verify_timeout(fake_yt_dlp: &Path, target: &Path, temporary: &Path, ffmpeg_pa
         .unwrap()
         .unwrap();
     assert_eq!(stored.task.status, DownloadTaskStatus::Failed);
+    assert!(stored
+        .streams
+        .iter()
+        .all(|stream| stream.status == DownloadTaskStatus::Failed));
     assert!(messages
         .lock()
         .unwrap()
@@ -182,6 +196,10 @@ fn verify_cancellation(fake_yt_dlp: &Path, target: &Path, temporary: &Path, ffmp
         .unwrap()
         .unwrap();
     assert_eq!(stored.task.status, DownloadTaskStatus::Cancelled);
+    assert!(stored
+        .streams
+        .iter()
+        .all(|stream| stream.status == DownloadTaskStatus::Cancelled));
     assert!(messages
         .lock()
         .unwrap()

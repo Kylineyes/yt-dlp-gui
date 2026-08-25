@@ -182,7 +182,7 @@ fn run_download_worker<F>(
     }
     let now = unix_timestamp();
     if let Err(error) = persisted.mark_downloading(now) {
-        finish_failed_download(&shared, &persisted, error, &on_message);
+        finish_failed_download(&shared, &mut persisted, error, &on_message);
         return;
     }
     let initial = empty_progress(task_id, DownloadStage::Downloading, now);
@@ -206,7 +206,7 @@ fn run_download_worker<F>(
                     &task_progress,
                     &progress,
                     progress.status == DownloadStreamStatus::Finished,
-                );
+                )?;
                 set_latest_progress(&shared, task_progress.clone());
                 on_message(DownloadMessage::Progress(task_progress));
             }
@@ -237,7 +237,7 @@ fn run_download_worker<F>(
                     progress.active_stream = None;
                     persisted.write_final_progress(&progress, &streams);
                     if let Err(error) = persisted.complete(output_path.clone(), now) {
-                        finish_failed_download(&shared, &persisted, error, &on_message);
+                        finish_failed_download(&shared, &mut persisted, error, &on_message);
                         return;
                     }
                     set_latest_progress(&shared, progress.clone());
@@ -249,7 +249,7 @@ fn run_download_worker<F>(
                     set_download_completion(&shared, Ok(result.clone()));
                     on_message(DownloadMessage::Completed(result));
                 }
-                Err(error) => finish_failed_download(&shared, &persisted, error, &on_message),
+                Err(error) => finish_failed_download(&shared, &mut persisted, error, &on_message),
             }
         }
         Err(DownloadTaskError::Cancelled) => {
@@ -259,16 +259,16 @@ fn run_download_worker<F>(
                     set_download_completion(&shared, Err(DownloadTaskError::Cancelled));
                     on_message(DownloadMessage::Cancelled);
                 }
-                Err(error) => finish_failed_download(&shared, &persisted, error, &on_message),
+                Err(error) => finish_failed_download(&shared, &mut persisted, error, &on_message),
             }
         }
-        Err(error) => finish_failed_download(&shared, &persisted, error, &on_message),
+        Err(error) => finish_failed_download(&shared, &mut persisted, error, &on_message),
     }
 }
 
 fn finish_failed_download<F>(
     shared: &DownloadSharedState,
-    persisted: &PersistedDownload,
+    persisted: &mut PersistedDownload,
     error: DownloadTaskError,
     on_message: &F,
 ) where

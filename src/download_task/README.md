@@ -602,7 +602,9 @@ DownloadStage: Preparing | Downloading | Merging | Completed
 - 任务进度和当前流进度最多每 750ms 写入一次，流完成时强制写入；
 - 进度写入失败不会改变实际下载成功判断；
 - 完成、取消和失败终态立即写入，最终路径和受限错误摘要一并保存；
-- Storage 当前没有流级状态迁移 API，因此模块保存流进度，但不能把数据库中的单流状态迁移到 `downloading`/`completed`；该契约必须由 Storage 负责分支提供后才能接入。
+- 首次收到每个流的进度时迁移该流到 `preparing`、再到 `downloading`；
+- 单流完成时先写入最终流进度，再迁移到 `completed`；
+- 任务取消或失败时，所有未进入终态的流分别迁移到 `cancelled` 或 `failed`。
 
 ## 五、异常情况
 
