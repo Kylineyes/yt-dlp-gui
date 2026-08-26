@@ -128,6 +128,46 @@ pub fn can_download(path: &str, selected_index: Option<usize>, path_error: Optio
     selected_index.is_some() && !path.is_empty() && path_error.is_none()
 }
 
+pub fn selected_download_streams(video: &VideoInfo, selected_index: Option<usize>) -> Option<(String, String)> {
+    let video_format = selected_index
+        .and_then(|index| video.formats.get(index))
+        .filter(|format| is_video_only(format))?;
+    let video_id = video_format.format_id.clone()?;
+    let audio_id = video
+        .formats
+        .iter()
+        .filter(|format| is_audio_only(format))
+        .find(|format| format.extension.as_deref() == Some("m4a"))
+        .or_else(|| video.formats.iter().find(|format| is_audio_only(format)))
+        .and_then(|format| format.format_id.clone())?;
+    Some((video_id, audio_id))
+}
+
+fn is_video_only(format: &MediaFormat) -> bool {
+    format.format_id.is_some()
+        && format.height.is_some()
+        && format
+            .video_codec
+            .as_deref()
+            .is_some_and(|codec| !codec.is_empty() && codec != "none")
+        && format
+            .audio_codec
+            .as_deref()
+            .is_none_or(|codec| codec.is_empty() || codec == "none")
+}
+
+fn is_audio_only(format: &MediaFormat) -> bool {
+    format.format_id.is_some()
+        && format
+            .video_codec
+            .as_deref()
+            .is_none_or(|codec| codec.is_empty() || codec == "none")
+        && format
+            .audio_codec
+            .as_deref()
+            .is_some_and(|codec| !codec.is_empty() && codec != "none")
+}
+
 pub fn result_rows(video: &VideoInfo) -> Vec<SearchResultRow> {
     result_rows_in_order(video, &(0..video.formats.len()).collect::<Vec<_>>())
 }
