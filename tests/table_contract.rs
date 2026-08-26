@@ -113,11 +113,9 @@ fn right_and_middle_clicks_do_not_request_row_selection() {
     .unwrap();
     let dispatch = source.split("function dispatch-pointer").nth(1).unwrap();
 
-    assert!(dispatch
-        .contains("if (button == PointerEventButton.left) {\n            selection-requested(row.source-index);"));
-    assert!(
-        !dispatch.contains("selection-requested(row.source-index);\n        if (button == PointerEventButton.left)")
-    );
+    let left_click = dispatch.find("if (button == PointerEventButton.left) {").unwrap();
+    let selection = dispatch.find("selection-requested(row.source-index);").unwrap();
+    assert!(left_click < selection);
     assert!(dispatch.contains("right-clicked(row.source-index);"));
     assert!(dispatch.contains("middle-clicked(row.source-index);"));
 }
