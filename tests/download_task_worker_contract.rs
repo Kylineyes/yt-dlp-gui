@@ -33,6 +33,7 @@ fn download_worker_persists_lifecycle_and_forwards_ffmpeg() {
             language: "zh-CN".to_owned(),
             concurrent_downloads: 1,
             proxy: "http://127.0.0.1:10808".to_owned(),
+            search_timeout_sec: 20,
         })
         .unwrap();
 

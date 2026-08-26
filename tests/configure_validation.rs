@@ -20,6 +20,7 @@ fn valid_configuration(path: &PathBuf) -> EnvironmentConfig {
         language: "en-US".to_string(),
         concurrent_downloads: 0,
         proxy: String::new(),
+        search_timeout_sec: 20,
     }
 }
 
@@ -33,6 +34,7 @@ fn draft_defaults_match_configuration_contract() {
     assert_eq!(configuration.concurrent_downloads, 0);
     assert_eq!(configuration.language, "en-US");
     assert_eq!(configuration.theme, "system");
+    assert_eq!(configuration.search_timeout_sec, 20);
 }
 
 #[test]

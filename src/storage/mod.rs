@@ -20,6 +20,15 @@ pub use error::StorageError;
 /// 当前程序能够直接读取的配置格式版本。
 pub const CONFIG_VERSION: &str = "0.0.1";
 
+/// 检索视频信息的默认超时时间，单位为秒。
+pub const DEFAULT_SEARCH_TIMEOUT_SEC: i64 = 20;
+
+/// 检索视频信息允许的最小超时时间，单位为秒。
+pub const MIN_SEARCH_TIMEOUT_SEC: i64 = 5;
+
+/// 检索视频信息允许的最大超时时间，单位为秒。
+pub const MAX_SEARCH_TIMEOUT_SEC: i64 = 120;
+
 /// 进程级单例；OnceLock 保证初始化只成功一次且实例地址保持稳定。
 static STORAGE: OnceLock<Storage> = OnceLock::new();
 
@@ -118,6 +127,13 @@ impl Storage {
         Ok(self.configuration()?.map(|configuration| configuration.proxy))
     }
 
+    /// 同步读取检索视频信息的超时时间，单位为秒。
+    pub fn search_timeout_sec(&self) -> Result<Option<i64>, StorageError> {
+        Ok(self
+            .configuration()?
+            .map(|configuration| configuration.search_timeout_sec))
+    }
+
     /// 原子保存完整环境配置；首次保存和后续更新都必须通过该接口完成。
     pub fn save_configuration(&self, configuration: EnvironmentConfig) -> Result<(), StorageError> {
         if configuration.version != CONFIG_VERSION {
@@ -165,6 +181,11 @@ impl Storage {
     /// 同步保存并更新 yt-dlp 使用的代理地址。
     pub fn set_proxy(&self, value: String) -> Result<(), StorageError> {
         self.update_configuration(|configuration| configuration.proxy = value)
+    }
+
+    /// 同步保存并更新检索视频信息的超时时间，单位为秒。
+    pub fn set_search_timeout_sec(&self, value: i64) -> Result<(), StorageError> {
+        self.update_configuration(|configuration| configuration.search_timeout_sec = value)
     }
 
     fn update_configuration(&self, update: impl FnOnce(&mut EnvironmentConfig)) -> Result<(), StorageError> {
@@ -295,6 +316,9 @@ fn validate_configuration(configuration: &EnvironmentConfig) -> Result<(), Stora
         return Err(StorageError::InvalidConcurrentDownloads(
             configuration.concurrent_downloads,
         ));
+    }
+    if !(MIN_SEARCH_TIMEOUT_SEC..=MAX_SEARCH_TIMEOUT_SEC).contains(&configuration.search_timeout_sec) {
+        return Err(StorageError::InvalidSearchTimeout(configuration.search_timeout_sec));
     }
     Ok(())
 }

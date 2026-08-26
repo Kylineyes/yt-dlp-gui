@@ -29,6 +29,7 @@ fn downloads_lowest_video_quality_with_configured_ffmpeg() {
             language: "zh-CN".to_owned(),
             concurrent_downloads: 1,
             proxy,
+            search_timeout_sec: 20,
         })
         .unwrap();
 
