@@ -1,17 +1,7 @@
 import { Button, LineEdit } from "std-widgets.slint";
+import { GenericTable, TableColumn, TableRow, TableSortDirection } from "../components/generic-table.slint";
 import { I18n } from "../design/i18n.slint";
 import { Theme } from "../design/theme.slint";
-
-export struct SearchResultRow {
-    format-id: string,
-    format-note: string,
-    extension: string,
-    resolution: string,
-    bitrate: string,
-    file-size: string,
-    video-codec: string,
-    audio-codec: string,
-}
 
 component SearchField inherits VerticalLayout {
     in property <string> label;
@@ -75,69 +65,6 @@ component SearchField inherits VerticalLayout {
     }
 }
 
-component SearchSortHeaderCell inherits Rectangle {
-    in property <string> label;
-    in property <int> column;
-    in property <int> sort-column: -1;
-    in property <int> sort-direction: 0;
-    callback clicked(int);
-    height: Theme.control-min-height;
-    border-width: root.sort-column == root.column ? Theme.focus-ring-width : 0px;
-    border-color: Theme.focus-ring;
-    background: transparent;
-
-    Text {
-        x: Theme.spacing-small;
-        width: parent.width - 2 * Theme.spacing-small;
-        height: parent.height;
-        text: root.label + (root.sort-column == root.column && root.sort-direction == 1 ? " ↑" : root.sort-column == root.column && root.sort-direction == 2 ? " ↓" : "");
-        color: root.sort-column == root.column ? Theme.accent : Theme.text-secondary;
-        font-family: Theme.ui-font-family;
-        font-size: Theme.font-size-body;
-        vertical-alignment: center;
-        overflow: elide;
-    }
-    Rectangle {
-        x: parent.width - Theme.border-width-default;
-        y: 0px;
-        width: Theme.border-width-default;
-        height: parent.height;
-        background: Theme.border-default;
-        visible: root.column < 5;
-    }
-    TouchArea {
-        clicked => { root.clicked(root.column); }
-    }
-}
-
-component SearchResultCell inherits Rectangle {
-    in property <string> text;
-    in property <string> font-family: Theme.ui-font-family;
-    in property <bool> divider: true;
-    horizontal-stretch: 1;
-    background: transparent;
-
-    Text {
-        x: Theme.spacing-small;
-        width: parent.width - 2 * Theme.spacing-small;
-        height: parent.height;
-        text: root.text;
-        color: Theme.text-primary;
-        font-family: root.font-family;
-        font-size: Theme.font-size-body;
-        vertical-alignment: center;
-        overflow: elide;
-    }
-    Rectangle {
-        x: parent.width - Theme.border-width-default;
-        y: 0px;
-        width: Theme.border-width-default;
-        height: parent.height;
-        background: Theme.border-default;
-        visible: root.divider;
-    }
-}
-
 export component SearchPage inherits Rectangle {
     callback search-requested();
     callback stop-requested();
@@ -161,8 +88,19 @@ export component SearchPage inherits Rectangle {
     in property <int> selected-index: -1;
     in property <int> sort-column: -1;
     in property <int> sort-direction: 0;
-    in property <[SearchResultRow]> results: [];
+    in property <[TableRow]> results: [];
     out property <length> intrinsic-height: content.preferred-height;
+    private property <TableSortDirection> table-sort-direction: sort-direction == 1 ? TableSortDirection.ascending : sort-direction == 2 ? TableSortDirection.descending : TableSortDirection.unsorted;
+    private property <[TableColumn]> result-columns: [
+        { title: I18n.search-format-id, sortable: true, width-weight: 1, font-family: Theme.mono-font-family, sort-direction: sort-column == 0 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.search-format-note, sortable: true, width-weight: 2, font-family: "", sort-direction: sort-column == 1 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.search-extension, sortable: true, width-weight: 1, font-family: "", sort-direction: sort-column == 2 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.search-resolution, sortable: true, width-weight: 2, font-family: "", sort-direction: sort-column == 3 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.search-bitrate, sortable: true, width-weight: 1, font-family: "", sort-direction: sort-column == 4 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.search-file-size, sortable: true, width-weight: 1, font-family: "", sort-direction: sort-column == 5 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.search-video-codec, sortable: true, width-weight: 1, font-family: Theme.mono-font-family, sort-direction: sort-column == 6 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.search-audio-codec, sortable: true, width-weight: 1, font-family: Theme.mono-font-family, sort-direction: sort-column == 7 ? table-sort-direction : TableSortDirection.unsorted },
+    ];
     private property <length> button-width: Theme.font-size-body * 8 + 2 * Theme.spacing-medium;
     private property <length> min-editor-width: 240px;
     private property <bool> inline: self.width >= button-width + min-editor-width + Theme.spacing-small;
@@ -286,51 +224,13 @@ export component SearchPage inherits Rectangle {
                     vertical-alignment: center;
                     overflow: elide;
                 }
-                Rectangle {
-                    height: Theme.control-min-height;
-                    background: Theme.surface-elevated;
-                    border-width: Theme.border-width-default;
-                    border-color: Theme.border-default;
-                    border-radius: Theme.corner-radius-small;
-                    HorizontalLayout {
-                        x: Theme.spacing-small;
-                        width: parent.width - 2 * Theme.spacing-small;
-                        height: parent.height;
-                        spacing: Theme.spacing-small;
-                        SearchSortHeaderCell { label: I18n.search-format-id; column: 0; sort-column: root.sort-column; sort-direction: root.sort-direction; horizontal-stretch: 1; clicked(column) => { root.result-sort-requested(column); } }
-                        SearchSortHeaderCell { label: I18n.search-format-note; column: 1; sort-column: root.sort-column; sort-direction: root.sort-direction; horizontal-stretch: 2; clicked(column) => { root.result-sort-requested(column); } }
-                        SearchSortHeaderCell { label: I18n.search-extension; column: 2; sort-column: root.sort-column; sort-direction: root.sort-direction; horizontal-stretch: 1; clicked(column) => { root.result-sort-requested(column); } }
-                        SearchSortHeaderCell { label: I18n.search-resolution; column: 3; sort-column: root.sort-column; sort-direction: root.sort-direction; horizontal-stretch: 2; clicked(column) => { root.result-sort-requested(column); } }
-                        SearchSortHeaderCell { label: I18n.search-bitrate; column: 4; sort-column: root.sort-column; sort-direction: root.sort-direction; horizontal-stretch: 1; clicked(column) => { root.result-sort-requested(column); } }
-                        SearchSortHeaderCell { label: I18n.search-file-size; column: 5; sort-column: root.sort-column; sort-direction: root.sort-direction; horizontal-stretch: 1; clicked(column) => { root.result-sort-requested(column); } }
-                        SearchResultCell { text: I18n.search-video-codec; font-family: Theme.ui-font-family; horizontal-stretch: 1; divider: true; }
-                        SearchResultCell { text: I18n.search-audio-codec; font-family: Theme.ui-font-family; horizontal-stretch: 1; divider: false; }
-                    }
-                }
-                table-rows := VerticalLayout {
-                    spacing: Theme.spacing-compact;
-                    for row[index] in root.results : Rectangle {
-                    height: Theme.control-min-height;
-                    border-radius: Theme.corner-radius-small;
-                    border-width: index == root.selected-index ? Theme.focus-ring-width : Theme.border-width-default;
-                    border-color: index == root.selected-index ? Theme.focus-ring : Theme.border-default;
-                    background: index == root.selected-index ? Theme.surface-elevated : Theme.surface-primary;
-                    HorizontalLayout {
-                        x: Theme.spacing-small;
-                        width: parent.width - 2 * Theme.spacing-small;
-                        height: parent.height;
-                        spacing: Theme.spacing-small;
-                        SearchResultCell { text: row.format-id; font-family: Theme.mono-font-family; horizontal-stretch: 1; }
-                        SearchResultCell { text: row.format-note; horizontal-stretch: 2; }
-                        SearchResultCell { text: row.extension; horizontal-stretch: 1; }
-                        SearchResultCell { text: row.resolution; horizontal-stretch: 2; }
-                        SearchResultCell { text: row.bitrate; horizontal-stretch: 1; }
-                        SearchResultCell { text: row.file-size; horizontal-stretch: 1; }
-                        SearchResultCell { text: row.video-codec; font-family: Theme.mono-font-family; horizontal-stretch: 1; }
-                        SearchResultCell { text: row.audio-codec; font-family: Theme.mono-font-family; horizontal-stretch: 1; divider: false; }
-                    }
-                    TouchArea { clicked => { root.result-selected(index); } }
-                }
+                GenericTable {
+                    columns: root.result-columns;
+                    rows: root.results;
+                    rows-selectable: true;
+                    selected-source-row: root.selected-index;
+                    sort-requested(column, _) => { root.result-sort-requested(column); }
+                    selection-requested(source-row) => { root.result-selected(source-row); }
                 }
                 if root.results.length == 0 : Text {
                     text: I18n.search-no-results;

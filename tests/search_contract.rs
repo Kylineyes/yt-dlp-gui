@@ -245,6 +245,43 @@ fn sorting_keeps_missing_values_last_and_stable() {
 }
 
 #[test]
+fn codec_sorting_is_case_insensitive_and_keeps_missing_values_last() {
+    let video = sortable_video(vec![
+        MediaFormat {
+            video_codec: Some("vp9".to_owned()),
+            audio_codec: Some("opus".to_owned()),
+            ..format(Some("1"), None, None, None)
+        },
+        MediaFormat {
+            video_codec: Some("AV1".to_owned()),
+            audio_codec: Some("AAC".to_owned()),
+            ..format(Some("2"), None, None, None)
+        },
+        MediaFormat {
+            audio_codec: Some("mp3".to_owned()),
+            ..format(Some("3"), None, None, None)
+        },
+    ]);
+
+    assert_eq!(
+        sorted_result_indices(&video, Some(SortColumn::VideoCodec), SortDirection::Ascending),
+        vec![1, 0, 2]
+    );
+    assert_eq!(
+        sorted_result_indices(&video, Some(SortColumn::VideoCodec), SortDirection::Descending),
+        vec![0, 1, 2]
+    );
+    assert_eq!(
+        sorted_result_indices(&video, Some(SortColumn::AudioCodec), SortDirection::Ascending),
+        vec![1, 2, 0]
+    );
+    assert_eq!(
+        sorted_result_indices(&video, Some(SortColumn::AudioCodec), SortDirection::Descending),
+        vec![0, 2, 1]
+    );
+}
+
+#[test]
 fn video_info_contract_has_flat_format_rows() {
     let video = VideoInfo {
         id: "id".to_string(),

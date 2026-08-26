@@ -30,6 +30,8 @@ pub enum SortColumn {
     Resolution,
     Bitrate,
     FileSize,
+    VideoCodec,
+    AudioCodec,
 }
 
 impl SortColumn {
@@ -41,6 +43,8 @@ impl SortColumn {
             3 => Self::Resolution,
             4 => Self::Bitrate,
             5 => Self::FileSize,
+            6 => Self::VideoCodec,
+            7 => Self::AudioCodec,
             _ => return None,
         })
     }
@@ -53,6 +57,8 @@ impl SortColumn {
             Self::Resolution => 3,
             Self::Bitrate => 4,
             Self::FileSize => 5,
+            Self::VideoCodec => 6,
+            Self::AudioCodec => 7,
         }
     }
 }
@@ -177,6 +183,8 @@ fn compare_formats(left: &MediaFormat, right: &MediaFormat, column: SortColumn) 
                 .filesize
                 .or(left.filesize_approx)
                 .cmp(&right.filesize.or(right.filesize_approx)),
+            SortColumn::VideoCodec => compare_text(left.video_codec.as_deref(), right.video_codec.as_deref()),
+            SortColumn::AudioCodec => compare_text(left.audio_codec.as_deref(), right.audio_codec.as_deref()),
         },
     }
 }
@@ -189,6 +197,8 @@ fn is_missing(format: &MediaFormat, column: SortColumn) -> bool {
         SortColumn::Resolution => format.height.is_none() && format.width.is_none() && format.resolution.is_none(),
         SortColumn::Bitrate => format.bitrate_kbps.filter(|value| value.is_finite()).is_none(),
         SortColumn::FileSize => format.filesize.or(format.filesize_approx).is_none(),
+        SortColumn::VideoCodec => format.video_codec.is_none(),
+        SortColumn::AudioCodec => format.audio_codec.is_none(),
     }
 }
 
