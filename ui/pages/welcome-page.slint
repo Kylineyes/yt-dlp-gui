@@ -1,6 +1,41 @@
 import { I18n } from "../design/i18n.slint";
 import { Theme } from "../design/theme.slint";
 
+component DependencyRow inherits HorizontalLayout {
+    in property <string> label;
+
+    height: Theme.body-line-box;
+    vertical-stretch: 0;
+    spacing: Theme.spacing-small;
+
+    Rectangle {
+        width: Theme.spacing-small;
+        height: parent.height;
+        horizontal-stretch: 0;
+        vertical-stretch: 0;
+
+        Rectangle {
+            x: 0px;
+            y: (parent.height - self.height) / 2;
+            width: Theme.spacing-small;
+            height: Theme.spacing-small;
+            border-radius: Theme.spacing-small / 2;
+            background: Theme.text-secondary;
+        }
+    }
+
+    Text {
+        horizontal-stretch: 1;
+        vertical-stretch: 0;
+        height: parent.height;
+        text: root.label;
+        color: Theme.text-secondary;
+        font-family: Theme.ui-font-family;
+        font-size: Theme.font-size-body;
+        vertical-alignment: center;
+    }
+}
+
 export component WelcomePage inherits Rectangle {
     callback project-url-requested();
     out property <length> intrinsic-height: content.height;
@@ -11,7 +46,7 @@ export component WelcomePage inherits Rectangle {
     private property <length> instruction-search-height: max(instruction-row-height, search-description.preferred-height);
     private property <length> instruction-tasks-height: max(instruction-row-height, tasks-description.preferred-height);
     private property <length> instructions-height: Theme.font-size-body-large * 1.45 + instruction-configure-height + instruction-search-height + instruction-tasks-height + 3 * Theme.spacing-medium;
-    private property <length> footer-height: Theme.font-size-body-large * 1.45 + 4 * Theme.body-line-box + Theme.font-size-caption * 1.45 + 5 * Theme.spacing-small;
+    private property <length> footer-height: Theme.font-size-body-large * 1.45 + 10 * Theme.body-line-box + Theme.font-size-caption * 1.45 + 11 * Theme.spacing-small;
     private property <length> project-height: Theme.body-line-box + Theme.spacing-small + Theme.control-min-height;
 
     width: 100%;
@@ -195,82 +230,43 @@ export component WelcomePage inherits Rectangle {
                     height: Theme.font-size-body-large * 1.45;
                 }
 
-                HorizontalLayout {
-                    height: instruction-row-height;
+                Text {
                     vertical-stretch: 0;
-                    spacing: Theme.spacing-small;
-                    Rectangle {
-                        width: Theme.spacing-small;
-                        height: instruction-row-height;
-                        vertical-stretch: 0;
-                        Rectangle {
-                            x: 0px;
-                            y: (parent.height - self.height) / 2;
-                            width: Theme.spacing-small;
-                            height: Theme.spacing-small;
-                            border-radius: Theme.spacing-small / 2;
-                            background: Theme.text-secondary;
-                        }
-                    }
-                    Text { horizontal-stretch: 1; vertical-stretch: 0; height: instruction-row-height; text: I18n.welcome-dependency-slint; color: Theme.text-secondary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; vertical-alignment: center; }
+                    text: I18n.welcome-dependencies-runtime-title;
+                    color: Theme.text-primary;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-body;
+                    font-weight: FontWeight.bold;
+                    height: Theme.body-line-box;
                 }
-                HorizontalLayout {
-                    height: instruction-row-height;
+
+                DependencyRow { label: I18n.welcome-dependency-rusqlite; }
+                DependencyRow { label: I18n.welcome-dependency-serde-json; }
+                DependencyRow { label: I18n.welcome-dependency-slint; }
+                DependencyRow { label: I18n.welcome-dependency-webbrowser; }
+                DependencyRow { label: I18n.welcome-dependency-rfd; }
+
+                Text {
                     vertical-stretch: 0;
-                    spacing: Theme.spacing-small;
-                    Rectangle {
-                        width: Theme.spacing-small;
-                        height: instruction-row-height;
-                        vertical-stretch: 0;
-                        Rectangle {
-                            x: 0px;
-                            y: (parent.height - self.height) / 2;
-                            width: Theme.spacing-small;
-                            height: Theme.spacing-small;
-                            border-radius: Theme.spacing-small / 2;
-                            background: Theme.text-secondary;
-                        }
-                    }
-                    Text { horizontal-stretch: 1; vertical-stretch: 0; height: instruction-row-height; text: I18n.welcome-dependency-webbrowser; color: Theme.text-secondary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; vertical-alignment: center; }
+                    text: I18n.welcome-dependencies-build-title;
+                    color: Theme.text-primary;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-body;
+                    font-weight: FontWeight.bold;
+                    height: Theme.body-line-box;
                 }
-                HorizontalLayout {
-                    height: instruction-row-height;
+                DependencyRow { label: I18n.welcome-dependency-slint-build; }
+
+                Text {
                     vertical-stretch: 0;
-                    spacing: Theme.spacing-small;
-                    Rectangle {
-                        width: Theme.spacing-small;
-                        height: instruction-row-height;
-                        vertical-stretch: 0;
-                        Rectangle {
-                            x: 0px;
-                            y: (parent.height - self.height) / 2;
-                            width: Theme.spacing-small;
-                            height: Theme.spacing-small;
-                            border-radius: Theme.spacing-small / 2;
-                            background: Theme.text-secondary;
-                        }
-                    }
-                    Text { horizontal-stretch: 1; vertical-stretch: 0; height: instruction-row-height; text: I18n.welcome-dependency-windows-sys; color: Theme.text-secondary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; vertical-alignment: center; }
+                    text: I18n.welcome-dependencies-windows-title;
+                    color: Theme.text-primary;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-body;
+                    font-weight: FontWeight.bold;
+                    height: Theme.body-line-box;
                 }
-                HorizontalLayout {
-                    height: instruction-row-height;
-                    vertical-stretch: 0;
-                    spacing: Theme.spacing-small;
-                    Rectangle {
-                        width: Theme.spacing-small;
-                        height: instruction-row-height;
-                        vertical-stretch: 0;
-                        Rectangle {
-                            x: 0px;
-                            y: (parent.height - self.height) / 2;
-                            width: Theme.spacing-small;
-                            height: Theme.spacing-small;
-                            border-radius: Theme.spacing-small / 2;
-                            background: Theme.text-secondary;
-                        }
-                    }
-                    Text { horizontal-stretch: 1; vertical-stretch: 0; height: instruction-row-height; text: I18n.welcome-dependency-slint-build; color: Theme.text-secondary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; vertical-alignment: center; }
-                }
+                DependencyRow { label: I18n.welcome-dependency-windows-sys; }
 
                 Text {
                     vertical-stretch: 0;
