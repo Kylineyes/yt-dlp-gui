@@ -19,6 +19,8 @@ pub struct EnvironmentConfig {
     pub concurrent_downloads: i8,
     /// yt-dlp 请求使用的代理地址，空字符串表示不使用代理。
     pub proxy: String,
+    /// 检索视频信息的最大超时时间，单位为秒，范围为 5 到 120 秒。
+    pub search_timeout_sec: i64,
 }
 
 impl EnvironmentConfig {
@@ -33,6 +35,7 @@ impl EnvironmentConfig {
             language: "en-US".to_string(),
             concurrent_downloads: 0,
             proxy: String::new(),
+            search_timeout_sec: super::DEFAULT_SEARCH_TIMEOUT_SEC,
         }
     }
 
@@ -47,6 +50,7 @@ impl EnvironmentConfig {
             language: row.get(5)?,
             concurrent_downloads: row.get(6)?,
             proxy: row.get(7)?,
+            search_timeout_sec: row.get(8)?,
         })
     }
 }

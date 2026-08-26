@@ -29,6 +29,8 @@ pub enum StorageError {
     InvalidLanguage(String),
     /// 最大并发下载数不在支持范围内。
     InvalidConcurrentDownloads(i8),
+    /// 检索视频信息的超时时间不在 5 到 120 秒范围内。
+    InvalidSearchTimeout(i64),
     /// 数据库中的配置版本不是当前支持的版本。
     UnsupportedConfigurationVersion(String),
     /// SQLite 更新操作失败。
@@ -72,6 +74,7 @@ impl std::fmt::Display for StorageError {
             Self::InvalidTheme(theme) => write!(formatter, "不支持的主题配置：{theme}。"),
             Self::InvalidLanguage(language) => write!(formatter, "不支持的界面语言：{language}。"),
             Self::InvalidConcurrentDownloads(value) => write!(formatter, "不支持的并发下载数：{value}。"),
+            Self::InvalidSearchTimeout(value) => write!(formatter, "不支持的检索超时时间：{value} 秒。"),
             Self::UnsupportedConfigurationVersion(version) => write!(
                 formatter,
                 "不支持的配置版本：{version}，当前支持版本为 {}。",

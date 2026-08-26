@@ -13,7 +13,11 @@ create table config (
     theme text not null,
     language text not null,
     concurrent_downloads integer not null,
-    proxy text not null
+    proxy text not null,
+    search_timeout_sec integer not null default 20 check (
+        search_timeout_sec >= 5
+        and search_timeout_sec <= 120
+    )
 );
 "#;
 
@@ -207,6 +211,32 @@ select
         |row| row.get(0),
     )?;
     if has_singleton {
+        let has_search_timeout: bool = transaction.query_row(
+            "
+select
+    exists (
+        select
+            1
+        from
+            pragma_table_info('config')
+        where
+            name = 'search_timeout_sec'
+    )
+",
+            [],
+            |row| row.get(0),
+        )?;
+        if !has_search_timeout {
+            transaction.execute_batch(
+                "
+alter table config
+add column search_timeout_sec integer not null default 20 check (
+    search_timeout_sec >= 5
+    and search_timeout_sec <= 120
+);
+",
+            )?;
+        }
         return Ok(());
     }
 

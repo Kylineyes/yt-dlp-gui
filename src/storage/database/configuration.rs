@@ -16,7 +16,8 @@ select
     theme,
     language,
     concurrent_downloads,
-    proxy
+    proxy,
+    search_timeout_sec
 from
     config
 where
@@ -46,7 +47,8 @@ insert into config (
     theme,
     language,
     concurrent_downloads,
-    proxy
+    proxy,
+    search_timeout_sec
 )
 values (
     1,
@@ -57,7 +59,8 @@ values (
     ?5,
     ?6,
     ?7,
-    ?8
+    ?8,
+    ?9
 )
 on conflict (singleton) do update set
     version = excluded.version,
@@ -67,7 +70,8 @@ on conflict (singleton) do update set
     theme = excluded.theme,
     language = excluded.language,
     concurrent_downloads = excluded.concurrent_downloads,
-    proxy = excluded.proxy
+    proxy = excluded.proxy,
+    search_timeout_sec = excluded.search_timeout_sec
 ",
             params![
                 configuration.version,
@@ -78,6 +82,7 @@ on conflict (singleton) do update set
                 configuration.language,
                 configuration.concurrent_downloads,
                 configuration.proxy,
+                configuration.search_timeout_sec,
             ],
         )
         .map_err(StorageError::Write)?;
