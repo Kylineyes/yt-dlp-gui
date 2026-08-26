@@ -8,4 +8,6 @@ pub mod navigation;
 pub mod search;
 pub(crate) mod search_window;
 pub mod startup_dialog;
+pub mod tasks;
+pub(crate) mod tasks_window;
 pub mod window;

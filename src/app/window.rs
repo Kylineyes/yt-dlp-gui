@@ -9,6 +9,7 @@ use super::{AppWindow, EffectiveTheme, I18n, TextScale, Theme, ThemeMode};
 const PROJECT_URL: &str = "https://github.com/Kylineyes/yt-dlp-gui";
 
 // 主题和 i18n 在窗口进入事件循环前初始化，避免首帧显示未解析状态。
+use crate::app::contracts::Route;
 use crate::app::navigation::NavigationState;
 use crate::design_system::i18n::{I18nCatalog, I18nSnapshot, Locale};
 use crate::design_system::theme::{
@@ -64,9 +65,11 @@ pub fn run() -> Result<(), slint::PlatformError> {
     };
 
     ui.set_current_route(navigation.current().index());
+    let refresh_tasks = crate::app::tasks_window::install(&ui, storage, Rc::clone(&locale_state));
     // Slint 只发出目标索引，Rust 侧用 NavigationState 负责合法性校验。
     let ui_weak = ui.as_weak();
     let busy_ui = ui.as_weak();
+    let refresh_tasks_on_route = Rc::clone(&refresh_tasks);
     ui.on_route_requested(move |index| {
         if busy_ui.upgrade().is_some_and(|ui| ui.get_search_busy()) {
             return;
@@ -74,6 +77,9 @@ pub fn run() -> Result<(), slint::PlatformError> {
         if navigation.navigate_to_index(index) {
             if let Some(ui) = ui_weak.upgrade() {
                 ui.set_current_route(navigation.current().index());
+                if navigation.current() == Route::Tasks {
+                    refresh_tasks_on_route();
+                }
             }
         }
     });

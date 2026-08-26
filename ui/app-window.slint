@@ -5,6 +5,7 @@ import { Theme } from "design/theme.slint";
 import { ConfigurePage } from "pages/configure-page.slint";
 import { WelcomePage } from "pages/welcome-page.slint";
 import { SearchPage } from "pages/search-page.slint";
+import { TasksPage } from "pages/tasks-page.slint";
 import { GenericTable, TableRow } from "components/generic-table.slint";
 
 export { TableColumn, TableRow, TableSortDirection } from "components/generic-table.slint";
@@ -76,6 +77,12 @@ export component AppWindow inherits Window {
     callback search-result-selected(int);
     callback search-result-sort-requested(int);
 
+    in-out property <[TableRow]> tasks-rows: [];
+    in-out property <int> tasks-sort-column: -1;
+    in-out property <int> tasks-sort-direction: 0;
+    callback tasks-sort-requested(int, int);
+    callback tasks-check-toggled(int, bool);
+
     app-shell := AppShell {
         x: 0px;
         y: 0px;
@@ -83,7 +90,7 @@ export component AppWindow inherits Window {
         height: 100%;
         current-route <=> root.current-route;
         navigation-enabled: !root.search-busy;
-        content-height: root.current-route == 1 ? configure-page.intrinsic-height : root.current-route == 2 ? search-page.intrinsic-height : welcome-page.intrinsic-height;
+        content-height: root.current-route == 1 ? configure-page.intrinsic-height : root.current-route == 2 ? search-page.intrinsic-height : root.current-route == 3 ? tasks-page.intrinsic-height : welcome-page.intrinsic-height;
         route-requested(index) => { root.route-requested(index); }
 
         welcome-page := WelcomePage {
@@ -147,6 +154,14 @@ export component AppWindow inherits Window {
             auto-find-ytdlp-requested => { root.configure-auto-find-ytdlp-requested(); }
             auto-find-ffmpeg-requested => { root.configure-auto-find-ffmpeg-requested(); }
             field-edited(field, value) => { root.configure-field-edited(field, value); }
+        }
+        tasks-page := TasksPage {
+            visible: root.current-route == 3;
+            rows: root.tasks-rows;
+            sort-column: root.tasks-sort-column;
+            sort-direction: root.tasks-sort-direction;
+            sort-requested(column, direction) => { root.tasks-sort-requested(column, direction); }
+            check-toggled(source-row, checked) => { root.tasks-check-toggled(source-row, checked); }
         }
     }
 }
