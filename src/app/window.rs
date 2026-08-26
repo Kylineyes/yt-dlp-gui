@@ -188,6 +188,7 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_configure_proxy_placeholder(snapshot.configure_proxy_placeholder.into());
     i18n.set_configure_concurrent_label(snapshot.configure_concurrent_label.into());
     i18n.set_configure_concurrent_placeholder(snapshot.configure_concurrent_placeholder.into());
+    i18n.set_configure_search_timeout_label(snapshot.configure_search_timeout_label.into());
     i18n.set_configure_language_english(snapshot.configure_language_english.into());
     i18n.set_configure_language_chinese(snapshot.configure_language_chinese.into());
     i18n.set_configure_browse_file(snapshot.configure_browse_file.into());

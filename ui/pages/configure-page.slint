@@ -59,9 +59,11 @@ export component ConfigurePage inherits Rectangle {
     in-out property <string> download-path: "";
     in-out property <string> proxy: "";
     in-out property <string> concurrent-downloads: "0";
+    in-out property <string> search-timeout-sec: "20";
     in-out property <string> language: "en-US";
     in-out property <string> theme-mode: "system";
     in-out property <int> concurrent-index: 0;
+    in-out property <int> search-timeout-index: 2;
     in-out property <int> language-index: 0;
     in-out property <int> theme-index: 0;
     in property <string> yt-dlp-error: "";
@@ -69,6 +71,7 @@ export component ConfigurePage inherits Rectangle {
     in property <string> download-error: "";
     in property <string> proxy-error: "";
     in property <string> concurrent-error: "";
+    in property <string> search-timeout-error: "";
     in property <string> option-error: "";
     in property <string> status-text: "";
     in property <bool> busy: false;
@@ -130,6 +133,15 @@ export component ConfigurePage inherits Rectangle {
                 Text { text: I18n.configure-download-settings; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-title-small; font-weight: FontWeight.bold; height: Theme.title-line-box; }
                 Field { suppress-callbacks: root.suppress-callbacks; label: I18n.configure-download-path-label; value <=> root.download-path; placeholder: I18n.configure-download-path-placeholder; error: root.download-error; browse-label: I18n.configure-browse-folder; edited => { root.field-edited("download-path", self.value); } browse-clicked => { root.browse-download-requested(); } }
                 Field { suppress-callbacks: root.suppress-callbacks; label: I18n.configure-proxy-label; value <=> root.proxy; placeholder: I18n.configure-proxy-placeholder; error: root.proxy-error; edited => { root.field-edited("proxy", self.value); } }
+                Text { text: I18n.configure-search-timeout-label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
+                ComboBox {
+                    height: Theme.control-min-height;
+                    model: ["5", "10", "20", "30", "50", "100", "120"];
+                    current-index <=> root.search-timeout-index;
+                    enabled: !root.busy;
+                    selected(value) => { if (!root.suppress-callbacks) { root.search-timeout-index = self.current-index; root.search-timeout-sec = value; root.field-edited("search-timeout-sec", value); } }
+                }
+                Text { text: root.search-timeout-error; color: Theme.danger; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: root.search-timeout-error == "" ? 0px : Theme.body-line-box; wrap: word-wrap; }
                 Text { text: I18n.configure-concurrent-label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
                 ComboBox {
                     height: Theme.control-min-height;

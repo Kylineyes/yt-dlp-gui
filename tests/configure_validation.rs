@@ -107,6 +107,15 @@ fn validation_rejects_invalid_options_and_concurrency() {
     configuration.concurrent_downloads = 0;
     configuration.language = "fr-FR".to_string();
     assert_eq!(validate(&configuration).unwrap_err().field, ConfigureField::Language);
+    configuration.language = "en-US".to_string();
+    configuration.search_timeout_sec = 4;
+    let error = validate(&configuration).unwrap_err();
+    assert_eq!(error.field, ConfigureField::SearchTimeout);
+    assert_eq!(error.error, ConfigureError::InvalidSearchTimeout);
+    configuration.search_timeout_sec = 121;
+    let error = validate(&configuration).unwrap_err();
+    assert_eq!(error.field, ConfigureField::SearchTimeout);
+    assert_eq!(error.error, ConfigureError::InvalidSearchTimeout);
     fs::remove_file(path).unwrap();
     fs::remove_file(ffmpeg_path).unwrap();
     fs::remove_dir(directory).unwrap();

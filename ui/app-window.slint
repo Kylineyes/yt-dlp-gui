@@ -27,9 +27,11 @@ export component AppWindow inherits Window {
     in-out property <string> configure-download-path: "";
     in-out property <string> configure-proxy: "";
     in-out property <string> configure-concurrent-downloads: "0";
+    in-out property <string> configure-search-timeout-sec: "20";
     in-out property <string> configure-language: "en-US";
     in-out property <string> configure-theme: "system";
     in-out property <int> configure-concurrent-index: 0;
+    in-out property <int> configure-search-timeout-index: 2;
     in-out property <int> configure-language-index: 0;
     in-out property <int> configure-theme-index: 0;
     in-out property <string> configure-yt-dlp-error: "";
@@ -37,6 +39,7 @@ export component AppWindow inherits Window {
     in-out property <string> configure-download-error: "";
     in-out property <string> configure-proxy-error: "";
     in-out property <string> configure-concurrent-error: "";
+    in-out property <string> configure-search-timeout-error: "";
     in-out property <string> configure-option-error: "";
     in-out property <string> configure-status: "";
     in-out property <bool> configure-busy: false;
@@ -119,9 +122,11 @@ export component AppWindow inherits Window {
             download-path <=> root.configure-download-path;
             proxy <=> root.configure-proxy;
             concurrent-downloads <=> root.configure-concurrent-downloads;
+            search-timeout-sec <=> root.configure-search-timeout-sec;
             language <=> root.configure-language;
             theme-mode <=> root.configure-theme;
             concurrent-index <=> root.configure-concurrent-index;
+            search-timeout-index <=> root.configure-search-timeout-index;
             language-index <=> root.configure-language-index;
             theme-index <=> root.configure-theme-index;
             yt-dlp-error: root.configure-yt-dlp-error;
@@ -129,6 +134,7 @@ export component AppWindow inherits Window {
             download-error: root.configure-download-error;
             proxy-error: root.configure-proxy-error;
             concurrent-error: root.configure-concurrent-error;
+            search-timeout-error: root.configure-search-timeout-error;
             option-error: root.configure-option-error;
             status-text: root.configure-status;
             busy: root.configure-busy;
