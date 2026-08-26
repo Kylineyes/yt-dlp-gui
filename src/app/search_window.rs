@@ -1,4 +1,5 @@
 use std::cell::{Cell, RefCell};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -10,11 +11,14 @@ use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 use super::{AppWindow, TableRow};
 use crate::app::search::{
-    can_download, classify_failure, next_sort_state, sorted_result_indices, validate_download_path, SearchFailure,
-    SearchPathError, SortColumn, SortDirection,
+    can_download, classify_failure, next_sort_state, selected_download_streams, sorted_result_indices,
+    validate_download_path, SearchFailure, SearchPathError, SortColumn, SortDirection,
 };
 use crate::design_system::i18n::{I18nCatalog, Locale, TextKey};
-use crate::download_task::{DownloadTaskClient, DownloadTaskError, MediaMessage, VideoInfo, DEFAULT_METADATA_TIMEOUT};
+use crate::download_task::{
+    DownloadMessage, DownloadOptions, DownloadRequest, DownloadTaskClient, DownloadTaskError, MediaMessage, VideoInfo,
+    DEFAULT_METADATA_TIMEOUT,
+};
 use crate::storage::Storage;
 
 #[derive(Debug)]
@@ -23,9 +27,15 @@ enum SearchEvent {
     Completion(Result<VideoInfo, DownloadTaskError>),
 }
 
+enum DownloadEvent {
+    Message(DownloadMessage),
+    Completion(Result<(), DownloadTaskError>),
+}
+
 struct SearchState {
     cancelled: Option<Arc<AtomicBool>>,
     receiver: Option<Receiver<SearchEvent>>,
+    download_receiver: Option<Receiver<DownloadEvent>>,
     metadata: Option<VideoInfo>,
     started_at: Option<Instant>,
     path_error: Option<SearchPathError>,
@@ -41,6 +51,7 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
     let state = Rc::new(RefCell::new(SearchState {
         cancelled: None,
         receiver: None,
+        download_receiver: None,
         metadata: None,
         started_at: None,
         path_error: None,
@@ -64,6 +75,7 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
     install_browse(ui, Rc::clone(&state), Rc::clone(&locale));
     install_default_path(ui, storage, Rc::clone(&state), Rc::clone(&locale));
     install_search(ui, storage, Rc::clone(&state), Rc::clone(&locale));
+    install_download(ui, storage, Rc::clone(&state), Rc::clone(&locale));
     install_stop(ui, Rc::clone(&state));
     install_result_selection(ui, Rc::clone(&state));
     install_result_sort(ui, Rc::clone(&state));
@@ -75,6 +87,7 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
     poll_timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
         let Some(ui) = poll_ui.upgrade() else { return };
         poll_events(&ui, &poll_state, poll_locale.get());
+        poll_download_events(&ui, &poll_state, poll_locale.get());
     });
 
     let elapsed_state = Rc::clone(&state);
@@ -175,7 +188,7 @@ fn install_search(
 ) {
     let ui_weak = ui.as_weak();
     ui.on_search_requested(move || {
-        if state.borrow().cancelled.is_some() {
+        if state.borrow().cancelled.is_some() || state.borrow().download_receiver.is_some() {
             return;
         }
         let Some(ui) = ui_weak.upgrade() else { return };
@@ -245,6 +258,85 @@ fn install_search(
         ui.set_search_results(ModelRc::new(VecModel::from(Vec::<TableRow>::new())));
         ui.set_search_selected_index(-1);
         update_can_download(&ui, &state);
+    });
+}
+
+fn install_download(
+    ui: &AppWindow,
+    storage: &'static Storage,
+    state: Rc<RefCell<SearchState>>,
+    locale: Rc<Cell<Locale>>,
+) {
+    let ui_weak = ui.as_weak();
+    ui.on_search_download_requested(move || {
+        if state.borrow().download_receiver.is_some() {
+            return;
+        }
+        let Some(ui) = ui_weak.upgrade() else { return };
+        let (video, selected_index) = {
+            let state = state.borrow();
+            (state.metadata.clone(), state.selected_index)
+        };
+        let Some(video) = video else { return };
+        let Some((selected_video_format_id, selected_audio_format_id)) =
+            selected_download_streams(&video, selected_index)
+        else {
+            set_failure(&ui, &state, locale.get(), SearchFailure::Unexpected);
+            return;
+        };
+        let target_directory = PathBuf::from(ui.get_search_download_path().to_string());
+        let temporary_directory = target_directory.join(".yt-dlp-gui-temp");
+        if let Err(error) = std::fs::create_dir_all(&temporary_directory) {
+            eprintln!("创建下载临时目录失败：{error}");
+            set_failure(&ui, &state, locale.get(), SearchFailure::Unexpected);
+            return;
+        }
+        let configuration = match storage.configuration() {
+            Ok(Some(configuration)) => configuration,
+            _ => {
+                set_failure(&ui, &state, locale.get(), SearchFailure::ConfigurationMissing);
+                return;
+            }
+        };
+        if configuration.yt_dlp_path.trim().is_empty() {
+            set_failure(&ui, &state, locale.get(), SearchFailure::YtDlpPathMissing);
+            return;
+        }
+        let ffmpeg_path = (!configuration.ffmpeg_path.trim().is_empty()).then(|| configuration.ffmpeg_path.into());
+        let client = DownloadTaskClient::new(
+            configuration.yt_dlp_path,
+            ffmpeg_path,
+            Some(configuration.proxy),
+            Duration::ZERO,
+            target_directory.clone(),
+        );
+        let request = DownloadRequest {
+            source_url: ui.get_search_url().to_string(),
+            video,
+            selected_video_format_id,
+            selected_audio_format_id,
+            output_template: "%(title).80B [%(id)s].%(ext)s".to_owned(),
+            target_directory,
+            temporary_directory,
+            merge_output_format: "mp4".to_owned(),
+            options: DownloadOptions::default(),
+        };
+        let (sender, receiver) = mpsc::channel();
+        let callback_sender = sender.clone();
+        let handle = match client.download(request, move |message| {
+            let _ = callback_sender.send(DownloadEvent::Message(message));
+        }) {
+            Ok(handle) => handle,
+            Err(error) => {
+                set_failure(&ui, &state, locale.get(), classify_failure(&error));
+                return;
+            }
+        };
+        thread::spawn(move || {
+            let result = handle.wait().map(|_| ());
+            let _ = sender.send(DownloadEvent::Completion(result));
+        });
+        state.borrow_mut().download_receiver = Some(receiver);
     });
 }
 
@@ -419,6 +511,49 @@ fn poll_events(ui: &AppWindow, state: &Rc<RefCell<SearchState>>, locale: Locale)
         Err(failure) => set_failure(ui, state, locale, failure),
     }
     update_can_download(ui, state);
+}
+
+fn poll_download_events(ui: &AppWindow, state: &Rc<RefCell<SearchState>>, locale: Locale) {
+    let receiver = state.borrow_mut().download_receiver.take();
+    let Some(receiver) = receiver else { return };
+    let mut terminal = None;
+    loop {
+        match receiver.try_recv() {
+            Ok(DownloadEvent::Message(DownloadMessage::Completed(_))) => {
+                terminal.get_or_insert(Ok(()));
+            }
+            Ok(DownloadEvent::Message(DownloadMessage::Cancelled)) => {
+                terminal.get_or_insert(Err(SearchFailure::Cancelled));
+            }
+            Ok(DownloadEvent::Message(DownloadMessage::Failed(error))) => {
+                terminal.get_or_insert(Err(classify_failure(&error)));
+            }
+            Ok(DownloadEvent::Message(
+                DownloadMessage::Started
+                | DownloadMessage::StreamProgress(_)
+                | DownloadMessage::Progress(_)
+                | DownloadMessage::Merging,
+            )) => {}
+            Ok(DownloadEvent::Completion(Ok(()))) => {
+                terminal.get_or_insert(Ok(()));
+            }
+            Ok(DownloadEvent::Completion(Err(error))) => {
+                terminal.get_or_insert(Err(classify_failure(&error)));
+            }
+            Err(TryRecvError::Empty) => break,
+            Err(TryRecvError::Disconnected) => break,
+        }
+    }
+    let Some(result) = terminal else {
+        state.borrow_mut().download_receiver = Some(receiver);
+        return;
+    };
+    match result {
+        Ok(()) => {
+            ui.set_search_status_kind(1);
+        }
+        Err(failure) => set_failure(ui, state, locale, failure),
+    }
 }
 
 fn set_failure(ui: &AppWindow, state: &Rc<RefCell<SearchState>>, locale: Locale, failure: SearchFailure) {

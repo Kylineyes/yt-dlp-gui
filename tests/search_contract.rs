@@ -2,8 +2,8 @@ use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use yt_dlp_gui::app::search::{
-    can_download, classify_failure, format_row, next_sort_state, sorted_result_indices, validate_download_path,
-    SearchFailure, SearchPathError, SortColumn, SortDirection,
+    can_download, classify_failure, format_row, next_sort_state, selected_download_streams, sorted_result_indices,
+    validate_download_path, SearchFailure, SearchPathError, SortColumn, SortDirection,
 };
 use yt_dlp_gui::download_task::{DownloadTaskError, MediaFormat, VideoInfo};
 
@@ -279,6 +279,44 @@ fn codec_sorting_is_case_insensitive_and_keeps_missing_values_last() {
         sorted_result_indices(&video, Some(SortColumn::AudioCodec), SortDirection::Descending),
         vec![0, 2, 1]
     );
+}
+
+#[test]
+fn selected_download_streams_choose_selected_video_and_first_m4a_audio() {
+    let video = sortable_video(vec![
+        MediaFormat {
+            video_codec: Some("avc1".to_owned()),
+            ..format(Some("18"), Some(400.0), None, Some(144))
+        },
+        MediaFormat {
+            video_codec: Some("vp9".to_owned()),
+            ..format(Some("137"), Some(1200.0), None, Some(1080))
+        },
+        MediaFormat {
+            extension: Some("webm".to_owned()),
+            audio_codec: Some("opus".to_owned()),
+            audio_bitrate_kbps: Some(32.0),
+            ..format(Some("251"), None, None, None)
+        },
+        MediaFormat {
+            extension: Some("m4a".to_owned()),
+            audio_codec: Some("mp4a.40.2".to_owned()),
+            audio_bitrate_kbps: Some(96.0),
+            ..format(Some("140"), None, None, None)
+        },
+        MediaFormat {
+            extension: Some("m4a".to_owned()),
+            audio_codec: Some("mp4a.40.2".to_owned()),
+            audio_bitrate_kbps: Some(48.0),
+            ..format(Some("139"), None, None, None)
+        },
+    ]);
+
+    assert_eq!(
+        selected_download_streams(&video, Some(0)),
+        Some(("18".to_owned(), "140".to_owned()))
+    );
+    assert_eq!(selected_download_streams(&video, Some(2)), None);
 }
 
 #[test]
