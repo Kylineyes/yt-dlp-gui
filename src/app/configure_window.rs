@@ -30,6 +30,8 @@ pub(super) fn install(
         ui.set_configure_proxy(draft.proxy.clone().into());
         ui.set_configure_concurrent_downloads(draft.concurrent_downloads.to_string().into());
         ui.set_configure_concurrent_index(draft.concurrent_downloads as i32);
+        ui.set_configure_search_timeout_sec(draft.search_timeout_sec.to_string().into());
+        ui.set_configure_search_timeout_index(search_timeout_index(draft.search_timeout_sec));
         ui.set_configure_language(draft.language.clone().into());
         ui.set_configure_language_index(if draft.language == "zh-CN" { 1 } else { 0 });
         ui.set_configure_theme(draft.theme.clone().into());
@@ -65,6 +67,7 @@ pub(super) fn install(
                     "download-path" => draft.default_download_path = value.clone(),
                     "proxy" => draft.proxy = value.clone(),
                     "concurrent-downloads" => draft.concurrent_downloads = value.parse().unwrap_or(-1),
+                    "search-timeout-sec" => draft.search_timeout_sec = value.parse().unwrap_or(-1),
                     "language" => draft.language = value.clone(),
                     "theme" => draft.theme = value.clone(),
                     _ => return,
@@ -163,6 +166,8 @@ pub(super) fn install(
                 ui.set_configure_proxy(configuration.proxy.into());
                 ui.set_configure_concurrent_downloads(configuration.concurrent_downloads.to_string().into());
                 ui.set_configure_concurrent_index(0);
+                ui.set_configure_search_timeout_sec(configuration.search_timeout_sec.to_string().into());
+                ui.set_configure_search_timeout_index(search_timeout_index(configuration.search_timeout_sec));
                 ui.set_configure_language(configuration.language.clone().into());
                 ui.set_configure_language_index(0);
                 ui.set_configure_theme(configuration.theme.clone().into());
@@ -313,6 +318,7 @@ fn set_validation_error(ui: &AppWindow, error: Option<&ConfigureValidationError>
         ConfigureError::MissingDirectory => TextKey::ConfigureErrorMissingDirectory,
         ConfigureError::NotADirectory => TextKey::ConfigureErrorNotDirectory,
         ConfigureError::InvalidConcurrentDownloads => TextKey::ConfigureErrorInvalidNumber,
+        ConfigureError::InvalidSearchTimeout => TextKey::ConfigureErrorInvalidOption,
         ConfigureError::InvalidLanguage | ConfigureError::InvalidTheme | ConfigureError::InvalidPath(_) => {
             TextKey::ConfigureErrorInvalidOption
         }
@@ -326,6 +332,7 @@ fn set_validation_error(ui: &AppWindow, error: Option<&ConfigureValidationError>
         ConfigureField::DefaultDownloadPath => ui.set_configure_download_error(message),
         ConfigureField::Proxy => ui.set_configure_proxy_error(message),
         ConfigureField::ConcurrentDownloads => ui.set_configure_concurrent_error(message),
+        ConfigureField::SearchTimeout => ui.set_configure_search_timeout_error(message),
         ConfigureField::Language | ConfigureField::Theme => ui.set_configure_option_error(message),
     }
 }
@@ -354,5 +361,19 @@ fn clear_validation_errors(ui: &AppWindow) {
     ui.set_configure_download_error("".into());
     ui.set_configure_proxy_error("".into());
     ui.set_configure_concurrent_error("".into());
+    ui.set_configure_search_timeout_error("".into());
     ui.set_configure_option_error("".into());
+}
+
+fn search_timeout_index(value: i64) -> i32 {
+    match value {
+        5 => 0,
+        10 => 1,
+        20 => 2,
+        30 => 3,
+        50 => 4,
+        100 => 5,
+        120 => 6,
+        _ => 2,
+    }
 }

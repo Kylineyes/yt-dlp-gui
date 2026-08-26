@@ -1,7 +1,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use crate::storage::{EnvironmentConfig, CONFIG_VERSION};
+use crate::storage::{EnvironmentConfig, CONFIG_VERSION, MAX_SEARCH_TIMEOUT_SEC, MIN_SEARCH_TIMEOUT_SEC};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigureField {
@@ -10,6 +10,7 @@ pub enum ConfigureField {
     DefaultDownloadPath,
     Proxy,
     ConcurrentDownloads,
+    SearchTimeout,
     Language,
     Theme,
 }
@@ -26,6 +27,7 @@ pub enum ConfigureError {
     NotADirectory,
     HasLeadingOrTrailingWhitespace,
     InvalidConcurrentDownloads,
+    InvalidSearchTimeout,
     InvalidLanguage,
     InvalidTheme,
 }
@@ -42,6 +44,7 @@ pub fn validate(configuration: &EnvironmentConfig) -> Result<(), ConfigureValida
     validate_download_path(&configuration.default_download_path)?;
     validate_proxy(&configuration.proxy)?;
     validate_concurrent_downloads(configuration.concurrent_downloads)?;
+    validate_search_timeout(configuration.search_timeout_sec)?;
     validate_language(&configuration.language)?;
     validate_theme(&configuration.theme)
 }
@@ -155,6 +158,17 @@ fn validate_concurrent_downloads(value: i8) -> Result<(), ConfigureValidationErr
         Err(ConfigureValidationError {
             field: ConfigureField::ConcurrentDownloads,
             error: ConfigureError::InvalidConcurrentDownloads,
+        })
+    }
+}
+
+fn validate_search_timeout(value: i64) -> Result<(), ConfigureValidationError> {
+    if (MIN_SEARCH_TIMEOUT_SEC..=MAX_SEARCH_TIMEOUT_SEC).contains(&value) {
+        Ok(())
+    } else {
+        Err(ConfigureValidationError {
+            field: ConfigureField::SearchTimeout,
+            error: ConfigureError::InvalidSearchTimeout,
         })
     }
 }

@@ -100,6 +100,7 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
         TextKey::ConfigureProxyPlaceholder,
         TextKey::ConfigureConcurrentLabel,
         TextKey::ConfigureConcurrentPlaceholder,
+        TextKey::ConfigureSearchTimeoutLabel,
         TextKey::ConfigureLanguageEnglish,
         TextKey::ConfigureLanguageChinese,
         TextKey::ConfigureBrowseFile,
