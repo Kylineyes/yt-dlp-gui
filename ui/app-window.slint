@@ -1,7 +1,8 @@
 import { AppShell } from "design/app-shell.slint";
+import { Palette } from "std-widgets.slint";
 import { DialogWindow, DialogButtonKind, DialogButtonLayout, DialogTitleKind } from "dialog-window.slint";
 import { I18n } from "design/i18n.slint";
-import { Theme } from "design/theme.slint";
+import { EffectiveTheme, Theme } from "design/theme.slint";
 import { ConfigurePage } from "pages/configure-page.slint";
 import { WelcomePage } from "pages/welcome-page.slint";
 import { SearchPage } from "pages/search-page.slint";
@@ -14,6 +15,17 @@ export { EffectiveTheme, TextScale, Theme, ThemeMode } from "design/theme.slint"
 export { DialogWindow, DialogButtonKind, DialogButtonLayout, DialogTitleKind } from "dialog-window.slint";
 
 export component AppWindow inherits Window {
+    // 标准控件调色板必须跟随应用解析后的主题，而不是单独跟随系统主题。
+    private property <bool> std-widgets-dark: Theme.effective-theme == EffectiveTheme.dark;
+
+    init => {
+        Palette.color-scheme = std-widgets-dark ? ColorScheme.dark : ColorScheme.light;
+    }
+
+    changed std-widgets-dark => {
+        Palette.color-scheme = std-widgets-dark ? ColorScheme.dark : ColorScheme.light;
+    }
+
     title: I18n.app-title;
     min-width: Theme.window-min-width;
     min-height: Theme.window-min-height;
