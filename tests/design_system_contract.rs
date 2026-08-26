@@ -156,6 +156,25 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
         TextKey::SearchErrorProcess,
         TextKey::SearchErrorMetadata,
         TextKey::SearchErrorUnexpected,
+        TextKey::TasksTitle,
+        TextKey::TasksIntroduction,
+        TextKey::TasksTableTitle,
+        TextKey::TasksColumnTitle,
+        TextKey::TasksColumnStatus,
+        TextKey::TasksColumnProgress,
+        TextKey::TasksColumnSize,
+        TextKey::TasksColumnSpeed,
+        TextKey::TasksColumnEta,
+        TextKey::TasksColumnUpdatedAt,
+        TextKey::TasksColumnTargetPath,
+        TextKey::TasksNoTasks,
+        TextKey::TasksStatusPending,
+        TextKey::TasksStatusPreparing,
+        TextKey::TasksStatusDownloading,
+        TextKey::TasksStatusMerging,
+        TextKey::TasksStatusCompleted,
+        TextKey::TasksStatusCancelled,
+        TextKey::TasksStatusFailed,
     ] {
         assert!(!I18nCatalog::text(Locale::ZhCn, key).is_empty());
         assert!(!I18nCatalog::text(Locale::EnUs, key).is_empty());
@@ -172,6 +191,24 @@ fn concurrent_limit_copy_describes_unlimited_zero() {
         I18nCatalog::text(Locale::EnUs, TextKey::ConfigureConcurrentHelp),
         "0 means no concurrency limit."
     );
+}
+
+#[test]
+fn tasks_status_copy_matches_the_stable_bilingual_contract() {
+    let statuses = [
+        (TextKey::TasksStatusPending, "待开始", "Pending"),
+        (TextKey::TasksStatusPreparing, "准备中", "Preparing"),
+        (TextKey::TasksStatusDownloading, "下载中", "Downloading"),
+        (TextKey::TasksStatusMerging, "合并中", "Merging"),
+        (TextKey::TasksStatusCompleted, "已完成", "Completed"),
+        (TextKey::TasksStatusCancelled, "已取消", "Cancelled"),
+        (TextKey::TasksStatusFailed, "失败", "Failed"),
+    ];
+
+    for (key, zh_cn, en_us) in statuses {
+        assert_eq!(I18nCatalog::text(Locale::ZhCn, key), zh_cn);
+        assert_eq!(I18nCatalog::text(Locale::EnUs, key), en_us);
+    }
 }
 
 #[test]

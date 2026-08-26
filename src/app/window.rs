@@ -244,4 +244,23 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_search_error_process(snapshot.search_error_process.into());
     i18n.set_search_error_metadata(snapshot.search_error_metadata.into());
     i18n.set_search_error_unexpected(snapshot.search_error_unexpected.into());
+    i18n.set_tasks_title(snapshot.tasks_title.into());
+    i18n.set_tasks_introduction(snapshot.tasks_introduction.into());
+    i18n.set_tasks_table_title(snapshot.tasks_table_title.into());
+    i18n.set_tasks_column_title(snapshot.tasks_column_title.into());
+    i18n.set_tasks_column_status(snapshot.tasks_column_status.into());
+    i18n.set_tasks_column_progress(snapshot.tasks_column_progress.into());
+    i18n.set_tasks_column_size(snapshot.tasks_column_size.into());
+    i18n.set_tasks_column_speed(snapshot.tasks_column_speed.into());
+    i18n.set_tasks_column_eta(snapshot.tasks_column_eta.into());
+    i18n.set_tasks_column_updated_at(snapshot.tasks_column_updated_at.into());
+    i18n.set_tasks_column_target_path(snapshot.tasks_column_target_path.into());
+    i18n.set_tasks_no_tasks(snapshot.tasks_no_tasks.into());
+    i18n.set_tasks_status_pending(snapshot.tasks_status_pending.into());
+    i18n.set_tasks_status_preparing(snapshot.tasks_status_preparing.into());
+    i18n.set_tasks_status_downloading(snapshot.tasks_status_downloading.into());
+    i18n.set_tasks_status_merging(snapshot.tasks_status_merging.into());
+    i18n.set_tasks_status_completed(snapshot.tasks_status_completed.into());
+    i18n.set_tasks_status_cancelled(snapshot.tasks_status_cancelled.into());
+    i18n.set_tasks_status_failed(snapshot.tasks_status_failed.into());
 }
