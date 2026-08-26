@@ -1,0 +1,96 @@
+import { GenericTable, TableColumn, TableRow, TableSortDirection } from "../components/generic-table.slint";
+import { I18n } from "../design/i18n.slint";
+import { Theme } from "../design/theme.slint";
+
+export component TasksPage inherits Rectangle {
+    callback sort-requested(int, int);
+    callback check-toggled(int, bool);
+
+    in property <[TableRow]> rows: [];
+    in property <int> sort-column: -1;
+    in property <int> sort-direction: 0;
+    out property <length> intrinsic-height: content.preferred-height;
+
+    private property <TableSortDirection> table-sort-direction: sort-direction == 1 ? TableSortDirection.ascending : sort-direction == 2 ? TableSortDirection.descending : TableSortDirection.unsorted;
+    private property <[TableColumn]> task-columns: [
+        { title: I18n.tasks-column-title, sortable: true, width-weight: 3, font-family: "", sort-direction: sort-column == 0 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.tasks-column-status, sortable: true, width-weight: 1, font-family: "", sort-direction: sort-column == 1 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.tasks-column-progress, sortable: true, width-weight: 1, font-family: Theme.mono-font-family, sort-direction: sort-column == 2 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.tasks-column-size, sortable: true, width-weight: 2, font-family: Theme.mono-font-family, sort-direction: sort-column == 3 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.tasks-column-speed, sortable: true, width-weight: 1, font-family: Theme.mono-font-family, sort-direction: sort-column == 4 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.tasks-column-eta, sortable: true, width-weight: 1, font-family: Theme.mono-font-family, sort-direction: sort-column == 5 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.tasks-column-updated-at, sortable: true, width-weight: 2, font-family: Theme.mono-font-family, sort-direction: sort-column == 6 ? table-sort-direction : TableSortDirection.unsorted },
+        { title: I18n.tasks-column-target-path, sortable: true, width-weight: 3, font-family: Theme.mono-font-family, sort-direction: sort-column == 7 ? table-sort-direction : TableSortDirection.unsorted },
+    ];
+
+    height: content.preferred-height;
+    background: transparent;
+
+    content := VerticalLayout {
+        height: parent.height;
+        spacing: Theme.spacing-large;
+
+        Text {
+            text: I18n.tasks-title;
+            color: Theme.text-primary;
+            font-family: Theme.ui-font-family;
+            font-size: Theme.font-size-display;
+            height: Theme.font-size-display * 1.2;
+            vertical-alignment: center;
+        }
+        Text {
+            text: I18n.tasks-introduction;
+            color: Theme.text-secondary;
+            font-family: Theme.ui-font-family;
+            font-size: Theme.font-size-body-large;
+            height: max(Theme.body-line-box, self.preferred-height);
+            vertical-alignment: center;
+            wrap: word-wrap;
+        }
+
+        Rectangle {
+            height: table-content.preferred-height + 2 * Theme.spacing-medium;
+            background: Theme.surface-primary;
+            border-width: Theme.border-width-default;
+            border-color: Theme.border-default;
+            border-radius: Theme.corner-radius-medium;
+
+            table-content := VerticalLayout {
+                x: Theme.spacing-medium;
+                y: Theme.spacing-medium;
+                width: parent.width - 2 * Theme.spacing-medium;
+                spacing: Theme.spacing-small;
+
+                Text {
+                    text: I18n.tasks-table-title;
+                    color: Theme.text-primary;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-title-small;
+                    font-weight: FontWeight.bold;
+                    height: Theme.title-line-box;
+                    vertical-alignment: center;
+                }
+                GenericTable {
+                    columns: root.task-columns;
+                    rows: root.rows;
+                    rows-selectable: false;
+                    show-check-column: true;
+                    sort-requested(column, direction) => {
+                        root.sort-requested(column, direction == TableSortDirection.ascending ? 1 : direction == TableSortDirection.descending ? 2 : 0);
+                    }
+                    check-toggled(source-row, checked) => {
+                        root.check-toggled(source-row, checked);
+                    }
+                }
+                if root.rows.length == 0 : Text {
+                    text: I18n.tasks-no-tasks;
+                    color: Theme.text-muted;
+                    font-family: Theme.ui-font-family;
+                    font-size: Theme.font-size-body;
+                    height: Theme.body-line-box;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}
