@@ -33,6 +33,7 @@ struct SearchState {
     sort_column: Option<SortColumn>,
     sort_direction: SortDirection,
     visible_order: Vec<usize>,
+    timeout: Duration,
     timers: Vec<slint::Timer>,
 }
 
@@ -47,6 +48,7 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
         sort_column: None,
         sort_direction: SortDirection::Reset,
         visible_order: Vec::new(),
+        timeout: DEFAULT_METADATA_TIMEOUT,
         timers: Vec::new(),
     }));
 
@@ -84,7 +86,7 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
         let Some(started_at) = state.started_at else { return };
         let Some(ui) = elapsed_ui.upgrade() else { return };
         let elapsed = started_at.elapsed().as_secs();
-        let timeout = DEFAULT_METADATA_TIMEOUT.as_secs();
+        let timeout = state.timeout.as_secs();
         let remaining = timeout.saturating_sub(elapsed);
         let template = I18nCatalog::text(elapsed_locale.get(), TextKey::SearchSearchingTemplate);
         ui.set_search_status(
@@ -192,13 +194,14 @@ fn install_search(
             set_failure(&ui, &state, locale.get(), SearchFailure::YtDlpPathMissing);
             return;
         }
+        let timeout = configured_search_timeout(configuration.search_timeout_sec);
         let (sender, receiver) = mpsc::channel();
         let ffmpeg_path = (!configuration.ffmpeg_path.trim().is_empty()).then(|| configuration.ffmpeg_path.into());
         let client = DownloadTaskClient::new(
             configuration.yt_dlp_path,
             ffmpeg_path,
             Some(configuration.proxy),
-            DEFAULT_METADATA_TIMEOUT,
+            timeout,
             ui.get_search_download_path().to_string(),
         );
         let callback_sender = sender.clone();
@@ -225,6 +228,7 @@ fn install_search(
             state.sort_column = None;
             state.sort_direction = SortDirection::Reset;
             state.visible_order.clear();
+            state.timeout = timeout;
             state.started_at = Some(Instant::now());
         }
         ui.set_search_sort_column(-1);
@@ -235,7 +239,7 @@ fn install_search(
         ui.set_search_status(
             I18nCatalog::text(locale.get(), TextKey::SearchSearchingTemplate)
                 .replace("{elapsed}", "0")
-                .replace("{remaining}", &DEFAULT_METADATA_TIMEOUT.as_secs().to_string())
+                .replace("{remaining}", &timeout.as_secs().to_string())
                 .into(),
         );
         ui.set_search_results(ModelRc::new(VecModel::from(Vec::<TableRow>::new())));
@@ -327,6 +331,14 @@ fn install_result_sort(ui: &AppWindow, state: Rc<RefCell<SearchState>>) {
         ui.set_search_selected_index(selected_source_index.map_or(-1, |index| index as i32));
         update_can_download(&ui, &state);
     });
+}
+
+fn configured_search_timeout(seconds: i64) -> Duration {
+    u64::try_from(seconds)
+        .ok()
+        .filter(|&seconds| seconds > 0)
+        .map(Duration::from_secs)
+        .unwrap_or(DEFAULT_METADATA_TIMEOUT)
 }
 
 fn result_table_rows(video: &VideoInfo, order: &[usize]) -> Vec<TableRow> {
