@@ -6,12 +6,12 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use slint::{ComponentHandle, ModelRc, VecModel};
+use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
-use super::{AppWindow, SearchResultRow};
+use super::{AppWindow, TableRow};
 use crate::app::search::{
-    can_download, classify_failure, next_sort_state, result_rows_in_order, sorted_result_indices,
-    validate_download_path, SearchFailure, SearchPathError, SortColumn, SortDirection,
+    can_download, classify_failure, next_sort_state, sorted_result_indices, validate_download_path, SearchFailure,
+    SearchPathError, SortColumn, SortDirection,
 };
 use crate::design_system::i18n::{I18nCatalog, Locale, TextKey};
 use crate::download_task::{DownloadTaskClient, DownloadTaskError, MediaMessage, VideoInfo, DEFAULT_METADATA_TIMEOUT};
@@ -30,7 +30,6 @@ struct SearchState {
     started_at: Option<Instant>,
     path_error: Option<SearchPathError>,
     selected_index: Option<usize>,
-    selected_original_index: Option<usize>,
     sort_column: Option<SortColumn>,
     sort_direction: SortDirection,
     visible_order: Vec<usize>,
@@ -45,7 +44,6 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
         started_at: None,
         path_error: None,
         selected_index: None,
-        selected_original_index: None,
         sort_column: None,
         sort_direction: SortDirection::Reset,
         visible_order: Vec::new(),
@@ -57,7 +55,7 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
         ui.set_search_download_path(path.into());
         ui.set_search_path_error(path_error_text(locale.get(), state.borrow().path_error).into());
     }
-    ui.set_search_results(ModelRc::new(VecModel::from(Vec::<SearchResultRow>::new())));
+    ui.set_search_results(ModelRc::new(VecModel::from(Vec::<TableRow>::new())));
 
     install_url_edit(ui, Rc::clone(&state));
     install_path_edit(ui, Rc::clone(&state), Rc::clone(&locale));
@@ -224,7 +222,6 @@ fn install_search(
             let mut state = state.borrow_mut();
             state.metadata = None;
             state.selected_index = None;
-            state.selected_original_index = None;
             state.sort_column = None;
             state.sort_direction = SortDirection::Reset;
             state.visible_order.clear();
@@ -241,7 +238,7 @@ fn install_search(
                 .replace("{remaining}", &DEFAULT_METADATA_TIMEOUT.as_secs().to_string())
                 .into(),
         );
-        ui.set_search_results(ModelRc::new(VecModel::from(Vec::<SearchResultRow>::new())));
+        ui.set_search_results(ModelRc::new(VecModel::from(Vec::<TableRow>::new())));
         ui.set_search_selected_index(-1);
         update_can_download(&ui, &state);
     });
@@ -259,7 +256,6 @@ fn install_stop(ui: &AppWindow, state: Rc<RefCell<SearchState>>) {
         {
             let mut state = state.borrow_mut();
             state.selected_index = None;
-            state.selected_original_index = None;
             state.sort_column = None;
             state.sort_direction = SortDirection::Reset;
             state.visible_order.clear();
@@ -269,7 +265,7 @@ fn install_stop(ui: &AppWindow, state: Rc<RefCell<SearchState>>) {
             ui.set_search_status("".into());
             ui.set_search_video_title("".into());
             ui.set_search_status_kind(0);
-            ui.set_search_results(ModelRc::new(VecModel::from(Vec::<SearchResultRow>::new())));
+            ui.set_search_results(ModelRc::new(VecModel::from(Vec::<TableRow>::new())));
             ui.set_search_selected_index(-1);
             ui.set_search_sort_column(-1);
             ui.set_search_sort_direction(SortDirection::Reset.index());
@@ -280,18 +276,16 @@ fn install_stop(ui: &AppWindow, state: Rc<RefCell<SearchState>>) {
 
 fn install_result_selection(ui: &AppWindow, state: Rc<RefCell<SearchState>>) {
     let ui_weak = ui.as_weak();
-    ui.on_search_result_selected(move |index| {
-        let Ok(index) = usize::try_from(index) else { return };
-        let Some(original_index) = state.borrow().visible_order.get(index).copied() else {
+    ui.on_search_result_selected(move |source_row| {
+        let Ok(source_row) = usize::try_from(source_row) else {
             return;
         };
-        {
-            let mut state = state.borrow_mut();
-            state.selected_index = Some(index);
-            state.selected_original_index = Some(original_index);
+        if !state.borrow().visible_order.contains(&source_row) {
+            return;
         }
+        state.borrow_mut().selected_index = Some(source_row);
         if let Some(ui) = ui_weak.upgrade() {
-            ui.set_search_selected_index(index as i32);
+            ui.set_search_selected_index(source_row as i32);
             update_can_download(&ui, &state);
         }
     });
@@ -307,46 +301,57 @@ fn install_result_sort(ui: &AppWindow, state: Rc<RefCell<SearchState>>) {
         if ui.get_search_busy() {
             return;
         }
-        let (next_column, next_direction, selected_original_index, metadata) = {
+        let (next_column, next_direction, selected_source_index, metadata) = {
             let state = state.borrow();
             let (next_column, next_direction) = next_sort_state(state.sort_column, state.sort_direction, column);
             (
                 next_column,
                 next_direction,
-                state.selected_original_index,
+                state.selected_index,
                 state.metadata.clone(),
             )
         };
         let Some(video) = metadata else { return };
         let visible_order = sorted_result_indices(&video, next_column, next_direction);
-        let rows = result_rows_in_order(&video, &visible_order)
-            .into_iter()
-            .map(|row| SearchResultRow {
-                format_id: row.format_id.into(),
-                format_note: row.format_note.into(),
-                extension: row.extension.into(),
-                resolution: row.resolution.into(),
-                bitrate: row.bitrate.into(),
-                file_size: row.file_size.into(),
-                video_codec: row.video_codec.into(),
-                audio_codec: row.audio_codec.into(),
-            })
-            .collect::<Vec<_>>();
-        let selected_index =
-            selected_original_index.and_then(|selected| visible_order.iter().position(|&index| index == selected));
+        let rows = result_table_rows(&video, &visible_order);
         {
             let mut state = state.borrow_mut();
             state.sort_column = next_column;
             state.sort_direction = next_direction;
             state.visible_order = visible_order;
-            state.selected_index = selected_index;
+            state.selected_index = selected_source_index;
         }
         ui.set_search_results(ModelRc::new(VecModel::from(rows)));
         ui.set_search_sort_column(next_column.map_or(-1, SortColumn::index));
         ui.set_search_sort_direction(next_direction.index());
-        ui.set_search_selected_index(selected_index.map_or(-1, |index| index as i32));
+        ui.set_search_selected_index(selected_source_index.map_or(-1, |index| index as i32));
         update_can_download(&ui, &state);
     });
+}
+
+fn result_table_rows(video: &VideoInfo, order: &[usize]) -> Vec<TableRow> {
+    order
+        .iter()
+        .filter_map(|&source_index| {
+            let format = video.formats.get(source_index)?;
+            let row = crate::app::search::format_row(format);
+            let cells = vec![
+                SharedString::from(row.format_id),
+                SharedString::from(row.format_note),
+                SharedString::from(row.extension),
+                SharedString::from(row.resolution),
+                SharedString::from(row.bitrate),
+                SharedString::from(row.file_size),
+                SharedString::from(row.video_codec),
+                SharedString::from(row.audio_codec),
+            ];
+            Some(TableRow {
+                source_index: source_index as i32,
+                cells: ModelRc::new(VecModel::from(cells)),
+                checked: false,
+            })
+        })
+        .collect()
 }
 
 fn poll_events(ui: &AppWindow, state: &Rc<RefCell<SearchState>>, locale: Locale) {
@@ -385,19 +390,7 @@ fn poll_events(ui: &AppWindow, state: &Rc<RefCell<SearchState>>, locale: Locale)
             let video = state.borrow().metadata.clone();
             if let Some(video) = video {
                 let visible_order = (0..video.formats.len()).collect::<Vec<_>>();
-                let rows = result_rows_in_order(&video, &visible_order)
-                    .into_iter()
-                    .map(|row| SearchResultRow {
-                        format_id: row.format_id.into(),
-                        format_note: row.format_note.into(),
-                        extension: row.extension.into(),
-                        resolution: row.resolution.into(),
-                        bitrate: row.bitrate.into(),
-                        file_size: row.file_size.into(),
-                        video_codec: row.video_codec.into(),
-                        audio_codec: row.audio_codec.into(),
-                    })
-                    .collect::<Vec<_>>();
+                let rows = result_table_rows(&video, &visible_order);
                 state.borrow_mut().visible_order = visible_order;
                 ui.set_search_results(ModelRc::new(VecModel::from(rows)));
             }
@@ -425,7 +418,6 @@ fn set_failure(ui: &AppWindow, state: &Rc<RefCell<SearchState>>, locale: Locale,
         state.metadata = None;
         state.visible_order.clear();
         state.selected_index = None;
-        state.selected_original_index = None;
         state.sort_column = None;
         state.sort_direction = SortDirection::Reset;
     }
@@ -433,7 +425,7 @@ fn set_failure(ui: &AppWindow, state: &Rc<RefCell<SearchState>>, locale: Locale,
     ui.set_search_sort_direction(SortDirection::Reset.index());
     ui.set_search_selected_index(-1);
     ui.set_search_video_title("".into());
-    ui.set_search_results(ModelRc::new(VecModel::from(Vec::<SearchResultRow>::new())));
+    ui.set_search_results(ModelRc::new(VecModel::from(Vec::<TableRow>::new())));
     ui.set_search_busy(false);
     ui.set_search_status_kind(2);
     ui.set_search_status(failure_text(locale, failure).into());

@@ -4,8 +4,8 @@ import { I18n } from "design/i18n.slint";
 import { Theme } from "design/theme.slint";
 import { ConfigurePage } from "pages/configure-page.slint";
 import { WelcomePage } from "pages/welcome-page.slint";
-import { SearchPage, SearchResultRow } from "pages/search-page.slint";
-import { GenericTable } from "components/generic-table.slint";
+import { SearchPage } from "pages/search-page.slint";
+import { GenericTable, TableRow } from "components/generic-table.slint";
 
 export { TableColumn, TableRow, TableSortDirection } from "components/generic-table.slint";
 
@@ -62,7 +62,7 @@ export component AppWindow inherits Window {
     in-out property <int> search-selected-index: -1;
     in-out property <int> search-sort-column: -1;
     in-out property <int> search-sort-direction: 0;
-    in-out property <[SearchResultRow]> search-results: [];
+    in-out property <[TableRow]> search-results: [];
     callback search-requested();
     callback search-stop-requested();
     callback search-browse-download-requested();
