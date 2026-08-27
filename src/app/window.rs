@@ -159,10 +159,16 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_welcome_step_tasks_description(snapshot.welcome_step_tasks_description.into());
     i18n.set_welcome_step_tasks_page(snapshot.welcome_step_tasks_page.into());
     i18n.set_welcome_dependencies_title(snapshot.welcome_dependencies_title.into());
+    i18n.set_welcome_dependencies_runtime_title(snapshot.welcome_dependencies_runtime_title.into());
+    i18n.set_welcome_dependency_rusqlite(snapshot.welcome_dependency_rusqlite.into());
+    i18n.set_welcome_dependency_serde_json(snapshot.welcome_dependency_serde_json.into());
     i18n.set_welcome_dependency_slint(snapshot.welcome_dependency_slint.into());
     i18n.set_welcome_dependency_webbrowser(snapshot.welcome_dependency_webbrowser.into());
-    i18n.set_welcome_dependency_windows_sys(snapshot.welcome_dependency_windows_sys.into());
+    i18n.set_welcome_dependency_rfd(snapshot.welcome_dependency_rfd.into());
+    i18n.set_welcome_dependencies_build_title(snapshot.welcome_dependencies_build_title.into());
     i18n.set_welcome_dependency_slint_build(snapshot.welcome_dependency_slint_build.into());
+    i18n.set_welcome_dependencies_windows_title(snapshot.welcome_dependencies_windows_title.into());
+    i18n.set_welcome_dependency_windows_sys(snapshot.welcome_dependency_windows_sys.into());
     i18n.set_welcome_thanks(snapshot.welcome_thanks.into());
     i18n.set_welcome_project_label(snapshot.welcome_project_label.into());
     i18n.set_welcome_project_url(snapshot.welcome_project_url.into());
