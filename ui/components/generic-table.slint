@@ -179,7 +179,6 @@ component TableDataRow inherits Rectangle {
     in property <[bool]> column-visibility;
     in property <int> selected-source-row;
     in property <bool> show-check-column;
-    in property <length> leading-column-width;
     in property <int> progress-column;
     in property <[int]> progress-values;
     in property <color> progress-color;
@@ -201,8 +200,8 @@ component TableDataRow inherits Rectangle {
     }
 
     HorizontalLayout {
-        x: Theme.spacing-compact;
-        width: parent.width - 2 * Theme.spacing-compact;
+        x: 0px;
+        width: parent.width;
         height: parent.height;
         spacing: Theme.spacing-compact;
 
@@ -354,26 +353,26 @@ export component GenericTable inherits Rectangle {
             border-width: Theme.border-width-default;
             border-color: Theme.border-default;
 
-            if root.show-check-column : Rectangle {
-                width: root.leading-column-width;
-                height: parent.height;
-                TableCheckBox {
-                    checked: root.header-all-checked;
-                    toggled => { root.check-all-toggled(!root.header-all-checked); }
-                }
-                Rectangle {
-                    x: parent.width - Theme.border-width-default;
-                    width: Theme.border-width-default;
-                    height: parent.height;
-                    background: Theme.border-default;
-                }
-            }
-
             HorizontalLayout {
-                x: root.leading-column-width;
-                width: parent.width - root.leading-column-width;
+                x: 0px;
+                width: parent.width;
                 height: parent.height;
                 spacing: Theme.spacing-compact;
+
+                if root.show-check-column : Rectangle {
+                    width: root.leading-column-width;
+                    height: parent.height;
+                    TableCheckBox {
+                        checked: root.header-all-checked;
+                        toggled => { root.check-all-toggled(!root.header-all-checked); }
+                    }
+                    Rectangle {
+                        x: parent.width - Theme.border-width-default;
+                        width: Theme.border-width-default;
+                        height: parent.height;
+                        background: Theme.border-default;
+                    }
+                }
 
                 for column[index] in root.columns : TableHeaderColumn {
                     title: column.title;
@@ -453,7 +452,6 @@ export component GenericTable inherits Rectangle {
                     column-visibility: root.column-visibility;
                     selected-source-row: root.selected-source-row;
                     show-check-column: root.show-check-column;
-                    leading-column-width: root.leading-column-width;
                     progress-column: root.progress-column;
                     progress-values: root.progress-values;
                     progress-color: root.progress-color;
@@ -473,7 +471,6 @@ export component GenericTable inherits Rectangle {
                 column-visibility: root.column-visibility;
                 selected-source-row: root.selected-source-row;
                 show-check-column: root.show-check-column;
-                leading-column-width: root.leading-column-width;
                 progress-column: root.progress-column;
                 progress-values: root.progress-values;
                 progress-color: root.progress-color;

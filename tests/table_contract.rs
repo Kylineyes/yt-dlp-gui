@@ -320,6 +320,116 @@ fn generic_table_exposes_extended_behavior_without_changing_row_structures() {
 }
 
 #[test]
+fn header_context_menu_is_topmost_without_handling_left_click_business_events() {
+    let source = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/ui/components/generic-table.slint"
+    ))
+    .unwrap();
+    let header = source
+        .split("header := Rectangle {")
+        .nth(1)
+        .unwrap()
+        .split("if root.table-max-height > 0px : ScrollView {")
+        .next()
+        .unwrap();
+
+    let columns = header
+        .find("for column[index] in root.columns : TableHeaderColumn {")
+        .unwrap();
+    let menu = header
+        .find("if root.column-hiding-enabled : ContextMenuArea {")
+        .unwrap();
+    assert!(columns < menu);
+
+    let menu_block = &header[menu..];
+    assert!(menu_block.contains("width: parent.width;"));
+    assert!(menu_block.contains("height: parent.height;"));
+    assert!(menu_block.contains("MenuSeparator {"));
+    assert!(menu_block.contains("for column[index] in root.columns : MenuItem {"));
+    assert!(!menu_block.contains("clicked =>"));
+    assert!(!menu_block.contains("pointer-event"));
+    assert!(!menu_block.contains("selection-requested"));
+    assert!(!menu_block.contains("sort-requested"));
+    assert!(!menu_block.contains("column-resized"));
+
+    assert!(source.contains("clicked => { root.sort-clicked(); }"));
+    assert!(source.contains("event.kind == PointerEventKind.down && event.button == PointerEventButton.left"));
+    assert!(source.contains("if (self.pressed) {"));
+    assert!(source.contains("mouse-cursor: MouseCursor.col-resize;"));
+}
+
+#[test]
+fn header_and_rows_share_content_geometry_and_visibility_rules() {
+    let source = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/ui/components/generic-table.slint"
+    ))
+    .unwrap();
+
+    assert!(source.contains(
+        "x: 0px;\n                width: parent.width;\n                height: parent.height;\n                spacing: Theme.spacing-compact;\n\n                if root.show-check-column : Rectangle"
+    ));
+    assert!(source.contains(
+        "x: 0px;\n        width: parent.width;\n        height: parent.height;\n        spacing: Theme.spacing-compact;\n\n        if root.show-check-column : TableCheckBox"
+    ));
+    assert!(
+        source
+            .matches("root.column-visibility.length == 0 || root.column-visibility.length <= ")
+            .count()
+            >= 3
+    );
+    assert_eq!(
+        source
+            .matches("root.column-widths.length > column-index ? root.column-widths[column-index] : 0px")
+            .count(),
+        1
+    );
+    assert_eq!(
+        source
+            .matches("root.column-widths.length > column-index && root.column-widths[column-index] > 0px")
+            .count(),
+        3
+    );
+    assert_eq!(
+        source
+            .matches("max(root.columns[column-index].width-weight, 1.0)")
+            .count(),
+        1
+    );
+    assert_eq!(source.matches("max(root.width-weight, 1.0)").count(), 1);
+}
+
+#[test]
+fn header_check_and_menu_resets_keep_single_state_update_paths() {
+    let source = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/ui/components/generic-table.slint"
+    ))
+    .unwrap();
+    let header_check = source
+        .split("if root.show-check-column : Rectangle {")
+        .nth(1)
+        .unwrap()
+        .split("for column[index] in root.columns : TableHeaderColumn {")
+        .next()
+        .unwrap();
+
+    assert!(header_check.contains("checked: root.header-all-checked;"));
+    assert_eq!(
+        header_check
+            .matches("root.check-all-toggled(!root.header-all-checked);")
+            .count(),
+        1
+    );
+    assert!(source.contains("activated => { root.width-reset-epoch += 1; }"));
+    assert!(source.contains("activated => { root.visibility-reset-epoch += 1; }"));
+    assert!(source.contains("root.column-widths[root.column-index] = 0px;"));
+    assert!(source.contains("root.column-visibility[root.column-index] = true;"));
+    assert!(source.contains("root.column-visibility[index] = !root.column-visibility[index];"));
+}
+
+#[test]
 fn malformed_rows_and_filters_are_rejected_without_panicking() {
     assert!(matches!(
         TableModel::new(vec![TableColumn::new("一", false, 1)], vec![TableRow::new(Vec::new())],),
