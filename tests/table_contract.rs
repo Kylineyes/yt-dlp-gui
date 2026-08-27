@@ -343,7 +343,8 @@ fn header_context_menu_is_topmost_without_handling_left_click_business_events() 
     assert!(columns < menu);
 
     let menu_block = &header[menu..];
-    assert!(menu_block.contains("width: parent.width;"));
+    assert!(menu_block.contains("x: root.leading-column-width;"));
+    assert!(menu_block.contains("width: parent.width - root.leading-column-width;"));
     assert!(menu_block.contains("height: parent.height;"));
     assert!(menu_block.contains("MenuSeparator {"));
     assert!(menu_block.contains("for column[index] in root.columns : MenuItem {"));
@@ -367,11 +368,18 @@ fn header_and_rows_share_content_geometry_and_visibility_rules() {
     ))
     .unwrap();
 
+    assert!(source.contains("header := Rectangle {"));
+    assert!(source.contains("width: root.body-width;"));
+    assert!(source.contains("x: 0px;"));
+    assert!(source.contains("width: parent.width;"));
+    assert!(source.contains("height: parent.height;"));
+    assert!(source.contains("spacing: Theme.spacing-compact;"));
+    assert!(source.contains("if root.show-check-column : Rectangle"));
+    assert!(source.contains("if root.show-check-column : TableCheckBox"));
+    assert!(source
+        .contains("preferred-width: root.current-width > 0px ? root.current-width : Theme.control-min-height * 3;"));
     assert!(source.contains(
-        "x: 0px;\n                width: parent.width;\n                height: parent.height;\n                spacing: Theme.spacing-compact;\n\n                if root.show-check-column : Rectangle"
-    ));
-    assert!(source.contains(
-        "x: 0px;\n        width: parent.width;\n        height: parent.height;\n        spacing: Theme.spacing-compact;\n\n        if root.show-check-column : TableCheckBox"
+        "preferred-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3;"
     ));
     assert!(
         source
@@ -381,15 +389,9 @@ fn header_and_rows_share_content_geometry_and_visibility_rules() {
     );
     assert_eq!(
         source
-            .matches("root.column-widths.length > column-index ? root.column-widths[column-index] : 0px")
-            .count(),
-        1
-    );
-    assert_eq!(
-        source
             .matches("root.column-widths.length > column-index && root.column-widths[column-index] > 0px")
             .count(),
-        3
+        4
     );
     assert_eq!(
         source
@@ -398,6 +400,26 @@ fn header_and_rows_share_content_geometry_and_visibility_rules() {
         1
     );
     assert_eq!(source.matches("max(root.width-weight, 1.0)").count(), 1);
+}
+
+#[test]
+fn checkbox_hit_area_covers_the_visual_control() {
+    let source = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/ui/components/generic-table.slint"
+    ))
+    .unwrap();
+    let checkbox = source
+        .split("component TableCheckBox")
+        .nth(1)
+        .unwrap()
+        .split("component TableHeaderColumn")
+        .next()
+        .unwrap();
+
+    assert!(checkbox.contains("width: parent.width;"));
+    assert!(checkbox.contains("height: parent.height;"));
+    assert!(checkbox.contains("clicked => { root.toggled(); }"));
 }
 
 #[test]
