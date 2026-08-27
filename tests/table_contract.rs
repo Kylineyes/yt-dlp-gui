@@ -292,6 +292,10 @@ fn generic_table_exposes_extended_behavior_without_changing_row_structures() {
     .unwrap();
 
     assert!(!source.contains("text: \"✓\""));
+    assert!(source.contains("import { I18n } from \"../design/i18n.slint\";"));
+    assert!(source.contains("menu-reset-widths-label: I18n.table-reset-widths"));
+    assert!(source.contains("menu-reset-titles-label: I18n.table-reset-titles"));
+    assert!(source.contains("menu-show-columns-label: I18n.table-show-columns"));
     assert!(source.contains("component TableCheckMark inherits Path"));
     assert!(source.contains("check-all-toggled(checked: bool)"));
     assert!(source.contains("resizable-columns: false"));

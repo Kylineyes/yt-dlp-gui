@@ -335,9 +335,9 @@ export component ExampleTable inherits Rectangle {
 | `progress-column` | `-1` | 进度列索引；负值表示不显示进度覆盖 |
 | `progress-values` | `[]` | 与当前展示行同序的 0-100 进度值数组 |
 | `progress-color` | `Theme.accent` | 进度覆盖色，默认颜色自动适配浅色/深色主题 |
-| `menu-reset-widths-label` | `""` | 重置默认标题栏宽度菜单文案 |
-| `menu-reset-titles-label` | `""` | 重置默认标题菜单文案；行为是恢复全部标题显示，不修改标题文本 |
-| `menu-show-columns-label` | `""` | 显示/隐藏标题子菜单文案 |
+| `menu-reset-widths-label` | `I18n.table-reset-widths` | 重置默认标题栏宽度菜单文案 |
+| `menu-reset-titles-label` | `I18n.table-reset-titles` | 重置默认标题菜单文案；行为是恢复全部标题显示，不修改标题文本 |
+| `menu-show-columns-label` | `I18n.table-show-columns` | 显示/隐藏标题子菜单文案 |
 | `rows-selectable` | `false` | 是否响应行选择和鼠标按钮回调 |
 | `show-check-column` | `false` | 是否显示最前方勾选列和表头全选框 |
 | `selected-source-row` | `-1` | 当前选中的原始行号 |
@@ -356,6 +356,8 @@ export component ExampleTable inherits Rectangle {
 右键和中键不会隐式改变 `selected-source-row`。使用方如果希望右键菜单主动选择行，应在自己的 `right-clicked` 回调中显式处理。所有这些回调的行参数均为过滤前的 `source-index`。
 
 `column-widths` 和 `column-visibility` 是组件的 `in-out` 内存数组。需要开启对应功能时，使用方应传入与 `columns` 同长度的 `VecModel`/Slint 数组：宽度数组使用 `0px` 表示未覆盖，显隐数组使用 `true` 表示显示。两者均不写入 SQLite；空数组分别表示使用默认权重和全部显示。
+
+右键菜单的默认文案直接绑定设计系统的 `I18n.table-reset-widths`、`I18n.table-reset-titles` 和 `I18n.table-show-columns`。业务方通常无需重复传入；只有需要临时替换显示文本时才覆盖对应的 `menu-*-label` 属性。
 
 `progress-values` 必须与当前传入的展示行 `rows` 同序、同长度，组件只在长度一致时绘制覆盖。进度值会在组件内部限制到 `0..100`，同时保留 `cells` 中的百分比文本。
 
