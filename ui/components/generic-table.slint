@@ -1,4 +1,5 @@
 import { ScrollView } from "std-widgets.slint";
+import { I18n } from "../design/i18n.slint";
 import { Theme } from "../design/theme.slint";
 
 // 表头排序状态由组件展示，实际数据顺序由使用方的数据模型维护。
@@ -267,9 +268,9 @@ export component GenericTable inherits Rectangle {
     in property <int> progress-column: -1;
     in property <[int]> progress-values: [];
     in property <color> progress-color: Theme.accent;
-    in property <string> menu-reset-widths-label: "";
-    in property <string> menu-reset-titles-label: "";
-    in property <string> menu-show-columns-label: "";
+    in property <string> menu-reset-widths-label: I18n.table-reset-widths;
+    in property <string> menu-reset-titles-label: I18n.table-reset-titles;
+    in property <string> menu-show-columns-label: I18n.table-show-columns;
 
     callback sort-requested(column: int, direction: TableSortDirection);
     callback selection-requested(source-row: int);
@@ -294,8 +295,7 @@ export component GenericTable inherits Rectangle {
     private property <int> visibility-reset-epoch: 0;
     private property <int> width-reset-epoch: 0;
 
-    // 不可见的聚合布局用于从当前展示 rows 推导表头全选和部分选中状态。
-    // 不可见的聚合布局用于从当前展示 rows 推导表头全选状态。
+    // 从当前展示 rows 推导表头全选状态。
     unchecked-rows := VerticalLayout {
         x: 0px;
         y: 0px;
@@ -398,7 +398,7 @@ export component GenericTable inherits Rectangle {
                 }
             }
 
-            // 菜单文案由使用方从 i18n 快照传入；空文案仅禁用对应菜单项。
+            // 默认文案来自设计系统 I18n；调用方可传入空文本禁用对应菜单项。
             if root.column-hiding-enabled : ContextMenuArea {
                 width: parent.width;
                 height: parent.height;
