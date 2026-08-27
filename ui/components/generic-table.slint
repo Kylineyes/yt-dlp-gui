@@ -71,6 +71,8 @@ component TableCheckBox inherits Rectangle {
     }
 
     TouchArea {
+        width: parent.width;
+        height: parent.height;
         clicked => { root.toggled(); }
     }
 }
@@ -93,6 +95,7 @@ component TableHeaderColumn inherits Rectangle {
     callback width-changed(width: length);
 
     visible: root.column-visibility.length == 0 || root.column-visibility.length <= root.column-index || root.column-visibility[root.column-index];
+    preferred-width: root.current-width > 0px ? root.current-width : Theme.control-min-height * 3;
     min-width: root.current-width > 0px ? root.current-width : Theme.control-min-height * 3;
     max-width: root.current-width > 0px ? root.current-width : 100000px;
     horizontal-stretch: root.current-width > 0px ? 0 : max(root.width-weight, 1.0);
@@ -212,7 +215,7 @@ component TableDataRow inherits Rectangle {
 
         for cell[column-index] in root.data-row.cells : Rectangle {
             visible: root.columns.length > column-index && (root.column-visibility.length == 0 || root.column-visibility.length <= column-index || root.column-visibility[column-index]);
-            preferred-width: root.column-widths.length > column-index ? root.column-widths[column-index] : 0px;
+            preferred-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3;
             min-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3;
             max-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : 100000px;
             horizontal-stretch: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? 0 : max(root.columns[column-index].width-weight, 1.0);
@@ -399,7 +402,8 @@ export component GenericTable inherits Rectangle {
 
             // 默认文案来自设计系统 I18n；调用方可传入空文本禁用对应菜单项。
             if root.column-hiding-enabled : ContextMenuArea {
-                width: parent.width;
+                x: root.leading-column-width;
+                width: parent.width - root.leading-column-width;
                 height: parent.height;
                 Menu {
                     MenuItem {
