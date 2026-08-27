@@ -181,6 +181,9 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
         TextKey::TasksStatusCompleted,
         TextKey::TasksStatusCancelled,
         TextKey::TasksStatusFailed,
+        TextKey::TableResetWidths,
+        TextKey::TableResetTitles,
+        TextKey::TableShowColumns,
     ] {
         assert!(!I18nCatalog::text(Locale::ZhCn, key).is_empty());
         assert!(!I18nCatalog::text(Locale::EnUs, key).is_empty());
@@ -212,6 +215,20 @@ fn tasks_status_copy_matches_the_stable_bilingual_contract() {
     ];
 
     for (key, zh_cn, en_us) in statuses {
+        assert_eq!(I18nCatalog::text(Locale::ZhCn, key), zh_cn);
+        assert_eq!(I18nCatalog::text(Locale::EnUs, key), en_us);
+    }
+}
+
+#[test]
+fn table_menu_copy_matches_the_stable_bilingual_contract() {
+    let copy = [
+        (TextKey::TableResetWidths, "恢复默认列宽", "Reset column widths"),
+        (TextKey::TableResetTitles, "显示全部列", "Show all columns"),
+        (TextKey::TableShowColumns, "显示列", "Show columns"),
+    ];
+
+    for (key, zh_cn, en_us) in copy {
         assert_eq!(I18nCatalog::text(Locale::ZhCn, key), zh_cn);
         assert_eq!(I18nCatalog::text(Locale::EnUs, key), en_us);
     }
