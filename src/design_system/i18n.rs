@@ -163,6 +163,9 @@ pub enum TextKey {
     TasksStatusCompleted,
     TasksStatusCancelled,
     TasksStatusFailed,
+    TableResetWidths,
+    TableResetTitles,
+    TableShowColumns,
 }
 
 /// 单个语言的完整 UI 文案快照；窗口层只负责把快照应用到 Slint global。
@@ -301,6 +304,9 @@ pub struct I18nSnapshot {
     pub tasks_status_completed: &'static str,
     pub tasks_status_cancelled: &'static str,
     pub tasks_status_failed: &'static str,
+    pub table_reset_widths: &'static str,
+    pub table_reset_titles: &'static str,
+    pub table_show_columns: &'static str,
 }
 
 /// 无状态的共享 catalog；所有 key 在首批语言中都有定义的回退文案。
@@ -443,6 +449,9 @@ impl I18nCatalog {
             tasks_status_completed: Self::text(locale, TextKey::TasksStatusCompleted),
             tasks_status_cancelled: Self::text(locale, TextKey::TasksStatusCancelled),
             tasks_status_failed: Self::text(locale, TextKey::TasksStatusFailed),
+            table_reset_widths: Self::text(locale, TextKey::TableResetWidths),
+            table_reset_titles: Self::text(locale, TextKey::TableResetTitles),
+            table_show_columns: Self::text(locale, TextKey::TableShowColumns),
         }
     }
 
@@ -584,6 +593,9 @@ impl I18nCatalog {
             (Locale::ZhCn, TextKey::TasksStatusCompleted) => "已完成",
             (Locale::ZhCn, TextKey::TasksStatusCancelled) => "已取消",
             (Locale::ZhCn, TextKey::TasksStatusFailed) => "失败",
+            (Locale::ZhCn, TextKey::TableResetWidths) => "恢复默认列宽",
+            (Locale::ZhCn, TextKey::TableResetTitles) => "显示全部列",
+            (Locale::ZhCn, TextKey::TableShowColumns) => "显示列",
             (Locale::EnUs, TextKey::SearchTitle) => "Search",
             (Locale::EnUs, TextKey::SearchIntroduction) => {
                 "Enter a video URL, inspect available media formats, and choose what to download."
@@ -731,6 +743,9 @@ impl I18nCatalog {
             (Locale::EnUs, TextKey::TasksStatusCompleted) => "Completed",
             (Locale::EnUs, TextKey::TasksStatusCancelled) => "Cancelled",
             (Locale::EnUs, TextKey::TasksStatusFailed) => "Failed",
+            (Locale::EnUs, TextKey::TableResetWidths) => "Reset column widths",
+            (Locale::EnUs, TextKey::TableResetTitles) => "Show all columns",
+            (Locale::EnUs, TextKey::TableShowColumns) => "Show columns",
         }
     }
 

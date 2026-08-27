@@ -275,4 +275,7 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_tasks_status_completed(snapshot.tasks_status_completed.into());
     i18n.set_tasks_status_cancelled(snapshot.tasks_status_cancelled.into());
     i18n.set_tasks_status_failed(snapshot.tasks_status_failed.into());
+    i18n.set_table_reset_widths(snapshot.table_reset_widths.into());
+    i18n.set_table_reset_titles(snapshot.table_reset_titles.into());
+    i18n.set_table_show_columns(snapshot.table_show_columns.into());
 }
