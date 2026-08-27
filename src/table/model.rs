@@ -84,6 +84,52 @@ impl TableModel {
         self.selected_source_row
     }
 
+    /// 返回当前过滤结果对应的原始行索引，顺序与 `visible_rows()` 一致。
+    pub fn visible_source_indices(&self) -> Vec<usize> {
+        self.filtered_indices()
+    }
+
+    /// 当前展示结果全部勾选时返回 true；空展示结果不视为全选。
+    pub fn all_visible_checked(&self) -> bool {
+        let indices = self.visible_source_indices();
+        !indices.is_empty() && indices.iter().all(|&index| self.rows[index].checked)
+    }
+
+    /// 只修改当前展示行的勾选状态，不影响被过滤隐藏的原始行。
+    pub fn set_all_visible_checked(&mut self, checked: bool) {
+        for index in self.visible_source_indices() {
+            self.rows[index].checked = checked;
+        }
+    }
+
+    /// 返回当前过滤后的原始行索引，供显示快照和批量操作共享同一过滤契约。
+    fn filtered_indices(&self) -> Vec<usize> {
+        let mut indices: Vec<usize> = self
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| self.matches_filters(row))
+            .map(|(index, _)| index)
+            .collect();
+
+        if self.sort_strategy == TableSortStrategy::Dictionary {
+            if let Some(TableSort { column, direction }) = self.sort {
+                indices.sort_by(|&left, &right| {
+                    let ordering =
+                        compare_lexicographic(&self.rows[left].cells[column], &self.rows[right].cells[column]);
+                    if direction == TableSortDirection::Descending {
+                        ordering.reverse()
+                    } else {
+                        ordering
+                    }
+                    .then_with(|| left.cmp(&right))
+                });
+            }
+        }
+
+        indices
+    }
+
     /// 在过滤前的原始行序列中插入一行。
     pub fn insert_row(&mut self, index: usize, row: TableRow) -> Result<(), TableError> {
         if row.cells.len() != self.columns.len() {
@@ -182,30 +228,7 @@ impl TableModel {
 
     /// 生成当前过滤和排序后的行快照。
     pub fn visible_rows(&self) -> Vec<VisibleTableRow> {
-        let mut indices: Vec<usize> = self
-            .rows
-            .iter()
-            .enumerate()
-            .filter(|(_, row)| self.matches_filters(row))
-            .map(|(index, _)| index)
-            .collect();
-
-        if self.sort_strategy == TableSortStrategy::Dictionary {
-            if let Some(TableSort { column, direction }) = self.sort {
-                indices.sort_by(|&left, &right| {
-                    let ordering =
-                        compare_lexicographic(&self.rows[left].cells[column], &self.rows[right].cells[column]);
-                    if direction == TableSortDirection::Descending {
-                        ordering.reverse()
-                    } else {
-                        ordering
-                    }
-                    .then_with(|| left.cmp(&right))
-                });
-            }
-        }
-
-        indices
+        self.filtered_indices()
             .into_iter()
             .map(|source_index| VisibleTableRow {
                 source_index,

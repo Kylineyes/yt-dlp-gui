@@ -1,3 +1,4 @@
+import { ScrollView } from "std-widgets.slint";
 import { Theme } from "../design/theme.slint";
 
 // 表头排序状态由组件展示，实际数据顺序由使用方的数据模型维护。
@@ -9,7 +10,7 @@ export enum TableSortDirection {
 }
 
 // 每一列只描述显示和交互契约，不携带业务字段名。
-// width-weight 是相对宽度权重；使用方可以通过它控制不同列的视觉比例。
+// width-weight 是相对宽度权重；font-family 为空时使用主题 UI 字体。
 export struct TableColumn {
     title: string,
     sortable: bool,
@@ -19,24 +20,28 @@ export struct TableColumn {
 }
 
 // source-index 始终指向过滤前的数据行，用于把显示事件映射回底层数据。
-// cells 的顺序必须与 TableColumn 的顺序一致，文本字体由组件统一使用主题字体。
+// cells 的顺序必须与 TableColumn 的顺序一致。
 export struct TableRow {
     source-index: int,
     cells: [string],
     checked: bool,
 }
 
-component TableSortMark inherits Text {
-    in property <TableSortDirection> direction;
-    width: Theme.font-size-body;
+// 勾选线使用 Path 几何绘制，避免 UI 字体缺少“✓”字形时出现缺字方框。
+component TableCheckMark inherits Path {
+    in property <color> mark-color: Theme.accent-on;
+    width: 100%;
     height: 100%;
-    vertical-alignment: center;
-    horizontal-alignment: center;
-    font-family: Theme.ui-font-family;
-    font-size: Theme.font-size-body;
-    color: root.direction == TableSortDirection.unsorted ? Theme.text-muted : Theme.accent;
-    // ↕/↑/↓ 是排序语义图标，不承载任何业务文案，因此不需要 i18n 键。
-    text: root.direction == TableSortDirection.ascending ? "↑" : root.direction == TableSortDirection.descending ? "↓" : "↕";
+    viewbox-x: 0;
+    viewbox-y: 0;
+    viewbox-width: 16;
+    viewbox-height: 16;
+    fit: contain;
+    stroke: root.mark-color;
+    stroke-width: 2px;
+    stroke-line-cap: round;
+    stroke-line-join: round;
+    commands: "M 3.5 8.6 L 6.7 11.8 L 12.9 5.9";
 }
 
 component TableCheckBox inherits Rectangle {
@@ -56,11 +61,74 @@ component TableCheckBox inherits Rectangle {
         border-radius: Theme.corner-radius-small;
         background: root.checked ? Theme.accent : Theme.surface-primary;
 
-        if root.checked : Text {
-            width: parent.width;
+        if root.checked : TableCheckMark {
+            x: Theme.spacing-compact;
+            y: Theme.spacing-compact;
+            width: parent.width - 2 * Theme.spacing-compact;
+            height: parent.height - 2 * Theme.spacing-compact;
+        }
+    }
+
+    TouchArea {
+        clicked => { root.toggled(); }
+    }
+}
+
+// 单列表头负责标题展示和可选的拖拽宽度调整。
+component TableHeaderColumn inherits Rectangle {
+    in property <string> title;
+    in property <bool> sortable;
+    in property <float> width-weight;
+    in property <string> font-family;
+    in property <TableSortDirection> sort-direction;
+    in property <bool> resizable: false;
+    in property <int> column-index;
+    in property <int> visibility-reset-epoch: 0;
+    in property <int> width-reset-epoch: 0;
+    in-out property <[bool]> column-visibility;
+    in-out property <[length]> column-widths;
+    in property <length> current-width: 0px;
+    callback sort-clicked();
+    callback width-changed(width: length);
+
+    visible: root.column-visibility.length == 0 || root.column-visibility.length <= root.column-index || root.column-visibility[root.column-index];
+    min-width: root.current-width > 0px ? root.current-width : Theme.control-min-height * 3;
+    max-width: root.current-width > 0px ? root.current-width : 100000px;
+    horizontal-stretch: root.current-width > 0px ? 0 : max(root.width-weight, 1.0);
+    height: 100%;
+    background: Theme.surface-elevated;
+
+    changed visibility-reset-epoch => {
+        if (root.column-visibility.length > root.column-index) {
+            root.column-visibility[root.column-index] = true;
+        }
+    }
+    changed width-reset-epoch => {
+        if (root.column-widths.length > root.column-index) {
+            root.column-widths[root.column-index] = 0px;
+        }
+    }
+
+    HorizontalLayout {
+        x: Theme.spacing-small;
+        width: parent.width - 2 * Theme.spacing-small;
+        height: parent.height;
+        spacing: Theme.spacing-compact;
+        Text {
+            horizontal-stretch: 1;
             height: parent.height;
-            text: "✓";
-            color: Theme.accent-on;
+            text: root.title;
+            color: root.sortable ? Theme.text-primary : Theme.text-secondary;
+            font-family: root.font-family == "" ? Theme.ui-font-family : root.font-family;
+            font-size: Theme.font-size-body;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        if root.sortable : Text {
+            width: Theme.font-size-body;
+            height: parent.height;
+            text: root.sort-direction == TableSortDirection.ascending ? "↑" : root.sort-direction == TableSortDirection.descending ? "↓" : "↕";
+            color: root.sort-direction == TableSortDirection.unsorted ? Theme.text-muted : Theme.accent;
             font-family: Theme.ui-font-family;
             font-size: Theme.font-size-body;
             horizontal-alignment: center;
@@ -69,7 +137,112 @@ component TableCheckBox inherits Rectangle {
     }
 
     TouchArea {
-        clicked => { root.toggled(); }
+        enabled: root.sortable;
+        clicked => { root.sort-clicked(); }
+    }
+
+    // 调整手柄位于列右缘，使用内置 col-resize 光标。
+    resize-handle := TouchArea {
+        x: parent.width - self.width;
+        width: Theme.spacing-small;
+        height: parent.height;
+        enabled: root.resizable;
+        mouse-cursor: MouseCursor.col-resize;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                root.width-changed(max(Theme.control-min-height * 3, root.width));
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.width-changed(max(Theme.control-min-height * 3, root.current-width + self.mouse-x - self.pressed-x));
+            }
+        }
+    }
+
+    Rectangle {
+        x: parent.width - Theme.border-width-default;
+        width: Theme.border-width-default;
+        height: parent.height;
+        background: root.resizable && resize-handle.has-hover ? Theme.border-strong : Theme.border-default;
+    }
+}
+
+// 一行数据的布局与进度覆盖。列宽和列显隐数组由 GenericTable 与它共享。
+component TableDataRow inherits Rectangle {
+    in property <TableRow> data-row;
+    in property <int> row-index;
+    in property <int> row-count;
+    in property <[TableColumn]> columns;
+    in property <[length]> column-widths;
+    in property <[bool]> column-visibility;
+    in property <int> selected-source-row;
+    in property <bool> show-check-column;
+    in property <length> leading-column-width;
+    in property <int> progress-column;
+    in property <[int]> progress-values;
+    in property <color> progress-color;
+    callback row-clicked(button: PointerEventButton);
+    callback check-toggled(source-row: int, checked: bool);
+
+    height: Theme.control-min-height;
+    background: root.data-row.source-index == root.selected-source-row ? Theme.surface-elevated : Theme.surface-primary;
+    border-width: root.data-row.source-index == root.selected-source-row ? Theme.focus-ring-width : Theme.border-width-default;
+    border-color: root.data-row.source-index == root.selected-source-row ? Theme.focus-ring : Theme.border-default;
+    border-radius: Theme.corner-radius-small;
+
+    TouchArea {
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.up) {
+                root.row-clicked(event.button);
+            }
+        }
+    }
+
+    HorizontalLayout {
+        x: Theme.spacing-compact;
+        width: parent.width - 2 * Theme.spacing-compact;
+        height: parent.height;
+        spacing: Theme.spacing-compact;
+
+        if root.show-check-column : TableCheckBox {
+            checked: root.data-row.checked;
+            toggled => { root.check-toggled(root.data-row.source-index, !root.data-row.checked); }
+        }
+
+        for cell[column-index] in root.data-row.cells : Rectangle {
+            visible: root.columns.length > column-index && (root.column-visibility.length == 0 || root.column-visibility.length <= column-index || root.column-visibility[column-index]);
+            preferred-width: root.column-widths.length > column-index ? root.column-widths[column-index] : 0px;
+            min-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3;
+            max-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : 100000px;
+            horizontal-stretch: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? 0 : max(root.columns[column-index].width-weight, 1.0);
+            height: parent.height;
+            clip: true;
+
+            if root.progress-column == column-index && root.progress-values.length == root.row-count : Rectangle {
+                width: parent.width * (min(max(root.progress-values[root.row-index], 0), 100) / 100.0);
+                height: parent.height;
+                background: root.progress-color.transparentize(0.65);
+            }
+
+            Text {
+                x: Theme.spacing-small;
+                width: parent.width - 2 * Theme.spacing-small;
+                height: parent.height;
+                text: cell;
+                color: Theme.text-primary;
+                font-family: root.columns[column-index].font-family == "" ? Theme.ui-font-family : root.columns[column-index].font-family;
+                font-size: Theme.font-size-body;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            Rectangle {
+                x: parent.width - Theme.border-width-default;
+                width: Theme.border-width-default;
+                height: parent.height;
+                background: Theme.border-default;
+            }
+        }
     }
 }
 
@@ -85,21 +258,60 @@ export component GenericTable inherits Rectangle {
     in property <bool> show-check-column: false;
     in property <int> selected-source-row: -1;
 
+    // 空数组表示默认状态；启用列宽/显隐功能时传入与 columns 同长度的内存数组。
+    in-out property <[length]> column-widths: [];
+    in-out property <[bool]> column-visibility: [];
+    in property <bool> resizable-columns: false;
+    in property <bool> column-hiding-enabled: false;
+    in property <length> table-max-height: 0px;
+    in property <int> progress-column: -1;
+    in property <[int]> progress-values: [];
+    in property <color> progress-color: Theme.accent;
+    in property <string> menu-reset-widths-label: "";
+    in property <string> menu-reset-titles-label: "";
+    in property <string> menu-show-columns-label: "";
+
     callback sort-requested(column: int, direction: TableSortDirection);
     callback selection-requested(source-row: int);
     callback left-clicked(source-row: int);
     callback right-clicked(source-row: int);
     callback middle-clicked(source-row: int);
     callback check-toggled(source-row: int, checked: bool);
+    callback check-all-toggled(checked: bool);
+    callback column-visibility-toggled(column: int, visible: bool);
+    callback column-resized(column: int, width: length);
 
     // 供 PageScrollHost 或外层布局使用的稳定内容高度契约。
-    out property <length> intrinsic-height: table-content.preferred-height;
+    out property <length> intrinsic-height: self.height;
     out property <length> intrinsic-width: table-content.preferred-width;
 
     private property <length> minimum-column-width: Theme.control-min-height * 3;
     private property <length> leading-column-width: show-check-column ? Theme.control-min-height : 0px;
+    private property <length> header-height: Theme.control-min-height;
+    private property <length> rows-total-height: rows.length * Theme.control-min-height + (rows.length > 0 ? rows.length - 1 : 0) * Theme.spacing-compact;
+    private property <length> body-width: max(0px, self.width - (table-max-height > 0px ? Theme.scroll-bar-width : 0px));
+    private property <length> limited-body-height: max(0px, table-max-height - header-height);
+    private property <int> visibility-reset-epoch: 0;
+    private property <int> width-reset-epoch: 0;
+
+    // 不可见的聚合布局用于从当前展示 rows 推导表头全选和部分选中状态。
+    // 不可见的聚合布局用于从当前展示 rows 推导表头全选状态。
+    unchecked-rows := VerticalLayout {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        opacity: 0;
+        spacing: 0px;
+        for row in root.rows : Rectangle {
+            width: 0px;
+            height: row.checked ? 0px : Theme.border-width-default;
+        }
+    }
+    private property <bool> header-all-checked: rows.length > 0 && unchecked-rows.preferred-height == 0px;
+
     min-width: leading-column-width + columns.length * minimum-column-width;
-    height: table-content.preferred-height;
+    height: table-max-height > 0px ? min(table-max-height, table-content.preferred-height) : table-content.preferred-height;
     background: Theme.surface-primary;
     border-width: Theme.border-width-default;
     border-color: Theme.border-default;
@@ -110,7 +322,6 @@ export component GenericTable inherits Rectangle {
         return direction == TableSortDirection.unsorted ? TableSortDirection.ascending : direction == TableSortDirection.ascending ? TableSortDirection.descending : TableSortDirection.unsorted;
     }
 
-    // 只有可排序列响应点击；不可排序列不会误发排序回调。
     function request-sort(index: int) {
         if (columns[index].sortable) {
             sort-requested(index, next-sort(columns[index].sort-direction));
@@ -118,7 +329,6 @@ export component GenericTable inherits Rectangle {
     }
 
     // 只有左键点击会改变选择；右键和中键只分别触发各自的上下文操作回调。
-    // 所有回调参数都使用过滤前的 source-index。
     function dispatch-pointer(row: TableRow, button: PointerEventButton) {
         if (!rows-selectable) {
             return;
@@ -136,115 +346,139 @@ export component GenericTable inherits Rectangle {
     table-content := VerticalLayout {
         spacing: Theme.spacing-compact;
 
-        Rectangle {
-            height: Theme.control-min-height;
+        // 表头位于 ScrollView 外部，行滚动时始终固定可见。
+        header := Rectangle {
+            width: root.body-width;
+            height: root.header-height;
             background: Theme.surface-elevated;
             border-width: Theme.border-width-default;
             border-color: Theme.border-default;
+
+            if root.show-check-column : Rectangle {
+                width: root.leading-column-width;
+                height: parent.height;
+                TableCheckBox {
+                    checked: root.header-all-checked;
+                    toggled => { root.check-all-toggled(!root.header-all-checked); }
+                }
+                Rectangle {
+                    x: parent.width - Theme.border-width-default;
+                    width: Theme.border-width-default;
+                    height: parent.height;
+                    background: Theme.border-default;
+                }
+            }
+
             HorizontalLayout {
+                x: root.leading-column-width;
+                width: parent.width - root.leading-column-width;
                 height: parent.height;
                 spacing: Theme.spacing-compact;
 
-                if root.show-check-column : Rectangle {
-                    width: root.leading-column-width;
-                    height: parent.height;
-                    Rectangle {
-                        x: parent.width - Theme.border-width-default;
-                        width: Theme.border-width-default;
-                        height: parent.height;
-                        background: Theme.border-default;
+                for column[index] in root.columns : TableHeaderColumn {
+                    title: column.title;
+                    sortable: column.sortable;
+                    width-weight: column.width-weight;
+                    font-family: column.font-family;
+                    sort-direction: column.sort-direction;
+                    resizable: root.resizable-columns && root.column-widths.length == root.columns.length;
+                    column-index: index;
+                    visibility-reset-epoch: root.visibility-reset-epoch;
+                    width-reset-epoch: root.width-reset-epoch;
+                    column-visibility: root.column-visibility;
+                    column-widths: root.column-widths;
+                    current-width: root.column-widths.length == root.columns.length ? root.column-widths[index] : 0px;
+                    sort-clicked => { root.request-sort(index); }
+                    width-changed(width) => {
+                        if (root.column-widths.length == root.columns.length) {
+                            root.column-widths[index] = width;
+                        }
+                        root.column-resized(index, width);
                     }
                 }
+            }
 
-                for column[index] in root.columns : Rectangle {
-                    min-width: root.minimum-column-width;
-                    horizontal-stretch: max(column.width-weight, 1.0);
-                    height: parent.height;
-                    background: Theme.surface-elevated;
-
-                    HorizontalLayout {
-                        x: Theme.spacing-small;
-                        width: parent.width - 2 * Theme.spacing-small;
-                        height: parent.height;
-                        spacing: Theme.spacing-compact;
-                        Text {
-                            horizontal-stretch: 1;
-                            height: parent.height;
-                            text: column.title;
-                            color: column.sortable ? Theme.text-primary : Theme.text-secondary;
-                            font-family: column.font-family == "" ? Theme.ui-font-family : column.font-family;
-                            font-size: Theme.font-size-body;
-                            vertical-alignment: center;
-                            overflow: elide;
-                        }
-                        if column.sortable : TableSortMark {
-                            direction: column.sort-direction;
-                        }
+            // 菜单文案由使用方从 i18n 快照传入；空文案仅禁用对应菜单项。
+            if root.column-hiding-enabled : ContextMenuArea {
+                width: parent.width;
+                height: parent.height;
+                Menu {
+                    MenuItem {
+                        title: root.menu-reset-widths-label;
+                        enabled: root.menu-reset-widths-label != "";
+                        activated => { root.width-reset-epoch += 1; }
                     }
-                    TouchArea {
-                        enabled: column.sortable;
-                        clicked => { root.request-sort(index); }
+                    MenuItem {
+                        title: root.menu-reset-titles-label;
+                        enabled: root.menu-reset-titles-label != "";
+                        activated => { root.visibility-reset-epoch += 1; }
                     }
-                    Rectangle {
-                        x: parent.width - Theme.border-width-default;
-                        width: Theme.border-width-default;
-                        height: parent.height;
-                        background: Theme.border-default;
+                    MenuSeparator { }
+                    Menu {
+                        title: root.menu-show-columns-label;
+                        enabled: root.menu-show-columns-label != "";
+                        for column[index] in root.columns : MenuItem {
+                            title: column.title;
+                            checkable: true;
+                            checked: root.column-visibility.length == 0 || root.column-visibility.length <= index || root.column-visibility[index];
+                            enabled: root.column-visibility.length == root.columns.length;
+                            activated => {
+                                if (root.column-visibility.length == root.columns.length) {
+                                    root.column-visibility[index] = !root.column-visibility[index];
+                                    root.column-visibility-toggled(index, root.column-visibility[index]);
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
-        for row[index] in root.rows : Rectangle {
-            height: Theme.control-min-height;
-            background: row.source-index == root.selected-source-row ? Theme.surface-elevated : Theme.surface-primary;
-            border-width: row.source-index == root.selected-source-row ? Theme.focus-ring-width : Theme.border-width-default;
-            border-color: row.source-index == root.selected-source-row ? Theme.focus-ring : Theme.border-default;
-            border-radius: Theme.corner-radius-small;
-
-            // 将整行点击区域放在内容布局之前，后面的勾选控件可以优先接收点击。
-            TouchArea {
-                pointer-event(event) => {
-                    if (event.kind == PointerEventKind.up) {
-                        root.dispatch-pointer(row, event.button);
-                    }
+        if root.table-max-height > 0px : ScrollView {
+            width: root.width;
+            height: min(root.limited-body-height, root.rows-total-height);
+            viewport-width: root.body-width;
+            viewport-height: root.rows-total-height;
+            vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+            VerticalLayout {
+                width: root.body-width;
+                spacing: Theme.spacing-compact;
+                for row[index] in root.rows : TableDataRow {
+                    data-row: row;
+                    row-index: index;
+                    row-count: root.rows.length;
+                    columns: root.columns;
+                    column-widths: root.column-widths;
+                    column-visibility: root.column-visibility;
+                    selected-source-row: root.selected-source-row;
+                    show-check-column: root.show-check-column;
+                    leading-column-width: root.leading-column-width;
+                    progress-column: root.progress-column;
+                    progress-values: root.progress-values;
+                    progress-color: root.progress-color;
+                    row-clicked(button) => { root.dispatch-pointer(row, button); }
+                    check-toggled(source-row, checked) => { root.check-toggled(source-row, checked); }
                 }
             }
+        }
 
-            HorizontalLayout {
-                x: Theme.spacing-compact;
-                width: parent.width - 2 * Theme.spacing-compact;
-                height: parent.height;
-                spacing: Theme.spacing-compact;
-
-                if root.show-check-column : TableCheckBox {
-                    checked: row.checked;
-                    toggled => { root.check-toggled(row.source-index, !row.checked); }
-                }
-
-                for cell[column-index] in row.cells : Rectangle {
-                    min-width: root.minimum-column-width;
-                    horizontal-stretch: root.columns.length > column-index ? max(root.columns[column-index].width-weight, 1.0) : 1.0;
-                    height: parent.height;
-                    clip: true;
-                    Text {
-                        x: Theme.spacing-small;
-                        width: parent.width - 2 * Theme.spacing-small;
-                        height: parent.height;
-                        text: cell;
-                        color: Theme.text-primary;
-                        font-family: root.columns.length > column-index && root.columns[column-index].font-family != "" ? root.columns[column-index].font-family : Theme.ui-font-family;
-                        font-size: Theme.font-size-body;
-                        vertical-alignment: center;
-                        overflow: elide;
-                    }
-                    Rectangle {
-                        x: parent.width - Theme.border-width-default;
-                        width: Theme.border-width-default;
-                        height: parent.height;
-                        background: Theme.border-default;
-                    }
-                }
+        if root.table-max-height <= 0px : VerticalLayout {
+            spacing: Theme.spacing-compact;
+            for row[index] in root.rows : TableDataRow {
+                data-row: row;
+                row-index: index;
+                columns: root.columns;
+                column-widths: root.column-widths;
+                column-visibility: root.column-visibility;
+                selected-source-row: root.selected-source-row;
+                show-check-column: root.show-check-column;
+                leading-column-width: root.leading-column-width;
+                progress-column: root.progress-column;
+                progress-values: root.progress-values;
+                progress-color: root.progress-color;
+                row-clicked(button) => { root.dispatch-pointer(row, button); }
+                check-toggled(source-row, checked) => { root.check-toggled(source-row, checked); }
             }
         }
     }

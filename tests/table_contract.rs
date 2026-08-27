@@ -45,6 +45,59 @@ fn columns_can_override_the_theme_font_for_monospace_values() {
 }
 
 #[test]
+fn visible_batch_checking_only_changes_filtered_rows() {
+    let mut table = model();
+    table.set_checked(1, true).unwrap();
+    table
+        .set_filters(vec![TableFilter::new(
+            Some(1),
+            "视频",
+            FilterMatch::Equals,
+            FilterSelection::Include,
+        )])
+        .unwrap();
+
+    assert_eq!(table.visible_source_indices(), vec![0, 2]);
+    assert!(!table.all_visible_checked());
+    table.set_all_visible_checked(true);
+    assert!(table.rows()[0].checked);
+    assert!(table.rows()[2].checked);
+    assert!(table.rows()[1].checked);
+    assert!(table.all_visible_checked());
+
+    table.set_all_visible_checked(false);
+    assert!(!table.rows()[0].checked);
+    assert!(!table.rows()[2].checked);
+    assert!(table.rows()[1].checked);
+}
+
+#[test]
+fn visible_batch_checking_works_for_preordered_rows_and_empty_results() {
+    let mut table = model();
+    table
+        .replace_rows_preordered(vec![
+            TableRow::new(vec!["Gamma".into(), "视频".into(), "完成".into()]),
+            TableRow::new(vec!["alpha".into(), "音频".into(), "等待".into()]),
+        ])
+        .unwrap();
+    table.set_all_visible_checked(true);
+    assert!(table.rows().iter().all(|row| row.checked));
+
+    table
+        .set_filters(vec![TableFilter::new(
+            Some(0),
+            "missing",
+            FilterMatch::Equals,
+            FilterSelection::Include,
+        )])
+        .unwrap();
+    assert!(table.visible_source_indices().is_empty());
+    assert!(!table.all_visible_checked());
+    table.set_all_visible_checked(false);
+    assert!(table.rows().iter().all(|row| row.checked));
+}
+
+#[test]
 fn rows_can_be_inserted_at_any_valid_position_and_keep_selection_identity() {
     let mut table = model();
     table.select_source_row(Some(2)).unwrap();
@@ -228,6 +281,38 @@ fn checked_state_belongs_to_the_source_row_and_survives_filtering() {
     let rows = table.visible_rows();
     assert_eq!(rows[1].source_index, 2);
     assert!(rows[1].checked);
+}
+
+#[test]
+fn generic_table_exposes_extended_behavior_without_changing_row_structures() {
+    let source = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/ui/components/generic-table.slint"
+    ))
+    .unwrap();
+
+    assert!(!source.contains("text: \"✓\""));
+    assert!(source.contains("component TableCheckMark inherits Path"));
+    assert!(source.contains("check-all-toggled(checked: bool)"));
+    assert!(source.contains("resizable-columns: false"));
+    assert!(source.contains("column-widths: []"));
+    assert!(source.contains("column-visibility: []"));
+    assert!(source.contains("ContextMenuArea"));
+    assert!(source.contains("MenuSeparator"));
+    assert!(source.contains("progress-column: -1"));
+    assert!(source.contains("progress-values: []"));
+    assert!(source.contains("progress-color: Theme.accent"));
+    assert!(source.contains("progress-values.length == root.row-count"));
+    assert!(source.contains("min(max(root.progress-values[root.row-index], 0), 100)"));
+    assert!(source.contains("table-max-height: 0px"));
+    assert!(source.contains("ScrollBarPolicy.as-needed"));
+    assert!(source.contains("visibility-reset-epoch"));
+    assert!(source.contains("width-reset-epoch"));
+
+    let column_struct = source.split("export struct TableColumn {").nth(1).unwrap();
+    let row_struct = source.split("export struct TableRow {").nth(1).unwrap();
+    assert_eq!(column_struct.split('}').next().unwrap().matches(',').count(), 5);
+    assert_eq!(row_struct.split('}').next().unwrap().matches(',').count(), 3);
 }
 
 #[test]
