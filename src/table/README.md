@@ -6,9 +6,12 @@
 
 - 行选择只由左键触发；右键和中键仅发送各自的点击回调；
 - 所有行回调都携带过滤前的 `source_index`；
+- 勾选列启用时，表头勾选框只批量操作当前展示行；
+- 勾选标记使用几何路径，不依赖 UI 字体中的特殊符号；
 - 列可以覆盖主题默认字体，适合为格式 ID 和编码列使用等宽字体；
 - `replace_rows` / `set_rows` 可以原子替换结果集合；
-- `Preordered` 策略保证消费者提交的预排序结果不会被二次排序。
+- `Preordered` 策略保证消费者提交的预排序结果不会被二次排序；
+- 列宽覆盖、列显隐和表格滚动状态只存在于组件会话内存，不写入配置数据库。
 
 ## 一、模块结构
 
@@ -146,6 +149,16 @@ assert!(table.rows()[0].checked);
 
 清除选择使用 `table.select_source_row(None)?`。选择和勾选都使用原始行索引，不使用过滤或排序后的显示位置。
 
+表头全选只作用于当前过滤后的展示行：
+
+```rust
+let visible_indices = table.visible_source_indices();
+let is_all_checked = table.all_visible_checked();
+table.set_all_visible_checked(!is_all_checked);
+```
+
+空展示集的 `all_visible_checked()` 为 `false`。被过滤隐藏的行不会被批量勾选修改；在 `Preordered` 策略下也遵循同样规则。表头采用二态显示：只有所有展示行都已勾选时显示勾选标记，任意展示行未勾选时显示未勾选。
+
 ### 3.5 排序
 
 排序只作用于 `visible_rows()` 的输出顺序，不重排 `TableModel::rows()`：
@@ -246,10 +259,17 @@ for row in visible_rows {
 
 ```slint
 import { GenericTable, TableColumn, TableRow, TableSortDirection } from "../components/generic-table.slint";
+import { Theme } from "../design/theme.slint";
 
 export component ExampleTable inherits Rectangle {
     in property <[TableColumn]> table-columns: [];
     in property <[TableRow]> table-rows: [];
+    in property <[length]> table-column-widths: [];
+    in property <[bool]> table-column-visibility: [];
+    in property <[int]> table-progress-values: [];
+    in property <string> reset-widths-label: "";
+    in property <string> reset-titles-label: "";
+    in property <string> show-columns-label: "";
     in property <int> selected-source-row: -1;
 
     callback sort-requested(int, TableSortDirection);
@@ -258,10 +278,24 @@ export component ExampleTable inherits Rectangle {
     callback row-right-clicked(int);
     callback row-middle-clicked(int);
     callback row-check-toggled(int, bool);
+    callback check-all-toggled(bool);
+    callback column-visibility-toggled(int, bool);
+    callback column-resized(int, length);
 
     GenericTable {
         columns: root.table-columns;
         rows: root.table-rows;
+        column-widths: root.table-column-widths;
+        column-visibility: root.table-column-visibility;
+        resizable-columns: true;
+        column-hiding-enabled: true;
+        table-max-height: 320px;
+        progress-column: 2;
+        progress-values: root.table-progress-values;
+        progress-color: Theme.accent;
+        menu-reset-widths-label: root.reset-widths-label;
+        menu-reset-titles-label: root.reset-titles-label;
+        menu-show-columns-label: root.show-columns-label;
         rows-selectable: true;
         show-check-column: true;
         selected-source-row: root.selected-source-row;
@@ -278,7 +312,11 @@ export component ExampleTable inherits Rectangle {
         check-toggled(source-row, checked) => {
             root.row-check-toggled(source-row, checked);
         }
-    }
+        check-all-toggled(checked) => { root.check-all-toggled(checked); }
+        column-visibility-toggled(column, visible) => {
+            root.column-visibility-toggled(column, visible);
+        }
+        column-resized(column, width) => { root.column-resized(column, width); }    }
 }
 ```
 
@@ -287,12 +325,23 @@ export component ExampleTable inherits Rectangle {
 | 属性 | 默认值 | 作用 |
 | --- | --- | --- |
 | `columns` | `[]` | 标题列描述 |
-| `rows` | `[]` | 当前应显示的行快照 |
 | `TableColumn.font-family` | `""` | 列字体；为空时跟随主题 UI 字体 |
+| `rows` | `[]` | 当前展示的行快照；其顺序决定进度数组的对应顺序 |
+| `column-widths` | `[]` | 与列同长度的内存宽度数组；`0px` 使用 `width-weight` 默认布局 |
+| `column-visibility` | `[]` | 与列同长度的内存可见数组；空数组表示全部显示 |
+| `resizable-columns` | `false` | 是否允许拖动标题列右侧分隔线；需要同时提供 `column-widths` |
+| `column-hiding-enabled` | `false` | 是否启用标题栏右键菜单；需要同时提供 `column-visibility` |
+| `table-max-height` | `0px` | 表格最大高度；大于零时表头固定、数据区显示纵向滚动条 |
+| `progress-column` | `-1` | 进度列索引；负值表示不显示进度覆盖 |
+| `progress-values` | `[]` | 与当前展示行同序的 0-100 进度值数组 |
+| `progress-color` | `Theme.accent` | 进度覆盖色，默认颜色自动适配浅色/深色主题 |
+| `menu-reset-widths-label` | `""` | 重置默认标题栏宽度菜单文案 |
+| `menu-reset-titles-label` | `""` | 重置默认标题菜单文案；行为是恢复全部标题显示，不修改标题文本 |
+| `menu-show-columns-label` | `""` | 显示/隐藏标题子菜单文案 |
 | `rows-selectable` | `false` | 是否响应行选择和鼠标按钮回调 |
-| `show-check-column` | `false` | 是否显示最前方勾选列 |
+| `show-check-column` | `false` | 是否显示最前方勾选列和表头全选框 |
 | `selected-source-row` | `-1` | 当前选中的原始行号 |
-| `intrinsic-height` | 自动计算 | 表头加所有显示行的真实高度 |
+| `intrinsic-height` | 自动计算 | 表头加数据区高度，受 `table-max-height` 封顶 |
 
 鼠标回调语义：
 
@@ -306,7 +355,11 @@ export component ExampleTable inherits Rectangle {
 
 右键和中键不会隐式改变 `selected-source-row`。使用方如果希望右键菜单主动选择行，应在自己的 `right-clicked` 回调中显式处理。所有这些回调的行参数均为过滤前的 `source-index`。
 
-组件不会自行改变业务数据顺序。标题点击后通过 `sort-requested` 通知使用方，使用方应调用 `TableModel::toggle_sort` 或 `sort_by`，再把新的 `visible_rows()` 快照传回 Slint。
+`column-widths` 和 `column-visibility` 是组件的 `in-out` 内存数组。需要开启对应功能时，使用方应传入与 `columns` 同长度的 `VecModel`/Slint 数组：宽度数组使用 `0px` 表示未覆盖，显隐数组使用 `true` 表示显示。两者均不写入 SQLite；空数组分别表示使用默认权重和全部显示。
+
+`progress-values` 必须与当前传入的展示行 `rows` 同序、同长度，组件只在长度一致时绘制覆盖。进度值会在组件内部限制到 `0..100`，同时保留 `cells` 中的百分比文本。
+
+“重置默认标题”不会修改标题文字，只将所有列恢复为显示状态；“重置默认标题栏宽度”会将所有列恢复为 `width-weight` 默认布局。
 
 ## 五、Rust 与 Slint 数据转换
 
