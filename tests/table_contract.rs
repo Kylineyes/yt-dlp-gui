@@ -309,7 +309,7 @@ fn generic_table_exposes_extended_behavior_without_changing_row_structures() {
     assert!(source.contains("progress-values.length == root.row-count"));
     assert!(source.contains("min(max(root.progress-values[root.row-index], 0), 100)"));
     assert!(source.contains("table-max-height: 0px"));
-    assert!(source.contains("ScrollBarPolicy.as-needed"));
+    assert!(source.contains("ScrollBarPolicy.always-on"));
     assert!(source.contains("visibility-reset-epoch"));
     assert!(source.contains("width-reset-epoch"));
 
@@ -420,6 +420,43 @@ fn checkbox_hit_area_covers_the_visual_control() {
     assert!(checkbox.contains("width: parent.width;"));
     assert!(checkbox.contains("height: parent.height;"));
     assert!(checkbox.contains("clicked => { root.toggled(); }"));
+}
+
+#[test]
+fn progress_fill_is_anchored_to_the_cell_and_scales_from_zero_to_full_width() {
+    let source = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/ui/components/generic-table.slint"
+    ))
+    .unwrap();
+    let progress_start = source
+        .find("if root.progress-column == column-index && root.progress-values.length == root.row-count : Rectangle {")
+        .unwrap();
+    let progress_end = source[progress_start..]
+        .find("\n            }\n\n            Text {")
+        .unwrap()
+        + progress_start;
+    let progress = &source[progress_start..progress_end];
+    let cell_loop = source
+        .find("for cell[column-index] in root.data-row.cells : Rectangle {")
+        .unwrap();
+    let text = source[progress_end..].find("\n            Text {").unwrap() + progress_end;
+
+    assert!(cell_loop < progress_start);
+    assert!(progress_start < text);
+    assert!(progress.contains("x: 0px;"));
+    assert!(progress.contains("y: 0px;"));
+    assert!(
+        progress.contains("width: parent.width * (min(max(root.progress-values[root.row-index], 0), 100) / 100.0);")
+    );
+    assert!(source.contains("visible: root.columns.length > column-index &&"));
+    assert_eq!(source.matches("progress-column: root.progress-column;").count(), 2);
+
+    let cell_width = 200.0_f32;
+    let fill_width = |progress: i32| cell_width * (progress.clamp(0, 100) as f32 / 100.0);
+    assert_eq!(fill_width(0), 0.0);
+    assert_eq!(fill_width(41), 82.0);
+    assert_eq!(fill_width(100), cell_width);
 }
 
 #[test]

@@ -223,6 +223,8 @@ component TableDataRow inherits Rectangle {
             clip: true;
 
             if root.progress-column == column-index && root.progress-values.length == root.row-count : Rectangle {
+                x: 0px;
+                y: 0px;
                 width: parent.width * (min(max(root.progress-values[root.row-index], 0), 100) / 100.0);
                 height: parent.height;
                 background: root.progress-color.transparentize(0.65);
@@ -442,7 +444,7 @@ export component GenericTable inherits Rectangle {
             height: min(root.limited-body-height, root.rows-total-height);
             viewport-width: root.body-width;
             viewport-height: root.rows-total-height;
-            vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+            vertical-scrollbar-policy: ScrollBarPolicy.always-on;
             horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
             VerticalLayout {
                 width: root.body-width;
