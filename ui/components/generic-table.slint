@@ -94,11 +94,12 @@ component TableHeaderColumn inherits Rectangle {
     callback sort-clicked();
     callback width-changed(width: length);
 
-    visible: root.column-visibility.length == 0 || root.column-visibility.length <= root.column-index || root.column-visibility[root.column-index];
-    preferred-width: root.current-width > 0px ? root.current-width : Theme.control-min-height * 3;
-    min-width: root.current-width > 0px ? root.current-width : Theme.control-min-height * 3;
-    max-width: root.current-width > 0px ? root.current-width : 100000px;
-    horizontal-stretch: root.current-width > 0px ? 0 : max(root.width-weight, 1.0);
+    private property <bool> column-visible: root.column-visibility.length == 0 || root.column-visibility.length <= root.column-index || root.column-visibility[root.column-index];
+    visible: root.column-visible;
+    preferred-width: root.column-visible ? (root.current-width > 0px ? root.current-width : Theme.control-min-height * 3) : 0px;
+    min-width: root.column-visible ? (root.current-width > 0px ? root.current-width : Theme.control-min-height * 3) : 0px;
+    max-width: root.column-visible ? (root.current-width > 0px ? root.current-width : 100000px) : 0px;
+    horizontal-stretch: root.column-visible && root.current-width <= 0px ? max(root.width-weight, 1.0) : 0;
     height: 100%;
     background: Theme.surface-elevated;
 
@@ -215,10 +216,10 @@ component TableDataRow inherits Rectangle {
 
         for cell[column-index] in root.data-row.cells : Rectangle {
             visible: root.columns.length > column-index && (root.column-visibility.length == 0 || root.column-visibility.length <= column-index || root.column-visibility[column-index]);
-            preferred-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3;
-            min-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3;
-            max-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : 100000px;
-            horizontal-stretch: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? 0 : max(root.columns[column-index].width-weight, 1.0);
+            preferred-width: self.visible ? (root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3) : 0px;
+            min-width: self.visible ? (root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3) : 0px;
+            max-width: self.visible ? (root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : 100000px) : 0px;
+            horizontal-stretch: self.visible && !(root.column-widths.length > column-index && root.column-widths[column-index] > 0px) ? max(root.columns[column-index].width-weight, 1.0) : 0;
             height: parent.height;
             clip: true;
 
