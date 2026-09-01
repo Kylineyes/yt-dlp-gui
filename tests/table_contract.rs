@@ -376,10 +376,11 @@ fn header_and_rows_share_content_geometry_and_visibility_rules() {
     assert!(source.contains("spacing: Theme.spacing-compact;"));
     assert!(source.contains("if root.show-check-column : Rectangle"));
     assert!(source.contains("if root.show-check-column : TableCheckBox"));
-    assert!(source
-        .contains("preferred-width: root.current-width > 0px ? root.current-width : Theme.control-min-height * 3;"));
     assert!(source.contains(
-        "preferred-width: root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3;"
+        "preferred-width: root.column-visible ? (root.current-width > 0px ? root.current-width : Theme.control-min-height * 3) : 0px;"
+    ));
+    assert!(source.contains(
+        "preferred-width: self.visible ? (root.column-widths.length > column-index && root.column-widths[column-index] > 0px ? root.column-widths[column-index] : Theme.control-min-height * 3) : 0px;"
     ));
     assert!(
         source
@@ -400,6 +401,38 @@ fn header_and_rows_share_content_geometry_and_visibility_rules() {
         1
     );
     assert_eq!(source.matches("max(root.width-weight, 1.0)").count(), 1);
+}
+
+#[test]
+fn hidden_columns_are_removed_from_header_and_row_layouts() {
+    let source = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/ui/components/generic-table.slint"
+    ))
+    .unwrap();
+    let header = source
+        .split("component TableHeaderColumn inherits Rectangle {")
+        .nth(1)
+        .unwrap()
+        .split("component TableDataRow inherits Rectangle {")
+        .next()
+        .unwrap();
+    let data_row = source
+        .split("component TableDataRow inherits Rectangle {")
+        .nth(1)
+        .unwrap()
+        .split("export component GenericTable inherits Rectangle {")
+        .next()
+        .unwrap();
+
+    for property in ["preferred-width", "min-width", "max-width"] {
+        assert!(header.contains(&format!("{property}: root.column-visible ?")));
+        assert!(data_row.contains(&format!("{property}: self.visible ?")));
+    }
+    assert!(header.contains(": 0px;"));
+    assert!(data_row.contains(": 0px;"));
+    assert!(header.contains("horizontal-stretch: root.column-visible &&"));
+    assert!(data_row.contains("horizontal-stretch: self.visible &&"));
 }
 
 #[test]
