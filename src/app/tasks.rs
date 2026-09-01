@@ -126,6 +126,10 @@ pub fn task_status_text(locale: Locale, status: DownloadTaskStatus) -> &'static 
     I18nCatalog::text(locale, task_status_key(status))
 }
 
+pub fn has_active_tasks(tasks: &[DownloadTask]) -> bool {
+    tasks.iter().any(|task| !task.status.is_terminal())
+}
+
 pub fn format_progress(progress_percent: Option<u8>) -> String {
     progress_percent.map_or_else(String::new, |progress| format!("{progress}%"))
 }

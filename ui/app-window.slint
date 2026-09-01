@@ -90,10 +90,14 @@ export component AppWindow inherits Window {
     callback search-result-sort-requested(int);
 
     in-out property <[TableRow]> tasks-rows: [];
+    in-out property <[int]> tasks-progress-values: [];
+    in-out property <[length]> tasks-column-widths: [0px, 0px, 0px, 0px, 0px, 0px, 0px, 0px];
+    in-out property <[bool]> tasks-column-visibility: [true, true, true, true, true, true, true, true];
     in-out property <int> tasks-sort-column: -1;
     in-out property <int> tasks-sort-direction: 0;
     callback tasks-sort-requested(int, int);
     callback tasks-check-toggled(int, bool);
+    callback tasks-check-all-toggled(bool);
 
     app-shell := AppShell {
         x: 0px;
@@ -170,10 +174,14 @@ export component AppWindow inherits Window {
         tasks-page := TasksPage {
             visible: root.current-route == 3;
             rows: root.tasks-rows;
+            progress-values: root.tasks-progress-values;
+            column-widths <=> root.tasks-column-widths;
+            column-visibility <=> root.tasks-column-visibility;
             sort-column: root.tasks-sort-column;
             sort-direction: root.tasks-sort-direction;
             sort-requested(column, direction) => { root.tasks-sort-requested(column, direction); }
             check-toggled(source-row, checked) => { root.tasks-check-toggled(source-row, checked); }
+            check-all-toggled(checked) => { root.tasks-check-all-toggled(checked); }
         }
     }
 }

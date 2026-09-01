@@ -1,8 +1,8 @@
 use std::fs;
 
 use yt_dlp_gui::app::tasks::{
-    format_eta, format_progress, format_speed, format_task_size, format_timestamp, sorted_task_indices, task_row,
-    task_status_text, task_title, TaskSortColumn, TaskSortDirection,
+    format_eta, format_progress, format_speed, format_task_size, format_timestamp, has_active_tasks,
+    sorted_task_indices, task_row, task_status_text, task_title, TaskSortColumn, TaskSortDirection,
 };
 use yt_dlp_gui::design_system::i18n::Locale;
 use yt_dlp_gui::storage::{DownloadTask, DownloadTaskStatus};
@@ -230,14 +230,18 @@ fn checked_state_can_follow_source_indices_after_sorting() {
     let order = sorted_task_indices(&tasks, Some(TaskSortColumn::Title), TaskSortDirection::Ascending);
 
     assert_eq!(order, vec![1, 0]);
+    let mut checked = vec![false, true];
     let rows = order
         .iter()
         .map(|&index| task_row(&tasks[index], Locale::EnUs))
         .collect::<Vec<_>>();
     assert_eq!(rows[0].cells[0], "Alpha");
     assert_eq!(rows[1].cells[0], "Beta");
-    assert_eq!(order[0], 1);
-    assert_eq!(order[1], 0);
+    assert!(checked[order[0]]);
+    assert!(!checked[order[1]]);
+
+    checked.fill(true);
+    assert!(checked.iter().all(|&value| value));
 }
 
 #[test]
@@ -256,9 +260,39 @@ fn formatting_handles_epoch_and_invalid_values() {
     source.push_str(include_str!("../ui/pages/tasks-page.slint"));
     assert!(source.contains("GenericTable"));
     assert!(source.contains("show-check-column: true"));
+    assert!(source.contains(
+        "private property <length> task-table-max-height: 16 * Theme.control-min-height + 15 * Theme.spacing-compact;"
+    ));
+    assert!(source.contains("table-max-height: root.task-table-max-height"));
+    assert!(source.contains("progress-column: 2"));
+    assert!(source.contains("progress-values: root.progress-values"));
+    assert!(source.contains("column-widths <=> root.column-widths"));
+    assert!(source.contains("column-visibility <=> root.column-visibility"));
+    assert!(source.contains("resizable-columns: true"));
+    assert!(source.contains("column-hiding-enabled: true"));
+    assert!(source.contains("menu-reset-widths-label: I18n.table-reset-widths"));
+    assert!(source.contains("menu-reset-titles-label: I18n.table-reset-titles"));
+    assert!(source.contains("menu-show-columns-label: I18n.table-show-columns"));
+    assert!(source.contains("check-all-toggled(checked)"));
     assert!(!source.contains("Button"));
     assert!(!source.contains("ScrollView"));
     assert!(!source.contains("Flickable"));
+}
+
+#[test]
+fn task_selection_callbacks_forward_check_all_and_keep_source_indices() {
+    let page_source = include_str!("../ui/pages/tasks-page.slint");
+    assert!(page_source.contains("callback check-all-toggled(bool);"));
+    assert!(page_source.contains("root.check-all-toggled(checked);"));
+
+    let app_window_source = include_str!("../ui/app-window.slint");
+    assert!(app_window_source.contains("callback tasks-check-all-toggled(bool);"));
+    assert!(app_window_source.contains("root.tasks-check-all-toggled(checked);"));
+
+    let window_source = include_str!("../src/app/tasks_window.rs");
+    assert!(window_source.contains("ui.on_tasks_check_all_toggled(move |checked|"));
+    assert!(window_source.contains("state.checked.fill(checked);"));
+    assert!(window_source.contains("state.checked.get_mut(source_row)"));
 }
 
 #[test]
@@ -298,4 +332,72 @@ fn task_size_formatter_uses_downloaded_and_total_values() {
         "target",
     );
     assert_eq!(format_task_size(&download), "1.5 MiB / 3.0 MiB");
+}
+
+#[test]
+fn has_active_tasks_returns_true_when_any_task_is_not_terminal() {
+    let active = [
+        DownloadTaskStatus::Pending,
+        DownloadTaskStatus::Preparing,
+        DownloadTaskStatus::Downloading,
+        DownloadTaskStatus::Merging,
+    ];
+    for status in active {
+        let tasks = vec![task(1, Some("video"), status, None, None, None, None, 0, "target")];
+        assert!(has_active_tasks(&tasks), "{status:?} 应为活动状态");
+    }
+}
+
+#[test]
+fn has_active_tasks_returns_false_for_empty_or_all_terminal_lists() {
+    assert!(!has_active_tasks(&[]));
+
+    let terminal = [
+        DownloadTaskStatus::Completed,
+        DownloadTaskStatus::Cancelled,
+        DownloadTaskStatus::Failed,
+    ];
+    let tasks = terminal
+        .into_iter()
+        .enumerate()
+        .map(|(id, status)| task(id as i64, Some("video"), status, None, None, None, None, 0, "target"))
+        .collect::<Vec<_>>();
+    assert!(!has_active_tasks(&tasks));
+
+    let mixed = vec![
+        task(
+            1,
+            Some("done"),
+            DownloadTaskStatus::Completed,
+            None,
+            None,
+            None,
+            None,
+            0,
+            "target",
+        ),
+        task(
+            2,
+            Some("active"),
+            DownloadTaskStatus::Downloading,
+            None,
+            None,
+            None,
+            None,
+            0,
+            "target",
+        ),
+        task(
+            3,
+            Some("failed"),
+            DownloadTaskStatus::Failed,
+            None,
+            None,
+            None,
+            None,
+            0,
+            "target",
+        ),
+    ];
+    assert!(has_active_tasks(&mixed));
 }

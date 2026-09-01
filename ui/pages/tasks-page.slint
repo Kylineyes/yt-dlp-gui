@@ -5,11 +5,17 @@ import { Theme } from "../design/theme.slint";
 export component TasksPage inherits Rectangle {
     callback sort-requested(int, int);
     callback check-toggled(int, bool);
+    callback check-all-toggled(bool);
 
     in property <[TableRow]> rows: [];
+    in-out property <[length]> column-widths: [0px, 0px, 0px, 0px, 0px, 0px, 0px, 0px];
+    in-out property <[bool]> column-visibility: [true, true, true, true, true, true, true, true];
+    in property <[int]> progress-values: [];
     in property <int> sort-column: -1;
     in property <int> sort-direction: 0;
     out property <length> intrinsic-height: content.preferred-height;
+
+    private property <length> task-table-max-height: 16 * Theme.control-min-height + 15 * Theme.spacing-compact;
 
     private property <TableSortDirection> table-sort-direction: sort-direction == 1 ? TableSortDirection.ascending : sort-direction == 2 ? TableSortDirection.descending : TableSortDirection.unsorted;
     private property <[TableColumn]> task-columns: [
@@ -75,11 +81,24 @@ export component TasksPage inherits Rectangle {
                     rows: root.rows;
                     rows-selectable: false;
                     show-check-column: true;
+                    table-max-height: root.task-table-max-height;
+                    progress-column: 2;
+                    progress-values: root.progress-values;
+                    column-widths <=> root.column-widths;
+                    column-visibility <=> root.column-visibility;
+                    resizable-columns: true;
+                    column-hiding-enabled: true;
+                    menu-reset-widths-label: I18n.table-reset-widths;
+                    menu-reset-titles-label: I18n.table-reset-titles;
+                    menu-show-columns-label: I18n.table-show-columns;
                     sort-requested(column, direction) => {
                         root.sort-requested(column, direction == TableSortDirection.ascending ? 1 : direction == TableSortDirection.descending ? 2 : 0);
                     }
                     check-toggled(source-row, checked) => {
                         root.check-toggled(source-row, checked);
+                    }
+                    check-all-toggled(checked) => {
+                        root.check-all-toggled(checked);
                     }
                 }
                 if root.rows.length == 0 : Text {
