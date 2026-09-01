@@ -1,10 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::time::Duration;
 
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 use super::tasks::{self, TaskSortColumn, TaskSortDirection};
 use super::{AppWindow, TableRow as SlintTableRow};
+use crate::app::contracts::Route;
 use crate::design_system::i18n::Locale;
 use crate::storage::{DownloadTask, DownloadTaskFilter, Storage};
 
@@ -13,6 +15,7 @@ struct TasksState {
     checked: Vec<bool>,
     sort_column: Option<TaskSortColumn>,
     sort_direction: TaskSortDirection,
+    timers: Vec<slint::Timer>,
 }
 
 pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell<Locale>>) -> Rc<dyn Fn()> {
@@ -21,6 +24,7 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
         checked: Vec::new(),
         sort_column: None,
         sort_direction: TaskSortDirection::Reset,
+        timers: Vec::new(),
     }));
 
     let refresh: Rc<dyn Fn()> = {
@@ -32,6 +36,22 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
             reload(&ui, storage, &state, locale.get());
         })
     };
+
+    let poll_state = Rc::clone(&state);
+    let poll_ui = ui.as_weak();
+    let poll_locale = Rc::clone(&locale);
+    let poll_timer = slint::Timer::default();
+    poll_timer.start(slint::TimerMode::Repeated, Duration::from_secs(1), move || {
+        let Some(ui) = poll_ui.upgrade() else { return };
+        if ui.get_current_route() != Route::Tasks.index() {
+            return;
+        }
+        if !tasks::has_active_tasks(&poll_state.borrow().tasks) {
+            return;
+        }
+        reload(&ui, storage, &poll_state, poll_locale.get());
+    });
+    state.borrow_mut().timers.push(poll_timer);
 
     let sort_state = Rc::clone(&state);
     let sort_ui = ui.as_weak();
@@ -50,6 +70,16 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
             state.sort_direction = direction;
             render(&ui, &state, sort_locale.get());
         }
+    });
+
+    let check_state = Rc::clone(&state);
+    let check_ui = ui.as_weak();
+    let check_locale = Rc::clone(&locale);
+    ui.on_tasks_check_all_toggled(move |checked| {
+        let Some(ui) = check_ui.upgrade() else { return };
+        let mut state = check_state.borrow_mut();
+        state.checked.fill(checked);
+        render(&ui, &state, check_locale.get());
     });
 
     let check_state = Rc::clone(&state);
@@ -94,10 +124,12 @@ fn reload(ui: &AppWindow, storage: &'static Storage, state: &Rc<RefCell<TasksSta
 
 fn render(ui: &AppWindow, state: &TasksState, locale: Locale) {
     let order = tasks::sorted_task_indices(&state.tasks, state.sort_column, state.sort_direction);
+    let mut progress_values = Vec::with_capacity(order.len());
     let rows = order
         .into_iter()
         .filter_map(|source_index| {
             let task = state.tasks.get(source_index)?;
+            progress_values.push(i32::from(task.progress_percent.unwrap_or(0)));
             let row = tasks::task_row(task, locale);
             let cells = row.cells.into_iter().map(SharedString::from).collect::<Vec<_>>();
             Some(SlintTableRow {
@@ -109,6 +141,7 @@ fn render(ui: &AppWindow, state: &TasksState, locale: Locale) {
         .collect::<Vec<_>>();
 
     ui.set_tasks_rows(ModelRc::new(VecModel::from(rows)));
+    ui.set_tasks_progress_values(ModelRc::new(VecModel::from(progress_values)));
     ui.set_tasks_sort_column(state.sort_column.map_or(-1, TaskSortColumn::index));
     ui.set_tasks_sort_direction(state.sort_direction.index());
 }
