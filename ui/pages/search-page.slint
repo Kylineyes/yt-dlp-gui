@@ -101,6 +101,8 @@ export component SearchPage inherits Rectangle {
         { title: I18n.search-video-codec, sortable: true, width-weight: 1, font-family: Theme.mono-font-family, sort-direction: sort-column == 6 ? table-sort-direction : TableSortDirection.unsorted },
         { title: I18n.search-audio-codec, sortable: true, width-weight: 1, font-family: Theme.mono-font-family, sort-direction: sort-column == 7 ? table-sort-direction : TableSortDirection.unsorted },
     ];
+    private property <[length]> result-column-widths: [0px, 0px, 0px, 0px, 0px, 0px, 0px, 0px];
+    private property <[bool]> result-column-visibility: [true, true, true, true, true, true, true, true];
     private property <length> button-width: Theme.font-size-body * 8 + 2 * Theme.spacing-medium;
     private property <length> min-editor-width: 240px;
     private property <bool> inline: self.width >= button-width + min-editor-width + Theme.spacing-small;
@@ -229,6 +231,13 @@ export component SearchPage inherits Rectangle {
                     rows: root.results;
                     rows-selectable: true;
                     selected-source-row: root.selected-index;
+                    column-widths: root.result-column-widths;
+                    column-visibility: root.result-column-visibility;
+                    resizable-columns: true;
+                    column-hiding-enabled: true;
+                    menu-reset-widths-label: I18n.table-reset-widths;
+                    menu-reset-titles-label: I18n.table-reset-titles;
+                    menu-show-columns-label: I18n.table-show-columns;
                     sort-requested(column, _) => { root.result-sort-requested(column); }
                     selection-requested(source-row) => { root.result-selected(source-row); }
                 }

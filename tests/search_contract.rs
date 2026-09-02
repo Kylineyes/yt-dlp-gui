@@ -129,6 +129,30 @@ fn failures_map_to_safe_ui_categories() {
     );
 }
 
+#[test]
+fn search_page_uses_session_only_generic_table_column_state() {
+    let source = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/ui/pages/search-page.slint")).unwrap();
+
+    for token in [
+        "GenericTable",
+        "private property <[length]> result-column-widths",
+        "private property <[bool]> result-column-visibility",
+        "column-widths: root.result-column-widths",
+        "column-visibility: root.result-column-visibility",
+        "resizable-columns: true",
+        "column-hiding-enabled: true",
+        "menu-reset-widths-label: I18n.table-reset-widths",
+        "menu-reset-titles-label: I18n.table-reset-titles",
+        "menu-show-columns-label: I18n.table-show-columns",
+    ] {
+        assert!(source.contains(token), "missing {token}");
+    }
+
+    assert!(source.contains("[0px, 0px, 0px, 0px, 0px, 0px, 0px, 0px]"));
+    assert!(source.contains("[true, true, true, true, true, true, true, true]"));
+    assert!(!source.contains("storage"));
+}
+
 fn format(id: Option<&str>, bitrate: Option<f64>, size: Option<u64>, height: Option<u64>) -> MediaFormat {
     MediaFormat {
         format_id: id.map(str::to_owned),

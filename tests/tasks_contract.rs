@@ -323,6 +323,26 @@ fn task_page_uses_the_shared_theme_and_i18n_properties() {
 }
 
 #[test]
+fn task_page_forwards_header_select_all_and_window_wires_the_callback() {
+    let page = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/ui/pages/tasks-page.slint")).unwrap();
+    for token in [
+        "callback check-all-toggled(bool);",
+        "check-all-toggled(checked) =>",
+        "root.check-all-toggled(checked);",
+    ] {
+        assert!(page.contains(token), "missing {token}");
+    }
+
+    let window = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/ui/app-window.slint")).unwrap();
+    for token in [
+        "callback tasks-check-all-toggled(bool);",
+        "check-all-toggled(checked) => { root.tasks-check-all-toggled(checked); }",
+    ] {
+        assert!(window.contains(token), "missing {token}");
+    }
+}
+
+#[test]
 fn task_sort_columns_cover_all_displayed_fields() {
     assert_eq!(TaskSortColumn::ALL.len(), 8);
     for (index, column) in TaskSortColumn::ALL.into_iter().enumerate() {

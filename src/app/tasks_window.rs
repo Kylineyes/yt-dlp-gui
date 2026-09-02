@@ -102,16 +102,6 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
     let check_state = Rc::clone(&state);
     let check_ui = ui.as_weak();
     let check_locale = Rc::clone(&locale);
-    ui.on_tasks_check_all_toggled(move |checked| {
-        let Some(ui) = check_ui.upgrade() else { return };
-        let mut state = check_state.borrow_mut();
-        state.checked.fill(checked);
-        render(&ui, &state, check_locale.get());
-    });
-
-    let check_state = Rc::clone(&state);
-    let check_ui = ui.as_weak();
-    let check_locale = Rc::clone(&locale);
     ui.on_tasks_check_toggled(move |source_row, checked| {
         let Ok(source_row) = usize::try_from(source_row) else {
             return;
@@ -150,12 +140,13 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
     let action_state = Rc::clone(&state);
     let action_ui = ui.as_weak();
     let action_refresh = Rc::clone(&refresh);
+    let action_locale = Rc::clone(&locale);
     ui.on_tasks_row_action_requested(move |source_row, action| {
         if action == TASK_ACTION_SELECT_ALL {
             let Some(ui) = action_ui.upgrade() else { return };
             let mut state = action_state.borrow_mut();
             state.checked.fill(true);
-            render(&ui, &state, locale.get());
+            render(&ui, &state, action_locale.get());
             return;
         }
         let Ok(source_row) = usize::try_from(source_row) else {
@@ -186,6 +177,16 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
             }
             _ => {}
         }
+    });
+
+    let check_all_state = Rc::clone(&state);
+    let check_all_ui = ui.as_weak();
+    let check_all_locale = Rc::clone(&locale);
+    ui.on_tasks_check_all_toggled(move |checked| {
+        let Some(ui) = check_all_ui.upgrade() else { return };
+        let mut state = check_all_state.borrow_mut();
+        state.checked.fill(checked);
+        render(&ui, &state, check_all_locale.get());
     });
 
     refresh();
