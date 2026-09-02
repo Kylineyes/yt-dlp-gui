@@ -1,0 +1,60 @@
+name: Windows 标签构建
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: 构建 Windows 产物
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出标签提交
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 校验标签位于 main
+        shell: pwsh
+        run: |
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+          if ($LASTEXITCODE -ne 0) {
+            throw "标签提交不属于 main 分支历史"
+          }
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: 缓存 Cargo 依赖和构建结果
+        uses: Swatinem/rust-cache@v2
+
+      - name: 编译 Release 版本
+        run: cargo build --locked --release
+
+      - name: 打包 Windows 产物
+        shell: pwsh
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          $version = $env:VERSION
+          $packageName = "yt-dlp-gui-windows-$version"
+          $stagingDirectory = "dist\$packageName"
+          New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
+          Copy-Item "target\release\yt-dlp-gui.exe" "$stagingDirectory\yt-dlp-gui.exe"
+          Compress-Archive -Path "$stagingDirectory\yt-dlp-gui.exe" -DestinationPath "dist\$packageName.zip"
+
+      - name: 上传 Windows 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: yt-dlp-gui-windows-${{ github.ref_name }}
+          path: dist/yt-dlp-gui-windows-${{ github.ref_name }}.zip
+          if-no-files-found: error
+          retention-days: 90
