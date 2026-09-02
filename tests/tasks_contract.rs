@@ -65,7 +65,7 @@ fn task_rows_have_the_stable_eight_column_shape() {
     assert_eq!(row.cells[0], "Example video");
     assert_eq!(row.cells[1], "Downloading");
     assert_eq!(row.cells[2], "42%");
-    assert_eq!(row.cells[3], "1.0 MiB / 2.0 MiB");
+    assert_eq!(row.cells[3], "1.0 MiB");
     assert_eq!(row.cells[4], "1.0 MiB/s");
     assert_eq!(row.cells[5], "1:05");
     assert_eq!(row.cells[6], "2023-11-14 22:13:20");
@@ -273,8 +273,18 @@ fn formatting_handles_epoch_and_invalid_values() {
     assert!(source.contains("menu-reset-widths-label: I18n.table-reset-widths"));
     assert!(source.contains("menu-reset-titles-label: I18n.table-reset-titles"));
     assert!(source.contains("menu-show-columns-label: I18n.table-show-columns"));
+    assert!(source.contains("row-context-menu-labels"));
+    assert!(source.contains("I18n.tasks-open-video-path"));
+    assert!(source.contains("I18n.tasks-delete"));
+    assert!(source.contains("I18n.tasks-redownload"));
+    assert!(source.contains("I18n.tasks-open-video-url"));
+    assert!(source.contains("I18n.tasks-select-all"));
+    assert!(source.contains("row-context-menu-action(source-row, action)"));
+    assert!(source.contains("rows-selectable: true"));
+    assert!(source.contains("selected-source-row: root.selected-source-row;"));
+    assert!(source.contains("selection-requested(source-row)"));
     assert!(source.contains("check-all-toggled(checked)"));
-    assert!(!source.contains("Button"));
+    assert!(source.contains("Button"));
     assert!(!source.contains("ScrollView"));
     assert!(!source.contains("Flickable"));
 }
@@ -288,6 +298,9 @@ fn task_selection_callbacks_forward_check_all_and_keep_source_indices() {
     let app_window_source = include_str!("../ui/app-window.slint");
     assert!(app_window_source.contains("callback tasks-check-all-toggled(bool);"));
     assert!(app_window_source.contains("root.tasks-check-all-toggled(checked);"));
+    assert!(app_window_source.contains("tasks-selected-source-row: -1;"));
+    assert!(app_window_source.contains("callback tasks-row-selected(int);"));
+    assert!(app_window_source.contains("root.tasks-row-selected(source-row);"));
 
     let window_source = include_str!("../src/app/tasks_window.rs");
     assert!(window_source.contains("ui.on_tasks_check_all_toggled(move |checked|"));
@@ -319,7 +332,7 @@ fn task_sort_columns_cover_all_displayed_fields() {
 }
 
 #[test]
-fn task_size_formatter_uses_downloaded_and_total_values() {
+fn task_size_formatter_uses_downloaded_value() {
     let download = task(
         1,
         Some("video"),
@@ -331,7 +344,7 @@ fn task_size_formatter_uses_downloaded_and_total_values() {
         0,
         "target",
     );
-    assert_eq!(format_task_size(&download), "1.5 MiB / 3.0 MiB");
+    assert_eq!(format_task_size(&download), "1.5 MiB");
 }
 
 #[test]

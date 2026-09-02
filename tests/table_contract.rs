@@ -306,6 +306,8 @@ fn generic_table_exposes_extended_behavior_without_changing_row_structures() {
     assert!(source.contains("progress-column: -1"));
     assert!(source.contains("progress-values: []"));
     assert!(source.contains("progress-color: Theme.accent"));
+    assert!(source.contains("row-context-menu-labels: []"));
+    assert!(source.contains("row-context-menu-action(source-row: int, action: int)"));
     assert!(source.contains("progress-values.length == root.row-count"));
     assert!(source.contains("min(max(root.progress-values[root.row-index], 0), 100)"));
     assert!(source.contains("table-max-height: 0px"));
@@ -461,7 +463,8 @@ fn progress_fill_is_anchored_to_the_cell_and_scales_from_zero_to_full_width() {
         env!("CARGO_MANIFEST_DIR"),
         "/ui/components/generic-table.slint"
     ))
-    .unwrap();
+    .unwrap()
+    .replace("\r\n", "\n");
     let progress_start = source
         .find("if root.progress-column == column-index && root.progress-values.length == root.row-count : Rectangle {")
         .unwrap();

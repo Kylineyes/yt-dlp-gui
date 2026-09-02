@@ -186,7 +186,9 @@ component TableDataRow inherits Rectangle {
     in property <int> progress-column;
     in property <[int]> progress-values;
     in property <color> progress-color;
+    in property <[string]> context-menu-labels;
     callback row-clicked(button: PointerEventButton);
+    callback context-menu-action(action: int);
     callback check-toggled(source-row: int, checked: bool);
 
     height: Theme.control-min-height;
@@ -199,6 +201,19 @@ component TableDataRow inherits Rectangle {
         pointer-event(event) => {
             if (event.kind == PointerEventKind.up) {
                 root.row-clicked(event.button);
+            }
+        }
+    }
+
+    if root.context-menu-labels.length > 0 : ContextMenuArea {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        Menu {
+            for label[index] in root.context-menu-labels : MenuItem {
+                title: label;
+                activated => { root.context-menu-action(index); }
             }
         }
     }
@@ -273,6 +288,7 @@ export component GenericTable inherits Rectangle {
     in property <int> progress-column: -1;
     in property <[int]> progress-values: [];
     in property <color> progress-color: Theme.accent;
+    in property <[string]> row-context-menu-labels: [];
     in property <string> menu-reset-widths-label: I18n.table-reset-widths;
     in property <string> menu-reset-titles-label: I18n.table-reset-titles;
     in property <string> menu-show-columns-label: I18n.table-show-columns;
@@ -282,6 +298,7 @@ export component GenericTable inherits Rectangle {
     callback left-clicked(source-row: int);
     callback right-clicked(source-row: int);
     callback middle-clicked(source-row: int);
+    callback row-context-menu-action(source-row: int, action: int);
     callback check-toggled(source-row: int, checked: bool);
     callback check-all-toggled(checked: bool);
     callback column-visibility-toggled(column: int, visible: bool);
@@ -462,7 +479,9 @@ export component GenericTable inherits Rectangle {
                     progress-column: root.progress-column;
                     progress-values: root.progress-values;
                     progress-color: root.progress-color;
+                    context-menu-labels: root.row-context-menu-labels;
                     row-clicked(button) => { root.dispatch-pointer(row, button); }
+                    context-menu-action(action) => { root.row-context-menu-action(row.source-index, action); }
                     check-toggled(source-row, checked) => { root.check-toggled(source-row, checked); }
                 }
             }
@@ -481,7 +500,9 @@ export component GenericTable inherits Rectangle {
                 progress-column: root.progress-column;
                 progress-values: root.progress-values;
                 progress-color: root.progress-color;
+                context-menu-labels: root.row-context-menu-labels;
                 row-clicked(button) => { root.dispatch-pointer(row, button); }
+                context-menu-action(action) => { root.row-context-menu-action(row.source-index, action); }
                 check-toggled(source-row, checked) => { root.check-toggled(source-row, checked); }
             }
         }

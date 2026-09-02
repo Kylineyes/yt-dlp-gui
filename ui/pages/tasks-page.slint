@@ -1,16 +1,21 @@
+import { Button } from "std-widgets.slint";
 import { GenericTable, TableColumn, TableRow, TableSortDirection } from "../components/generic-table.slint";
 import { I18n } from "../design/i18n.slint";
 import { Theme } from "../design/theme.slint";
 
 export component TasksPage inherits Rectangle {
     callback sort-requested(int, int);
+    callback row-selected(int);
     callback check-toggled(int, bool);
     callback check-all-toggled(bool);
+    callback delete-selected-requested();
+    callback row-action-requested(int, int);
 
     in property <[TableRow]> rows: [];
     in-out property <[length]> column-widths: [0px, 0px, 0px, 0px, 0px, 0px, 0px, 0px];
     in-out property <[bool]> column-visibility: [true, true, true, true, true, true, true, true];
     in property <[int]> progress-values: [];
+    in property <int> selected-source-row: -1;
     in property <int> sort-column: -1;
     in property <int> sort-direction: 0;
     out property <length> intrinsic-height: content.preferred-height;
@@ -18,6 +23,7 @@ export component TasksPage inherits Rectangle {
     private property <length> task-table-max-height: 16 * Theme.control-min-height + 15 * Theme.spacing-compact;
 
     private property <TableSortDirection> table-sort-direction: sort-direction == 1 ? TableSortDirection.ascending : sort-direction == 2 ? TableSortDirection.descending : TableSortDirection.unsorted;
+    private property <bool> has-checked-rows: rows.length > 0 && checked-rows.preferred-height > 0px;
     private property <[TableColumn]> task-columns: [
         { title: I18n.tasks-column-title, sortable: true, width-weight: 3, font-family: "", sort-direction: sort-column == 0 ? table-sort-direction : TableSortDirection.unsorted },
         { title: I18n.tasks-column-status, sortable: true, width-weight: 1, font-family: "", sort-direction: sort-column == 1 ? table-sort-direction : TableSortDirection.unsorted },
@@ -28,6 +34,19 @@ export component TasksPage inherits Rectangle {
         { title: I18n.tasks-column-updated-at, sortable: true, width-weight: 2, font-family: Theme.mono-font-family, sort-direction: sort-column == 6 ? table-sort-direction : TableSortDirection.unsorted },
         { title: I18n.tasks-column-target-path, sortable: true, width-weight: 3, font-family: Theme.mono-font-family, sort-direction: sort-column == 7 ? table-sort-direction : TableSortDirection.unsorted },
     ];
+
+    checked-rows := VerticalLayout {
+        x: 0px;
+        y: 0px;
+        width: 0px;
+        height: 0px;
+        opacity: 0;
+        spacing: 0px;
+        for row in root.rows : Rectangle {
+            width: 0px;
+            height: row.checked ? Theme.border-width-default : 0px;
+        }
+    }
 
     height: content.preferred-height;
     background: transparent;
@@ -76,10 +95,21 @@ export component TasksPage inherits Rectangle {
                     height: Theme.title-line-box;
                     vertical-alignment: center;
                 }
+                HorizontalLayout {
+                    height: Theme.control-min-height;
+                    spacing: Theme.spacing-medium;
+                    Button {
+                        text: I18n.tasks-delete-selected;
+                        enabled: root.has-checked-rows;
+                        clicked => { root.delete-selected-requested(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                }
                 GenericTable {
                     columns: root.task-columns;
                     rows: root.rows;
-                    rows-selectable: false;
+                    rows-selectable: true;
+                    selected-source-row: root.selected-source-row;
                     show-check-column: true;
                     table-max-height: root.task-table-max-height;
                     progress-column: 2;
@@ -88,11 +118,24 @@ export component TasksPage inherits Rectangle {
                     column-visibility <=> root.column-visibility;
                     resizable-columns: true;
                     column-hiding-enabled: true;
+                    row-context-menu-labels: [
+                        I18n.tasks-open-video-path,
+                        I18n.tasks-delete,
+                        I18n.tasks-redownload,
+                        I18n.tasks-open-video-url,
+                        I18n.tasks-select-all,
+                    ];
                     menu-reset-widths-label: I18n.table-reset-widths;
                     menu-reset-titles-label: I18n.table-reset-titles;
                     menu-show-columns-label: I18n.table-show-columns;
                     sort-requested(column, direction) => {
                         root.sort-requested(column, direction == TableSortDirection.ascending ? 1 : direction == TableSortDirection.descending ? 2 : 0);
+                    }
+                    selection-requested(source-row) => {
+                        root.row-selected(source-row);
+                    }
+                    row-context-menu-action(source-row, action) => {
+                        root.row-action-requested(source-row, action);
                     }
                     check-toggled(source-row, checked) => {
                         root.check-toggled(source-row, checked);
