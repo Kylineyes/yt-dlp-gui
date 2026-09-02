@@ -174,6 +174,12 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
         TextKey::TasksColumnUpdatedAt,
         TextKey::TasksColumnTargetPath,
         TextKey::TasksNoTasks,
+        TextKey::TasksDeleteSelected,
+        TextKey::TasksOpenVideoPath,
+        TextKey::TasksDelete,
+        TextKey::TasksRedownload,
+        TextKey::TasksOpenVideoUrl,
+        TextKey::TasksSelectAll,
         TextKey::TasksStatusPending,
         TextKey::TasksStatusPreparing,
         TextKey::TasksStatusDownloading,
@@ -220,6 +226,33 @@ fn tasks_status_copy_matches_the_stable_bilingual_contract() {
     }
 }
 
+#[test]
+fn tasks_action_copy_matches_the_stable_bilingual_contract() {
+    assert_eq!(
+        I18nCatalog::text(Locale::ZhCn, TextKey::TasksDeleteSelected),
+        "删除选中"
+    );
+    assert_eq!(
+        I18nCatalog::text(Locale::EnUs, TextKey::TasksDeleteSelected),
+        "Delete selected"
+    );
+    let actions = [
+        (TextKey::TasksOpenVideoPath, "打开视频存放路径", "Open video location"),
+        (TextKey::TasksDelete, "删除此条任务", "Delete this task"),
+        (TextKey::TasksRedownload, "重新下载", "Redownload"),
+        (TextKey::TasksOpenVideoUrl, "打开视频链接", "Open video URL"),
+        (TextKey::TasksSelectAll, "全选所有视频", "Select all videos"),
+    ];
+    for (key, zh_cn, en_us) in actions {
+        assert_eq!(I18nCatalog::text(Locale::ZhCn, key), zh_cn);
+        assert_eq!(I18nCatalog::text(Locale::EnUs, key), en_us);
+    }
+    assert_eq!(I18nCatalog::text(Locale::ZhCn, TextKey::TasksColumnEta), "预计剩余时间");
+    assert_eq!(
+        I18nCatalog::text(Locale::EnUs, TextKey::TasksColumnEta),
+        "Estimated time remaining"
+    );
+}
 #[test]
 fn table_menu_copy_matches_the_stable_bilingual_contract() {
     let copy = [

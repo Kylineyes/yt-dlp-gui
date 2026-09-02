@@ -231,6 +231,11 @@ impl Storage {
         database::list_download_tasks(&connection, filter)
     }
 
+    /// 按任务 ID 批量删除下载记录及其关联流记录；不会删除本地文件。
+    pub fn delete_download_tasks(&self, ids: &[i64]) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::delete_download_tasks(&mut connection, ids)
+    }
     /// 按状态机规则更新任务状态，并记录生命周期时间戳。
     pub fn update_download_status(&self, id: i64, status: DownloadTaskStatus, now: i64) -> Result<(), StorageError> {
         let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;

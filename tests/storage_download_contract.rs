@@ -412,6 +412,19 @@ fn assert_stream_not_found(result: Result<(), StorageError>, expected_id: i64) {
 }
 
 #[test]
+fn public_task_delete_removes_records_without_deleting_local_file() {
+    let storage = public_storage();
+    let (task_id, _) = create_public_stream();
+    let local_file = std::env::temp_dir().join(format!("yt-dlp-gui-task-delete-{}", task_id));
+    fs::write(&local_file, b"fixture").unwrap();
+
+    storage.delete_download_tasks(&[task_id]).unwrap();
+
+    assert!(storage.get_download_task(task_id).unwrap().is_none());
+    assert!(local_file.is_file());
+    fs::remove_file(local_file).unwrap();
+}
+#[test]
 fn public_stream_api_tracks_normal_lifecycle_timestamps() {
     let storage = public_storage();
     let (task_id, stream_id) = create_public_stream();

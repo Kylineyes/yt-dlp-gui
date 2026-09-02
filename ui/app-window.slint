@@ -93,11 +93,15 @@ export component AppWindow inherits Window {
     in-out property <[int]> tasks-progress-values: [];
     in-out property <[length]> tasks-column-widths: [0px, 0px, 0px, 0px, 0px, 0px, 0px, 0px];
     in-out property <[bool]> tasks-column-visibility: [true, true, true, true, true, true, true, true];
+    in-out property <int> tasks-selected-source-row: -1;
     in-out property <int> tasks-sort-column: -1;
     in-out property <int> tasks-sort-direction: 0;
     callback tasks-sort-requested(int, int);
+    callback tasks-row-selected(int);
     callback tasks-check-toggled(int, bool);
     callback tasks-check-all-toggled(bool);
+    callback tasks-delete-selected-requested();
+    callback tasks-row-action-requested(int, int);
 
     app-shell := AppShell {
         x: 0px;
@@ -177,11 +181,15 @@ export component AppWindow inherits Window {
             progress-values: root.tasks-progress-values;
             column-widths <=> root.tasks-column-widths;
             column-visibility <=> root.tasks-column-visibility;
+            selected-source-row: root.tasks-selected-source-row;
             sort-column: root.tasks-sort-column;
             sort-direction: root.tasks-sort-direction;
             sort-requested(column, direction) => { root.tasks-sort-requested(column, direction); }
+            row-selected(source-row) => { root.tasks-row-selected(source-row); }
             check-toggled(source-row, checked) => { root.tasks-check-toggled(source-row, checked); }
             check-all-toggled(checked) => { root.tasks-check-all-toggled(checked); }
+            delete-selected-requested => { root.tasks-delete-selected-requested(); }
+            row-action-requested(source-row, action) => { root.tasks-row-action-requested(source-row, action); }
         }
     }
 }

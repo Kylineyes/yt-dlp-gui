@@ -135,11 +135,7 @@ pub fn format_progress(progress_percent: Option<u8>) -> String {
 }
 
 pub fn format_task_size(task: &DownloadTask) -> String {
-    let total = task.total_bytes.or(task.total_bytes_estimate);
-    match total {
-        Some(total) => format!("{} / {}", format_bytes(task.downloaded_bytes), format_bytes(total)),
-        None => format_bytes(task.downloaded_bytes),
-    }
+    format_bytes(task.downloaded_bytes)
 }
 
 pub fn format_speed(speed_bytes_per_second: Option<i64>) -> String {
@@ -238,9 +234,7 @@ const fn status_rank(status: DownloadTaskStatus) -> u8 {
 }
 
 fn task_size_value(task: &DownloadTask) -> i64 {
-    task.total_bytes
-        .or(task.total_bytes_estimate)
-        .unwrap_or(task.downloaded_bytes)
+    task.downloaded_bytes
 }
 
 fn format_bytes(bytes: i64) -> String {

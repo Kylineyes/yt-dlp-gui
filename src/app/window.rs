@@ -268,6 +268,12 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_tasks_column_updated_at(snapshot.tasks_column_updated_at.into());
     i18n.set_tasks_column_target_path(snapshot.tasks_column_target_path.into());
     i18n.set_tasks_no_tasks(snapshot.tasks_no_tasks.into());
+    i18n.set_tasks_delete_selected(snapshot.tasks_delete_selected.into());
+    i18n.set_tasks_open_video_path(snapshot.tasks_open_video_path.into());
+    i18n.set_tasks_delete(snapshot.tasks_delete.into());
+    i18n.set_tasks_redownload(snapshot.tasks_redownload.into());
+    i18n.set_tasks_open_video_url(snapshot.tasks_open_video_url.into());
+    i18n.set_tasks_select_all(snapshot.tasks_select_all.into());
     i18n.set_tasks_status_pending(snapshot.tasks_status_pending.into());
     i18n.set_tasks_status_preparing(snapshot.tasks_status_preparing.into());
     i18n.set_tasks_status_downloading(snapshot.tasks_status_downloading.into());

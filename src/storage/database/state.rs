@@ -164,6 +164,27 @@ where
     transaction.commit().map_err(StorageError::Write)
 }
 
+pub(crate) fn delete_download_tasks(connection: &mut Connection, ids: &[i64]) -> Result<(), StorageError> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+
+    let transaction = connection.transaction().map_err(StorageError::Write)?;
+    for id in ids {
+        transaction
+            .execute(
+                "
+delete from
+    download_tasks
+where
+    id = ?1
+",
+                [id],
+            )
+            .map_err(StorageError::Write)?;
+    }
+    transaction.commit().map_err(StorageError::Write)
+}
 /// 在事务内按流状态机更新状态和生命周期时间戳。
 pub(crate) fn update_download_stream_status(
     connection: &mut Connection,
