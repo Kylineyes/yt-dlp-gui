@@ -143,6 +143,7 @@ impl I18nCatalog {
             | TextKey::TasksStatusPending
             | TextKey::TasksStatusPreparing
             | TextKey::TasksStatusDownloading
+            | TextKey::TasksStatusPaused
             | TextKey::TasksStatusMerging
             | TextKey::TasksStatusCompleted
             | TextKey::TasksStatusCancelled
