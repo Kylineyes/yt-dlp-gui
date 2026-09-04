@@ -140,6 +140,7 @@ impl I18nCatalog {
             tasks_status_pending: Self::text(locale, TextKey::TasksStatusPending),
             tasks_status_preparing: Self::text(locale, TextKey::TasksStatusPreparing),
             tasks_status_downloading: Self::text(locale, TextKey::TasksStatusDownloading),
+            tasks_status_paused: Self::text(locale, TextKey::TasksStatusPaused),
             tasks_status_merging: Self::text(locale, TextKey::TasksStatusMerging),
             tasks_status_completed: Self::text(locale, TextKey::TasksStatusCompleted),
             tasks_status_cancelled: Self::text(locale, TextKey::TasksStatusCancelled),
