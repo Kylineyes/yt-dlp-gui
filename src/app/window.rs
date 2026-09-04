@@ -27,10 +27,11 @@ pub fn run() -> Result<(), slint::PlatformError> {
         .map(|configuration| RustThemeMode::parse(&configuration.theme))
         .unwrap_or(RustThemeMode::DEFAULT);
     let mode_state = Rc::new(RefCell::new(mode));
+    let system_locale = Locale::system();
     let locale = configuration
         .as_ref()
         .map(|configuration| Locale::parse(&configuration.language))
-        .unwrap_or_else(Locale::system);
+        .unwrap_or(system_locale);
     let locale_state = Rc::new(Cell::new(locale));
     let effective = mode.resolve(system_theme(), dark_theme_available());
 
@@ -88,7 +89,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
         &ui,
         storage,
         configuration.clone(),
-        locale,
+        system_locale,
         Rc::clone(&mode_state),
         Rc::clone(&locale_state),
         apply_theme,

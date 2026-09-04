@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use yt_dlp_gui::app::configure::{find_on_path, validate, ConfigureError, ConfigureField};
+use yt_dlp_gui::design_system::Locale;
 use yt_dlp_gui::storage::EnvironmentConfig;
 
 fn temporary_file(name: &str) -> PathBuf {
@@ -26,7 +27,7 @@ fn valid_configuration(path: &PathBuf) -> EnvironmentConfig {
 
 #[test]
 fn draft_defaults_match_configuration_contract() {
-    let configuration = EnvironmentConfig::draft_default();
+    let configuration = EnvironmentConfig::draft_default(Locale::EnUs);
     assert_eq!(configuration.yt_dlp_path, "");
     assert_eq!(configuration.ffmpeg_path, "");
     assert_eq!(configuration.default_download_path, "");

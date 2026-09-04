@@ -26,15 +26,15 @@ pub struct EnvironmentConfig {
 }
 
 impl EnvironmentConfig {
-    /// 配置页面首次打开时使用的草稿默认值。
-    pub fn draft_default() -> Self {
+    /// 配置页面首次打开时使用指定系统语言构建草稿默认值。
+    pub fn draft_default(locale: Locale) -> Self {
         Self {
             version: super::CONFIG_VERSION.to_string(),
             yt_dlp_path: String::new(),
             ffmpeg_path: String::new(),
             default_download_path: String::new(),
             theme: "system".to_string(),
-            language: Locale::system().as_str().to_owned(),
+            language: locale.as_str().to_owned(),
             concurrent_downloads: 0,
             proxy: String::new(),
             search_timeout_sec: super::DEFAULT_SEARCH_TIMEOUT_SEC,

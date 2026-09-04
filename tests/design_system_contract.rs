@@ -41,17 +41,22 @@ fn theme_values_have_stable_serialization() {
 }
 
 #[test]
-fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
-    assert_eq!(Locale::DEFAULT, Locale::EnUs);
-    assert_eq!(Locale::parse("en-US"), Locale::EnUs);
+fn locale_parse_maps_supported_bcp47_values() {
     assert_eq!(Locale::parse("zh-CN"), Locale::ZhCn);
-    assert_eq!(Locale::parse("zh_CN"), Locale::DEFAULT);
-    assert_eq!(Locale::parse("zh-Hans-HK"), Locale::ZhCn);
     assert_eq!(Locale::parse("zh-Hans"), Locale::ZhCn);
+    assert_eq!(Locale::parse("zh-Hans-HK"), Locale::ZhCn);
+    assert_eq!(Locale::parse("zh-SG"), Locale::ZhCn);
+    assert_eq!(Locale::parse("zh-MY"), Locale::ZhCn);
+    assert_eq!(Locale::parse("en-US"), Locale::EnUs);
     assert_eq!(Locale::parse("zh-TW"), Locale::EnUs);
     assert_eq!(Locale::parse("zh-Hant-HK"), Locale::EnUs);
-    assert_eq!(Locale::parse("ja-JP"), Locale::DEFAULT);
-    assert!(matches!(Locale::system(), Locale::ZhCn | Locale::EnUs));
+    assert_eq!(Locale::parse("ja-JP"), Locale::EnUs);
+    assert_eq!(Locale::parse("zh_CN"), Locale::EnUs);
+}
+
+#[test]
+fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
+    assert_eq!(Locale::DEFAULT, Locale::EnUs);
     assert_eq!(Locale::parse("unknown"), Locale::DEFAULT);
 
     for key in [

@@ -12,12 +12,6 @@ use crate::design_system::i18n::{I18nCatalog, Locale, TextKey};
 use crate::design_system::theme::ThemeMode as RustThemeMode;
 use crate::storage::{EnvironmentConfig, Storage};
 
-fn draft_default(locale: Locale) -> EnvironmentConfig {
-    let mut configuration = EnvironmentConfig::draft_default();
-    configuration.language = locale.as_str().to_owned();
-    configuration
-}
-
 pub(super) fn install(
     ui: &AppWindow,
     storage: &'static Storage,
@@ -28,7 +22,9 @@ pub(super) fn install(
     apply_theme: fn(&AppWindow, RustThemeMode),
     set_i18n: for<'a> fn(&I18n<'a>, Locale),
 ) {
-    let draft = Rc::new(RefCell::new(initial.unwrap_or_else(|| draft_default(default_locale))));
+    let draft = Rc::new(RefCell::new(
+        initial.unwrap_or_else(|| EnvironmentConfig::draft_default(default_locale)),
+    ));
     {
         let draft = draft.borrow();
         ui.set_configure_yt_dlp_path(draft.yt_dlp_path.clone().into());
@@ -160,7 +156,7 @@ pub(super) fn install(
         ui.on_configure_reset_requested(move || {
             reset_guard.set(true);
             ui_weak.upgrade().map(|ui| ui.set_configure_suppress_callbacks(true));
-            let configuration = draft_default(default_locale);
+            let configuration = EnvironmentConfig::draft_default(default_locale);
             *draft.borrow_mut() = configuration.clone();
             validation_timer.borrow_mut().stop();
             *last_error.borrow_mut() = None;
