@@ -1,5 +1,7 @@
 use rusqlite::{Error as SqlError, Row};
 
+use crate::design_system::i18n::Locale;
+
 /// 应用环境配置的内存快照，所有字段与 config 表的唯一记录一一对应。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvironmentConfig {
@@ -32,7 +34,7 @@ impl EnvironmentConfig {
             ffmpeg_path: String::new(),
             default_download_path: String::new(),
             theme: "system".to_string(),
-            language: "en-US".to_string(),
+            language: Locale::system().as_str().to_owned(),
             concurrent_downloads: 0,
             proxy: String::new(),
             search_timeout_sec: super::DEFAULT_SEARCH_TIMEOUT_SEC,
