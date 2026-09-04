@@ -161,7 +161,8 @@ pub(super) fn install(
             validation_timer.borrow_mut().stop();
             *last_error.borrow_mut() = None;
             *mode_state.borrow_mut() = RustThemeMode::parse(&configuration.theme);
-            locale_state.set(Locale::parse(&configuration.language));
+            let locale = Locale::parse(&configuration.language);
+            locale_state.set(locale);
             if let Some(ui) = ui_weak.upgrade() {
                 ui.set_configure_yt_dlp_path(configuration.yt_dlp_path.into());
                 ui.set_configure_ffmpeg_path(configuration.ffmpeg_path.into());
@@ -176,7 +177,7 @@ pub(super) fn install(
                 ui.set_configure_theme(configuration.theme.clone().into());
                 ui.set_configure_theme_index(0);
                 apply_theme(&ui, RustThemeMode::System);
-                set_i18n(&ui.global::<I18n>(), Locale::EnUs);
+                set_i18n(&ui.global::<I18n>(), locale);
                 clear_validation_errors(&ui);
                 ui.set_configure_status("".into());
             }

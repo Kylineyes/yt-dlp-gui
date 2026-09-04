@@ -75,8 +75,12 @@ pub fn run() -> Result<(), slint::PlatformError> {
         if busy_ui.upgrade().is_some_and(|ui| ui.get_search_busy()) {
             return;
         }
+        let previous_route = navigation.current();
         if navigation.navigate_to_index(index) {
             if let Some(ui) = ui_weak.upgrade() {
+                if previous_route == Route::Configure && navigation.current() != Route::Configure {
+                    ui.set_configure_status("".into());
+                }
                 ui.set_current_route(navigation.current().index());
                 if navigation.current() == Route::Tasks {
                     refresh_tasks_on_route();

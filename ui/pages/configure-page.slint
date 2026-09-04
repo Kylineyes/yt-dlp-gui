@@ -2,7 +2,7 @@ import { Button, ComboBox, LineEdit } from "std-widgets.slint";
 import { I18n } from "../design/i18n.slint";
 import { Theme } from "../design/theme.slint";
 
-component Field inherits VerticalLayout {
+component Field inherits Rectangle {
     callback browse-clicked();
     callback auto-clicked();
     callback edited();
@@ -13,35 +13,48 @@ component Field inherits VerticalLayout {
     in property <string> error: "";
     in property <bool> suppress-callbacks: false;
     in-out property <string> value;
-    private property <length> button-width: 2 * (Theme.font-size-body * 8 + 2 * Theme.spacing-medium) + Theme.spacing-small;
+    in property <length> available-width;
+    width: root.available-width;
+    height: content.preferred-height;
+    background: transparent;
+    private property <length> browse-button-width: Theme.font-size-body * 8 + 2 * Theme.spacing-medium;
+    private property <length> auto-button-width: Theme.font-size-body * 5 + 2 * Theme.spacing-medium;
+    private property <length> button-width: browse-button-width + auto-button-width + Theme.spacing-small;
     private property <length> min-editor-width: 240px;
-    // 断点保证输入框保留可读宽度；空间不足时才把操作按钮移到下一行。
-    private property <bool> inline: self.width >= button-width + min-editor-width + Theme.spacing-small;
-    spacing: Theme.spacing-small;
-    Text { text: root.label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
+    private property <bool> inline: root.available-width >= button-width + min-editor-width + Theme.spacing-small;
 
-    if root.inline : HorizontalLayout {
-        height: Theme.control-min-height;
+    content := VerticalLayout {
+        width: parent.width;
+        cross-axis-alignment: stretch;
         spacing: Theme.spacing-small;
-        LineEdit { horizontal-stretch: 1; min-width: root.min-editor-width; height: Theme.control-min-height; text <=> root.value; placeholder-text: root.placeholder; edited => { if (!root.suppress-callbacks) { root.edited(); } } }
-        browse-button := Button { visible: root.browse-label != ""; text: root.browse-label; clicked => { root.browse-clicked(); } }
-        auto-button := Button { visible: root.auto-label != ""; text: root.auto-label; clicked => { root.auto-clicked(); } }
-    }
+        Text { text: root.label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
 
-    if !root.inline : LineEdit {
-        height: Theme.control-min-height;
-        text <=> root.value;
-        placeholder-text: root.placeholder;
-        edited => { if (!root.suppress-callbacks) { root.edited(); } }
+        if root.inline : HorizontalLayout {
+            width: parent.width;
+            height: Theme.control-min-height;
+            spacing: Theme.spacing-small;
+            LineEdit { horizontal-stretch: 1; min-width: root.min-editor-width; height: Theme.control-min-height; text <=> root.value; placeholder-text: root.placeholder; edited => { if (!root.suppress-callbacks) { root.edited(); } } }
+            if root.browse-label != "" : Button { min-width: root.browse-button-width; text: root.browse-label; clicked => { root.browse-clicked(); } }
+            if root.auto-label != "" : Button { min-width: root.auto-button-width; text: root.auto-label; clicked => { root.auto-clicked(); } }
+        }
+
+        if !root.inline : LineEdit {
+            width: parent.width;
+            height: Theme.control-min-height;
+            text <=> root.value;
+            placeholder-text: root.placeholder;
+            edited => { if (!root.suppress-callbacks) { root.edited(); } }
+        }
+        if !root.inline && (root.browse-label != "" || root.auto-label != "") : HorizontalLayout {
+            width: parent.width;
+            height: Theme.control-min-height;
+            spacing: Theme.spacing-small;
+            if root.browse-label != "" : Button { min-width: root.browse-button-width; text: root.browse-label; clicked => { root.browse-clicked(); } }
+            if root.auto-label != "" : Button { min-width: root.auto-button-width; text: root.auto-label; clicked => { root.auto-clicked(); } }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        Text { text: root.error; color: Theme.danger; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: root.error == "" ? 0px : Theme.body-line-box; wrap: word-wrap; }
     }
-    if !root.inline && (root.browse-label != "" || root.auto-label != "") : HorizontalLayout {
-        height: Theme.control-min-height;
-        spacing: Theme.spacing-small;
-        Button { visible: root.browse-label != ""; text: root.browse-label; clicked => { root.browse-clicked(); } }
-        Button { visible: root.auto-label != ""; text: root.auto-label; clicked => { root.auto-clicked(); } }
-        Rectangle { horizontal-stretch: 1; }
-    }
-    Text { text: root.error; color: Theme.danger; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: root.error == "" ? 0px : Theme.body-line-box; wrap: word-wrap; }
 }
 
 export component ConfigurePage inherits Rectangle {
@@ -102,6 +115,27 @@ export component ConfigurePage inherits Rectangle {
             wrap: word-wrap;
         }
 
+        Rectangle {
+            height: program-content.preferred-height + 2 * Theme.spacing-medium;
+            background: Theme.surface-primary;
+            border-width: Theme.border-width-default;
+            border-color: Theme.border-default;
+            border-radius: Theme.corner-radius-medium;
+            program-content := VerticalLayout {
+                cross-axis-alignment: stretch;
+                x: Theme.spacing-medium;
+                y: Theme.spacing-medium;
+                width: parent.width - 2 * Theme.spacing-medium;
+                spacing: Theme.spacing-medium;
+                Text { text: I18n.configure-program-settings; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-title-small; font-weight: FontWeight.bold; height: Theme.title-line-box; }
+                Text { text: I18n.configure-language-label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
+                ComboBox { height: Theme.control-min-height; model: [I18n.configure-language-english, I18n.configure-language-chinese]; current-index <=> root.language-index; enabled: !root.busy; selected(value) => { if (!root.suppress-callbacks) { root.language-index = self.current-index; root.language = value == I18n.configure-language-chinese ? "zh-CN" : "en-US"; root.field-edited("language", root.language); } } }
+                Text { text: I18n.configure-theme-label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
+                ComboBox { height: Theme.control-min-height; model: [I18n.configure-theme-system, I18n.configure-theme-light, I18n.configure-theme-dark]; current-index <=> root.theme-index; enabled: !root.busy; selected(value) => { if (!root.suppress-callbacks) { root.theme-index = self.current-index; root.theme-mode = value == I18n.configure-theme-light ? "light" : value == I18n.configure-theme-dark ? "dark" : "system"; root.field-edited("theme", root.theme-mode); } } }
+                Text { text: root.option-error; color: Theme.danger; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: root.option-error == "" ? 0px : Theme.body-line-box; wrap: word-wrap; }
+            }
+        }
+
         setting-card := Rectangle {
             height: third-party-content.preferred-height + 2 * Theme.spacing-medium;
             background: Theme.surface-primary;
@@ -109,13 +143,14 @@ export component ConfigurePage inherits Rectangle {
             border-color: Theme.border-default;
             border-radius: Theme.corner-radius-medium;
             third-party-content := VerticalLayout {
+                cross-axis-alignment: stretch;
                 x: Theme.spacing-medium;
                 y: Theme.spacing-medium;
                 width: parent.width - 2 * Theme.spacing-medium;
                 spacing: Theme.spacing-medium;
                 Text { text: I18n.configure-third-party; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-title-small; font-weight: FontWeight.bold; height: Theme.title-line-box; }
-                Field { suppress-callbacks: root.suppress-callbacks; label: I18n.configure-ytdlp-path-label; value <=> root.yt-dlp-path; placeholder: I18n.configure-ytdlp-path-placeholder; error: root.yt-dlp-error; browse-label: I18n.configure-browse-file; auto-label: I18n.configure-auto-find; browse-clicked => { root.browse-ytdlp-requested(); } auto-clicked => { root.auto-find-ytdlp-requested(); } edited => { root.field-edited("yt-dlp-path", self.value); } }
-                Field { suppress-callbacks: root.suppress-callbacks; label: I18n.configure-ffmpeg-path-label; value <=> root.ffmpeg-path; placeholder: I18n.configure-ffmpeg-path-placeholder; error: root.ffmpeg-error; browse-label: I18n.configure-browse-file; auto-label: I18n.configure-auto-find; browse-clicked => { root.browse-ffmpeg-requested(); } auto-clicked => { root.auto-find-ffmpeg-requested(); } edited => { root.field-edited("ffmpeg-path", self.value); } }
+                Field { available-width: third-party-content.width; suppress-callbacks: root.suppress-callbacks; label: I18n.configure-ytdlp-path-label; value <=> root.yt-dlp-path; placeholder: I18n.configure-ytdlp-path-placeholder; error: root.yt-dlp-error; browse-label: I18n.configure-browse-file; auto-label: I18n.configure-auto-find; browse-clicked => { root.browse-ytdlp-requested(); } auto-clicked => { root.auto-find-ytdlp-requested(); } edited => { root.field-edited("yt-dlp-path", self.value); } }
+                Field { available-width: third-party-content.width; suppress-callbacks: root.suppress-callbacks; label: I18n.configure-ffmpeg-path-label; value <=> root.ffmpeg-path; placeholder: I18n.configure-ffmpeg-path-placeholder; error: root.ffmpeg-error; browse-label: I18n.configure-browse-file; auto-label: I18n.configure-auto-find; browse-clicked => { root.browse-ffmpeg-requested(); } auto-clicked => { root.auto-find-ffmpeg-requested(); } edited => { root.field-edited("ffmpeg-path", self.value); } }
             }
         }
 
@@ -126,13 +161,14 @@ export component ConfigurePage inherits Rectangle {
             border-color: Theme.border-default;
             border-radius: Theme.corner-radius-medium;
             download-content := VerticalLayout {
+                cross-axis-alignment: stretch;
                 x: Theme.spacing-medium;
                 y: Theme.spacing-medium;
                 width: parent.width - 2 * Theme.spacing-medium;
                 spacing: Theme.spacing-medium;
                 Text { text: I18n.configure-download-settings; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-title-small; font-weight: FontWeight.bold; height: Theme.title-line-box; }
-                Field { suppress-callbacks: root.suppress-callbacks; label: I18n.configure-download-path-label; value <=> root.download-path; placeholder: I18n.configure-download-path-placeholder; error: root.download-error; browse-label: I18n.configure-browse-folder; edited => { root.field-edited("download-path", self.value); } browse-clicked => { root.browse-download-requested(); } }
-                Field { suppress-callbacks: root.suppress-callbacks; label: I18n.configure-proxy-label; value <=> root.proxy; placeholder: I18n.configure-proxy-placeholder; error: root.proxy-error; edited => { root.field-edited("proxy", self.value); } }
+                Field { available-width: download-content.width; suppress-callbacks: root.suppress-callbacks; label: I18n.configure-download-path-label; value <=> root.download-path; placeholder: I18n.configure-download-path-placeholder; error: root.download-error; browse-label: I18n.configure-browse-folder; edited => { root.field-edited("download-path", self.value); } browse-clicked => { root.browse-download-requested(); } }
+                Field { available-width: download-content.width; suppress-callbacks: root.suppress-callbacks; label: I18n.configure-proxy-label; value <=> root.proxy; placeholder: I18n.configure-proxy-placeholder; error: root.proxy-error; edited => { root.field-edited("proxy", self.value); } }
                 Text { text: I18n.configure-search-timeout-label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
                 ComboBox {
                     height: Theme.control-min-height;
@@ -147,31 +183,11 @@ export component ConfigurePage inherits Rectangle {
                     height: Theme.control-min-height;
                     model: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"];
                     current-index <=> root.concurrent-index;
-                    enabled: !root.busy;
+                    enabled: false;
                     selected(value) => { if (!root.suppress-callbacks) { root.concurrent-index = self.current-index; root.concurrent-downloads = value; root.field-edited("concurrent-downloads", value); } }
                 }
-                Text { text: root.concurrent-error; color: Theme.danger; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: root.concurrent-error == "" ? 0px : Theme.body-line-box; wrap: word-wrap; }
                 Text { text: I18n.configure-concurrent-help; color: Theme.text-muted; font-family: Theme.ui-font-family; font-size: Theme.font-size-caption; height: Theme.font-size-caption * 1.45; wrap: word-wrap; }
-            }
-        }
-
-        Rectangle {
-            height: program-content.preferred-height + 2 * Theme.spacing-medium;
-            background: Theme.surface-primary;
-            border-width: Theme.border-width-default;
-            border-color: Theme.border-default;
-            border-radius: Theme.corner-radius-medium;
-            program-content := VerticalLayout {
-                x: Theme.spacing-medium;
-                y: Theme.spacing-medium;
-                width: parent.width - 2 * Theme.spacing-medium;
-                spacing: Theme.spacing-medium;
-                Text { text: I18n.configure-program-settings; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-title-small; font-weight: FontWeight.bold; height: Theme.title-line-box; }
-                Text { text: I18n.configure-language-label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
-                ComboBox { height: Theme.control-min-height; model: [I18n.configure-language-english, I18n.configure-language-chinese]; current-index <=> root.language-index; enabled: !root.busy; selected(value) => { if (!root.suppress-callbacks) { root.language-index = self.current-index; root.language = value == I18n.configure-language-chinese ? "zh-CN" : "en-US"; root.field-edited("language", root.language); } } }
-                Text { text: I18n.configure-theme-label; color: Theme.text-primary; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: Theme.body-line-box; }
-                ComboBox { height: Theme.control-min-height; model: [I18n.configure-theme-system, I18n.configure-theme-light, I18n.configure-theme-dark]; current-index <=> root.theme-index; enabled: !root.busy; selected(value) => { if (!root.suppress-callbacks) { root.theme-index = self.current-index; root.theme-mode = value == I18n.configure-theme-light ? "light" : value == I18n.configure-theme-dark ? "dark" : "system"; root.field-edited("theme", root.theme-mode); } } }
-                Text { text: root.option-error; color: Theme.danger; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: root.option-error == "" ? 0px : Theme.body-line-box; wrap: word-wrap; }
+                Text { text: root.concurrent-error; color: Theme.danger; font-family: Theme.ui-font-family; font-size: Theme.font-size-body; height: root.concurrent-error == "" ? 0px : Theme.body-line-box; wrap: word-wrap; }
             }
         }
 
