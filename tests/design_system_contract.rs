@@ -209,14 +209,14 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
 }
 
 #[test]
-fn concurrent_limit_copy_describes_unlimited_zero() {
+fn concurrent_limit_copy_explains_that_the_feature_is_unavailable() {
     assert_eq!(
         I18nCatalog::text(Locale::ZhCn, TextKey::ConfigureConcurrentHelp),
-        "0 表示无并发限制。"
+        "最大并发功能暂未实现，目前的配置只做存储，请等待后续开发。"
     );
     assert_eq!(
         I18nCatalog::text(Locale::EnUs, TextKey::ConfigureConcurrentHelp),
-        "0 means no concurrency limit."
+        "Maximum concurrent downloads are not implemented yet. The current setting is stored only; please wait for a future update."
     );
 }
 

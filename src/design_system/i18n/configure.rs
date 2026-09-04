@@ -37,7 +37,9 @@ pub(super) const fn text(locale: Locale, key: TextKey) -> &'static str {
         (Locale::ZhCn, TextKey::ConfigureBrowseFile) => "选择 exe 文件",
         (Locale::ZhCn, TextKey::ConfigureBrowseFolder) => "选择文件夹",
         (Locale::ZhCn, TextKey::ConfigureAutoFind) => "自动查找",
-        (Locale::ZhCn, TextKey::ConfigureConcurrentHelp) => "0 表示无并发限制。",
+        (Locale::ZhCn, TextKey::ConfigureConcurrentHelp) => {
+            "最大并发功能暂未实现，目前的配置只做存储，请等待后续开发。"
+        }
         (Locale::ZhCn, TextKey::ConfigureErrorRequired) => "请输入有效路径。",
         (Locale::ZhCn, TextKey::ConfigureErrorWhitespace) => "前后不能包含空格。",
         (Locale::ZhCn, TextKey::ConfigureErrorMissingFile) => "文件不存在。",
@@ -90,7 +92,9 @@ pub(super) const fn text(locale: Locale, key: TextKey) -> &'static str {
         (Locale::EnUs, TextKey::ConfigureBrowseFile) => "Choose exe file",
         (Locale::EnUs, TextKey::ConfigureBrowseFolder) => "Choose folder",
         (Locale::EnUs, TextKey::ConfigureAutoFind) => "Find automatically",
-        (Locale::EnUs, TextKey::ConfigureConcurrentHelp) => "0 means no concurrency limit.",
+        (Locale::EnUs, TextKey::ConfigureConcurrentHelp) => {
+            "Maximum concurrent downloads are not implemented yet. The current setting is stored only; please wait for a future update."
+        }
         (Locale::EnUs, TextKey::ConfigureErrorRequired) => "Enter a valid path.",
         (Locale::EnUs, TextKey::ConfigureErrorWhitespace) => "Leading and trailing spaces are not allowed.",
         (Locale::EnUs, TextKey::ConfigureErrorMissingFile) => "The file does not exist.",
