@@ -6,7 +6,7 @@ pub enum Locale {
 }
 
 impl Locale {
-    /// 未配置语言时默认使用英文。
+    /// 未配置语言或系统语言不受支持时使用英文。
     pub const DEFAULT: Self = Self::EnUs;
 
     /// 返回用于配置和 Slint global 的稳定 locale 标识。
@@ -17,11 +17,37 @@ impl Locale {
         }
     }
 
+    /// 识别当前 Windows 用户语言；非简体中文统一回退到英文。
+    pub fn system() -> Self {
+        #[cfg(windows)]
+        {
+            use windows_sys::Win32::Globalization::GetUserDefaultLocaleName;
+
+            let mut buffer = [0u16; 85];
+            let length = unsafe { GetUserDefaultLocaleName(buffer.as_mut_ptr(), buffer.len() as i32) };
+            if length == 0 {
+                return Self::DEFAULT;
+            }
+            let end = buffer
+                .iter()
+                .position(|character| *character == 0)
+                .unwrap_or(length as usize);
+            return Self::parse(&String::from_utf16_lossy(&buffer[..end]));
+        }
+
+        #[cfg(not(windows))]
+        {
+            Self::DEFAULT
+        }
+    }
+
     /// 解析常见 locale 别名；未知语言统一回退默认语言。
     pub fn parse(value: &str) -> Self {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "en" | "en-us" | "en_us" => Self::EnUs,
-            "zh" | "zh-cn" | "zh_cn" | "zh-hans" => Self::ZhCn,
+        let normalized = value.trim().to_ascii_lowercase();
+        let mut components = normalized.split('-');
+        match (components.next(), components.next()) {
+            (Some("en"), _) => Self::EnUs,
+            (Some("zh"), None | Some("hans" | "cn" | "sg" | "my")) => Self::ZhCn,
             _ => Self::DEFAULT,
         }
     }
