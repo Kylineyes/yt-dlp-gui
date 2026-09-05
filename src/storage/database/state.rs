@@ -11,6 +11,13 @@ pub(crate) fn update_download_status(
     status: DownloadTaskStatus,
     now: i64,
 ) -> Result<(), StorageError> {
+    if now < 0 {
+        return Err(StorageError::InvalidDownloadInput);
+    }
+    if status == DownloadTaskStatus::Paused {
+        return Err(StorageError::InvalidDownloadStatusTransition);
+    }
+
     let transaction = connection.transaction().map_err(StorageError::Write)?;
     let current = transaction
         .query_row(
@@ -29,7 +36,9 @@ where
         .map_err(StorageError::Read)?
         .ok_or(StorageError::DownloadNotFound(id))?;
     let current = DownloadTaskStatus::parse(current)?;
-    if !current.can_transition_to(status) {
+    if !current.can_transition_to(status)
+        || (current == DownloadTaskStatus::Paused && status == DownloadTaskStatus::Preparing)
+    {
         return Err(StorageError::InvalidDownloadStatusTransition);
     }
     let started = matches!(status, DownloadTaskStatus::Downloading).then_some(now);
@@ -51,6 +60,204 @@ where
         )
         .map_err(StorageError::Write)?;
     transaction.commit().map_err(StorageError::Write)
+}
+
+/// 原子暂停准备中或下载中的任务及其所有尚未完成的流。
+pub(crate) fn pause_download_task(connection: &mut Connection, id: i64, now: i64) -> Result<(), StorageError> {
+    if now < 0 {
+        return Err(StorageError::InvalidDownloadInput);
+    }
+
+    let transaction = connection.transaction().map_err(StorageError::Write)?;
+    let current = transaction
+        .query_row(
+            "
+select
+    status
+from
+    download_tasks
+where
+    id = ?1
+",
+            [id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(StorageError::Read)?
+        .ok_or(StorageError::DownloadNotFound(id))?;
+    if !matches!(
+        DownloadTaskStatus::parse(current)?,
+        DownloadTaskStatus::Preparing | DownloadTaskStatus::Downloading
+    ) {
+        return Err(StorageError::InvalidDownloadStatusTransition);
+    }
+
+    transaction
+        .execute(
+            "
+update
+    download_tasks
+set
+    status = 'paused',
+    speed_bytes_per_second = null,
+    elapsed_seconds = null,
+    eta_seconds = null,
+    updated_at = ?1
+where
+    id = ?2
+",
+            params![now, id],
+        )
+        .map_err(StorageError::Write)?;
+    transaction
+        .execute(
+            "
+update
+    download_task_streams
+set
+    status = 'paused',
+    speed_bytes_per_second = null,
+    elapsed_seconds = null,
+    eta_seconds = null,
+    updated_at = ?1
+where
+    task_id = ?2
+    and status in ('pending', 'preparing', 'downloading')
+",
+            params![now, id],
+        )
+        .map_err(StorageError::Write)?;
+    transaction.commit().map_err(StorageError::Write)
+}
+
+/// 原子准备已暂停的任务继续执行，保持累计进度和首次开始时间。
+pub(crate) fn prepare_resumed_download(connection: &mut Connection, id: i64, now: i64) -> Result<(), StorageError> {
+    if now < 0 {
+        return Err(StorageError::InvalidDownloadInput);
+    }
+
+    let transaction = connection.transaction().map_err(StorageError::Write)?;
+    let current = transaction
+        .query_row(
+            "
+select
+    status
+from
+    download_tasks
+where
+    id = ?1
+",
+            [id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(StorageError::Read)?
+        .ok_or(StorageError::DownloadNotFound(id))?;
+    if DownloadTaskStatus::parse(current)? != DownloadTaskStatus::Paused {
+        return Err(StorageError::InvalidDownloadStatusTransition);
+    }
+    super::read::load_download_execution_snapshot(&transaction, id)?
+        .ok_or(StorageError::DownloadExecutionSnapshotMissing(id))?;
+
+    transaction
+        .execute(
+            "
+update
+    download_tasks
+set
+    status = 'preparing',
+    updated_at = ?1
+where
+    id = ?2
+",
+            params![now, id],
+        )
+        .map_err(StorageError::Write)?;
+    transaction
+        .execute(
+            "
+update
+    download_task_streams
+set
+    status = 'preparing',
+    updated_at = ?1
+where
+    task_id = ?2
+    and status = 'paused'
+",
+            params![now, id],
+        )
+        .map_err(StorageError::Write)?;
+    transaction.commit().map_err(StorageError::Write)
+}
+
+/// 将异常中断留下的活动任务统一转换为暂停状态。
+pub(crate) fn recover_interrupted_downloads(connection: &mut Connection, now: i64) -> Result<usize, StorageError> {
+    if now < 0 {
+        return Err(StorageError::InvalidDownloadInput);
+    }
+
+    let transaction = connection.transaction().map_err(StorageError::Write)?;
+    let mut statement = transaction
+        .prepare(
+            "
+select
+    id
+from
+    download_tasks
+where
+    status in ('preparing', 'downloading', 'merging')
+order by
+    id
+",
+        )
+        .map_err(StorageError::Read)?;
+    let task_ids = statement
+        .query_map([], |row| row.get::<_, i64>(0))
+        .map_err(StorageError::Read)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(StorageError::Read)?;
+    drop(statement);
+
+    for id in &task_ids {
+        transaction
+            .execute(
+                "
+update
+    download_tasks
+set
+    status = 'paused',
+    speed_bytes_per_second = null,
+    elapsed_seconds = null,
+    eta_seconds = null,
+    updated_at = ?1
+where
+    id = ?2
+",
+                params![now, id],
+            )
+            .map_err(StorageError::Write)?;
+        transaction
+            .execute(
+                "
+update
+    download_task_streams
+set
+    status = 'paused',
+    speed_bytes_per_second = null,
+    elapsed_seconds = null,
+    eta_seconds = null,
+    updated_at = ?1
+where
+    task_id = ?2
+    and status in ('pending', 'preparing', 'downloading', 'merging')
+",
+                params![now, id],
+            )
+            .map_err(StorageError::Write)?;
+    }
+    transaction.commit().map_err(StorageError::Write)?;
+    Ok(task_ids.len())
 }
 
 /// 以完成状态结束任务，并保存最终输出路径。
@@ -195,26 +402,38 @@ pub(crate) fn update_download_stream_status(
     if now < 0 {
         return Err(StorageError::InvalidDownloadInput);
     }
+    if status == DownloadTaskStatus::Paused {
+        return Err(StorageError::InvalidDownloadStatusTransition);
+    }
 
     let transaction = connection.transaction().map_err(StorageError::Write)?;
-    let current = transaction
+    let (current, parent): (String, String) = transaction
         .query_row(
             "
 select
-    status
+    download_task_streams.status,
+    download_tasks.status
 from
     download_task_streams
+join
+    download_tasks on download_tasks.id = download_task_streams.task_id
 where
-    id = ?1
+    download_task_streams.id = ?1
 ",
             [stream_id],
-            |row| row.get::<_, String>(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
         .map_err(StorageError::Read)?
         .ok_or(StorageError::DownloadStreamNotFound(stream_id))?;
+    let parent = DownloadTaskStatus::parse(parent)?;
+    if !parent.can_accept_progress() && !matches!(status, DownloadTaskStatus::Cancelled | DownloadTaskStatus::Failed) {
+        return Err(StorageError::InvalidDownloadStatusTransition);
+    }
     let current = DownloadTaskStatus::parse(current)?;
-    if !current.can_stream_transition_to(status) {
+    if !current.can_stream_transition_to(status)
+        || (current == DownloadTaskStatus::Paused && status == DownloadTaskStatus::Preparing)
+    {
         return Err(StorageError::InvalidDownloadStatusTransition);
     }
 

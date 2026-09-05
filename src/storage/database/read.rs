@@ -1,6 +1,9 @@
 use rusqlite::{params, Connection, OptionalExtension};
 
-use super::super::download::{DownloadTask, DownloadTaskFilter, DownloadTaskStream, DownloadTaskWithStreams};
+use super::super::download::{
+    DownloadExecutionOptions, DownloadExecutionSnapshot, DownloadTask, DownloadTaskFilter, DownloadTaskStream,
+    DownloadTaskWithStreams,
+};
 use super::super::error::StorageError;
 use super::support::{map_stream, map_task, STREAM_SELECT, TASK_SELECT};
 
@@ -81,6 +84,76 @@ pub(crate) fn list_download_tasks(
     }
     .map_err(StorageError::Read)?;
     rows.collect::<Result<Vec<_>, _>>().map_err(StorageError::Read)
+}
+
+pub(crate) fn load_download_execution_snapshot(
+    connection: &Connection,
+    task_id: i64,
+) -> Result<Option<DownloadExecutionSnapshot>, StorageError> {
+    let task_exists: bool = connection
+        .query_row(
+            "
+select
+    exists (
+        select
+            1
+        from
+            download_tasks
+        where
+            id = ?1
+    )
+",
+            [task_id],
+            |row| row.get(0),
+        )
+        .map_err(StorageError::Read)?;
+    if !task_exists {
+        return Err(StorageError::DownloadNotFound(task_id));
+    }
+
+    connection
+        .query_row(
+            "
+select
+    source_url,
+    video_format_id,
+    audio_format_id,
+    output_template,
+    target_directory,
+    temporary_directory,
+    merge_output_format,
+    rate_limit,
+    retries,
+    fragment_retries,
+    file_access_retries,
+    concurrent_fragments
+from
+    download_task_execution_snapshots
+where
+    task_id = ?1
+",
+            [task_id],
+            |row| {
+                Ok(DownloadExecutionSnapshot {
+                    source_url: row.get(0)?,
+                    video_format_id: row.get(1)?,
+                    audio_format_id: row.get(2)?,
+                    output_template: row.get(3)?,
+                    target_directory: row.get(4)?,
+                    temporary_directory: row.get(5)?,
+                    merge_output_format: row.get(6)?,
+                    options: DownloadExecutionOptions {
+                        rate_limit: row.get(7)?,
+                        retries: row.get(8)?,
+                        fragment_retries: row.get(9)?,
+                        file_access_retries: row.get(10)?,
+                        concurrent_fragments: row.get(11)?,
+                    },
+                })
+            },
+        )
+        .optional()
+        .map_err(StorageError::Read)
 }
 
 pub(crate) fn get_download_stream(

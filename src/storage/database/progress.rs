@@ -3,7 +3,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use super::super::download::{DownloadProgress, DownloadTaskStatus};
 use super::super::error::StorageError;
 
-/// 更新任务进度字段，终态任务不允许继续写入进度。
+/// 更新任务进度字段，终态或暂停任务不允许继续写入进度。
 pub(crate) fn update_download_progress(
     connection: &mut Connection,
     id: i64,
@@ -26,7 +26,7 @@ where
         .optional()
         .map_err(StorageError::Read)?
         .ok_or(StorageError::DownloadNotFound(id))?;
-    if DownloadTaskStatus::parse(status)?.is_terminal() {
+    if !DownloadTaskStatus::parse(status)?.can_accept_progress() {
         return Err(StorageError::InvalidDownloadProgress);
     }
     transaction
@@ -69,23 +69,28 @@ pub(crate) fn update_download_stream_progress(
     progress: DownloadProgress,
 ) -> Result<(), StorageError> {
     let transaction = connection.transaction().map_err(StorageError::Write)?;
-    let status: String = transaction
+    let (status, task_status): (String, String) = transaction
         .query_row(
             "
 select
-    status
+    download_task_streams.status,
+    download_tasks.status
 from
     download_task_streams
+join
+    download_tasks on download_tasks.id = download_task_streams.task_id
 where
-    id = ?1
+    download_task_streams.id = ?1
 ",
             [id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
         .map_err(StorageError::Read)?
         .ok_or(StorageError::DownloadStreamNotFound(id))?;
-    if DownloadTaskStatus::parse(status)?.is_terminal() {
+    if !DownloadTaskStatus::parse(status)?.can_accept_progress()
+        || !DownloadTaskStatus::parse(task_status)?.can_accept_progress()
+    {
         return Err(StorageError::InvalidDownloadProgress);
     }
     transaction

@@ -7,13 +7,15 @@ pub mod schema;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 
 pub use config::EnvironmentConfig;
 pub use download::{
-    DownloadProgress, DownloadStreamMediaType, DownloadStreamProgress, DownloadTask, DownloadTaskDraft,
-    DownloadTaskFilter, DownloadTaskStatus, DownloadTaskStream, DownloadTaskStreamDraft, DownloadTaskWithStreams,
+    DownloadExecutionOptions, DownloadExecutionSnapshot, DownloadProgress, DownloadStreamMediaType,
+    DownloadStreamProgress, DownloadTask, DownloadTaskDraft, DownloadTaskFilter, DownloadTaskStatus,
+    DownloadTaskStream, DownloadTaskStreamDraft, DownloadTaskWithStreams,
 };
 pub use error::StorageError;
 
@@ -31,6 +33,8 @@ pub const MAX_SEARCH_TIMEOUT_SEC: i64 = 120;
 
 /// 进程级单例；OnceLock 保证初始化只成功一次且实例地址保持稳定。
 static STORAGE: OnceLock<Storage> = OnceLock::new();
+/// 串行化初始化，防止失败的并发初始化将已经运行的任务再次恢复为暂停。
+static INITIALIZATION: Mutex<()> = Mutex::new(());
 
 /// 存储模块的同步访问入口，独占管理 SQLite 连接、路径和已加载的环境配置。
 pub struct Storage {
@@ -48,15 +52,16 @@ impl Storage {
         path::resolve_database_path(config_path)
     }
 
-    /// 打开或创建数据库，初始化全部 schema，并读取已有的环境配置。
+    /// 打开或创建数据库，初始化 schema 和配置，并将异常遗留活动任务恢复为暂停。
     ///
     /// 首次创建的 config 表保持为空，具体配置由后续配置流程写入。
     pub fn initialize(database_path: PathBuf) -> Result<(), StorageError> {
+        let _initialization = INITIALIZATION.lock().map_err(|_| StorageError::Poisoned)?;
         if STORAGE.get().is_some() {
             return Err(StorageError::AlreadyInitialized);
         }
 
-        let connection = database::open_database(&database_path)?;
+        let mut connection = database::open_database(&database_path)?;
         schema::initialize_schema(&connection).map_err(StorageError::Schema)?;
         let configuration = database::read_configuration(&connection)?;
         if let Some(configuration) = &configuration {
@@ -67,6 +72,12 @@ impl Storage {
             }
             validate_configuration(configuration)?;
         }
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .and_then(|duration| i64::try_from(duration.as_secs()).ok())
+            .ok_or(StorageError::InvalidDownloadInput)?;
+        database::recover_interrupted_downloads(&mut connection, now)?;
         STORAGE
             .set(Self {
                 database_path,
@@ -195,6 +206,8 @@ impl Storage {
     }
 
     /// 原子创建下载任务及其初始流记录，任一流写入失败都会回滚整个任务。
+    ///
+    /// 此兼容入口不保存执行快照；需要支持继续的执行器必须使用带快照的创建入口。
     pub fn create_download_task(
         &self,
         draft: DownloadTaskDraft,
@@ -205,7 +218,24 @@ impl Storage {
             stream.validate()?;
         }
         let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
-        database::create_download_task(&mut connection, &draft, &streams)
+        database::create_download_task(&mut connection, &draft, &streams, None)
+    }
+
+    /// 原子创建带不可变执行快照的下载任务及其初始流记录。
+    pub fn create_download_task_with_execution_snapshot(
+        &self,
+        draft: DownloadTaskDraft,
+        streams: Vec<DownloadTaskStreamDraft>,
+        execution_snapshot: DownloadExecutionSnapshot,
+    ) -> Result<DownloadTask, StorageError> {
+        draft.validate()?;
+        execution_snapshot.validate_for_task(&draft)?;
+        for stream in &streams {
+            stream.validate()?;
+            execution_snapshot.validate_stream(stream)?;
+        }
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::create_download_task(&mut connection, &draft, &streams, Some(&execution_snapshot))
     }
 
     /// 为已有任务新增一个下载流记录。
@@ -236,6 +266,37 @@ impl Storage {
         let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
         database::delete_download_tasks(&mut connection, ids)
     }
+    /// 按任务 ID 读取不可变执行快照；旧版本记录未保存快照时返回 `None`。
+    pub fn load_download_execution_snapshot(
+        &self,
+        task_id: i64,
+    ) -> Result<Option<DownloadExecutionSnapshot>, StorageError> {
+        let connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::load_download_execution_snapshot(&connection, task_id)
+    }
+
+    /// 原子暂停准备中或下载中的任务及其所有未完成流，并清除会话级进度字段。
+    ///
+    /// 本接口不控制子进程；执行器必须协调停止旧会话，防止恢复后收到旧会话事件。
+    pub fn pause_download_task(&self, task_id: i64, now: i64) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::pause_download_task(&mut connection, task_id, now)
+    }
+
+    /// 原子准备已暂停任务继续执行，保留原任务 ID、累计进度和首次开始时间。
+    pub fn prepare_resumed_download(&self, task_id: i64, now: i64) -> Result<(), StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::prepare_resumed_download(&mut connection, task_id, now)
+    }
+
+    /// 启动阶段将异常中断时遗留的活动任务统一转换为暂停状态。
+    ///
+    /// `initialize()` 已自动调用；仅允许在没有运行中执行器的启动阶段使用，不得用于日常暂停。
+    pub fn recover_interrupted_downloads(&self, now: i64) -> Result<usize, StorageError> {
+        let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;
+        database::recover_interrupted_downloads(&mut connection, now)
+    }
+
     /// 按状态机规则更新任务状态，并记录生命周期时间戳。
     pub fn update_download_status(&self, id: i64, status: DownloadTaskStatus, now: i64) -> Result<(), StorageError> {
         let mut connection = self.connection.lock().map_err(|_| StorageError::Poisoned)?;

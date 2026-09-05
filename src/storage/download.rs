@@ -6,6 +6,7 @@ pub enum DownloadTaskStatus {
     Pending,
     Preparing,
     Downloading,
+    Paused,
     Merging,
     Completed,
     Cancelled,
@@ -18,6 +19,7 @@ impl DownloadTaskStatus {
             Self::Pending => "pending",
             Self::Preparing => "preparing",
             Self::Downloading => "downloading",
+            Self::Paused => "paused",
             Self::Merging => "merging",
             Self::Completed => "completed",
             Self::Cancelled => "cancelled",
@@ -30,6 +32,7 @@ impl DownloadTaskStatus {
             "pending" => Ok(Self::Pending),
             "preparing" => Ok(Self::Preparing),
             "downloading" => Ok(Self::Downloading),
+            "paused" => Ok(Self::Paused),
             "merging" => Ok(Self::Merging),
             "completed" => Ok(Self::Completed),
             "cancelled" => Ok(Self::Cancelled),
@@ -42,27 +45,42 @@ impl DownloadTaskStatus {
         matches!(
             (self, target),
             (Self::Pending, Self::Preparing | Self::Cancelled | Self::Failed)
-                | (Self::Preparing, Self::Downloading | Self::Cancelled | Self::Failed)
+                | (
+                    Self::Preparing,
+                    Self::Downloading | Self::Paused | Self::Cancelled | Self::Failed
+                )
                 | (
                     Self::Downloading,
-                    Self::Merging | Self::Completed | Self::Cancelled | Self::Failed
+                    Self::Paused | Self::Merging | Self::Completed | Self::Cancelled | Self::Failed
                 )
+                | (Self::Paused, Self::Preparing | Self::Cancelled | Self::Failed)
                 | (Self::Merging, Self::Completed | Self::Failed)
         )
     }
 
-    /// 下载流不参与任务级合并阶段，只允许下载阶段和三个终态。
+    /// 下载流不参与任务级合并阶段，只允许下载阶段、暂停和三个终态。
     pub(crate) const fn can_stream_transition_to(self, target: Self) -> bool {
         matches!(
             (self, target),
             (Self::Pending, Self::Preparing | Self::Cancelled | Self::Failed)
-                | (Self::Preparing, Self::Downloading | Self::Cancelled | Self::Failed)
-                | (Self::Downloading, Self::Completed | Self::Cancelled | Self::Failed)
+                | (
+                    Self::Preparing,
+                    Self::Downloading | Self::Paused | Self::Cancelled | Self::Failed
+                )
+                | (
+                    Self::Downloading,
+                    Self::Paused | Self::Completed | Self::Cancelled | Self::Failed
+                )
+                | (Self::Paused, Self::Preparing | Self::Cancelled | Self::Failed)
         )
     }
 
     pub const fn is_terminal(self) -> bool {
         matches!(self, Self::Completed | Self::Cancelled | Self::Failed)
+    }
+
+    pub(crate) const fn can_accept_progress(self) -> bool {
+        !self.is_terminal() && !matches!(self, Self::Paused)
     }
 }
 
@@ -103,6 +121,29 @@ pub struct DownloadTaskDraft {
     pub selected_format: Option<String>,
     pub created_at: i64,
     pub yt_dlp_version: Option<String>,
+}
+
+/// 下载命令中与单个任务绑定的请求级选项快照。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DownloadExecutionOptions {
+    pub rate_limit: Option<String>,
+    pub retries: Option<u32>,
+    pub fragment_retries: Option<u32>,
+    pub file_access_retries: Option<u32>,
+    pub concurrent_fragments: Option<u32>,
+}
+
+/// 任务创建后不可变的执行参数；恢复时必须只读取此快照。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DownloadExecutionSnapshot {
+    pub source_url: String,
+    pub video_format_id: String,
+    pub audio_format_id: String,
+    pub output_template: String,
+    pub target_directory: String,
+    pub temporary_directory: String,
+    pub merge_output_format: String,
+    pub options: DownloadExecutionOptions,
 }
 
 /// 创建下载流时写入的格式和媒体属性快照。
@@ -210,6 +251,40 @@ impl DownloadTaskDraft {
             return Err(StorageError::InvalidDownloadInput);
         }
         validate_optional_nonnegative(self.duration_seconds)
+    }
+}
+
+impl DownloadExecutionSnapshot {
+    pub(crate) fn validate_stream(&self, stream: &DownloadTaskStreamDraft) -> Result<(), StorageError> {
+        let expected = match stream.media_type {
+            DownloadStreamMediaType::Video => &self.video_format_id,
+            DownloadStreamMediaType::Audio => &self.audio_format_id,
+        };
+        if stream.format_id.as_ref() != Some(expected) {
+            return Err(StorageError::InvalidDownloadInput);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_for_task(&self, task: &DownloadTaskDraft) -> Result<(), StorageError> {
+        if self.source_url != task.source_url
+            || self.target_directory != task.target_path
+            || self.source_url.trim().is_empty()
+            || self.video_format_id.trim().is_empty()
+            || self.audio_format_id.trim().is_empty()
+            || self.video_format_id == self.audio_format_id
+            || task
+                .selected_format
+                .as_ref()
+                .is_some_and(|format| *format != format!("{}+{}", self.video_format_id, self.audio_format_id))
+            || self.output_template.trim().is_empty()
+            || self.target_directory.trim().is_empty()
+            || self.temporary_directory.trim().is_empty()
+            || !matches!(self.merge_output_format.as_str(), "mp4" | "mkv")
+        {
+            return Err(StorageError::InvalidDownloadInput);
+        }
+        Ok(())
     }
 }
 

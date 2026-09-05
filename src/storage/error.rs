@@ -41,6 +41,8 @@ pub enum StorageError {
     InvalidDownloadProgress,
     /// 下载任务标识不存在。
     DownloadNotFound(i64),
+    /// 旧版本下载记录没有可恢复的执行快照。
+    DownloadExecutionSnapshotMissing(i64),
     /// 下载流标识不存在。
     DownloadStreamNotFound(i64),
     /// 下载流的任务不存在。
@@ -84,6 +86,9 @@ impl std::fmt::Display for StorageError {
             Self::InvalidDownloadInput => write!(formatter, "下载任务输入无效。"),
             Self::InvalidDownloadProgress => write!(formatter, "下载任务进度无效。"),
             Self::DownloadNotFound(id) => write!(formatter, "下载任务不存在：{id}。"),
+            Self::DownloadExecutionSnapshotMissing(id) => {
+                write!(formatter, "下载任务缺少可恢复的执行快照：{id}。")
+            }
             Self::DownloadStreamNotFound(id) => write!(formatter, "下载流不存在：{id}。"),
             Self::DownloadStreamTaskNotFound(id) => write!(formatter, "下载流所属任务不存在：{id}。"),
             Self::InvalidDownloadStatusTransition => write!(formatter, "下载状态迁移无效。"),
