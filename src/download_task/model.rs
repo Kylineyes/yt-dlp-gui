@@ -102,6 +102,7 @@ pub enum DownloadStreamStatus {
 pub enum DownloadStage {
     Preparing,
     Downloading,
+    Paused,
     Merging,
     Completed,
 }
@@ -165,6 +166,13 @@ pub struct DownloadProgress {
 pub struct DownloadResult {
     pub task_id: i64,
     pub output_path: Option<PathBuf>,
+}
+
+/// 一次执行会话的结果；暂停不是任务完成，也不是取消或失败。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DownloadOutcome {
+    Completed(DownloadResult),
+    Paused { task_id: i64 },
 }
 
 #[derive(Debug)]

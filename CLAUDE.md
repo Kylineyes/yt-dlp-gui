@@ -116,6 +116,12 @@ Cargo 工程建立后，应在这里记录经过验证的命令，包括运行�
 
 `src/app/contracts.rs` 与 `src/app/navigation.rs` 提供四路由 `Route` 和 `NavigationState` 基础契约。当前共享壳层只提供页面内容插槽，不实现欢迎、配置、检索、任务页面正文。页面接入共享壳层时，必须沿用 `PageScrollHost` 的内容高度契约和左右留白结构；不要在页面组件内重复实现 ScrollView、Flickable 或窗口级宽高计算。后续架构说明应继续以实际 Rust/Slint 源代码和配置为依据，并明确 yt-dlp 调用、桌面界面、SQLite 存储和平台适配之间的边界；不得引入 WebView 作为界面层。
 
+### 下载执行器
+
+`src/download_task/` 负责 yt-dlp 检索、下载进度解析、子进程和任务持久化接入；`session.rs` 管理同一 task_id 的独占执行会话，`recovery.rs` 从存储执行快照重建请求。暂停与完成通过 `DownloadHandle::wait_outcome()` 区分，页面不得自行构造恢复请求或删除旧记录后冒充继续。
+
+本分支接口、独立测试命令、当前集成编译阻塞和待补齐的恢复边界见 [`download-task-pause-resume.md`](download-task-pause-resume.md)。测试保持在 `tests/download_task_*.rs` 独立文件中，隔离验证不能替代整仓测试或真窗口验收。
+
 ## 分支协作与所有权
 
 - 开发前先确认当前分支的职责、负责模块和已有提交意图。代理只能在自身负责的 `feature/<范围>` 分支开发。

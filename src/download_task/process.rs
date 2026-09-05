@@ -134,6 +134,8 @@ where
     command.args([
         "--encoding",
         "utf-8",
+        "--ignore-config",
+        "--no-playlist",
         "--check-formats",
         "--newline",
         "--progress",
@@ -245,10 +247,16 @@ where
             None
         }
     };
-    stdout_thread.join().map_err(|_| DownloadTaskError::WorkerPanicked)?;
-    stderr_thread.join().map_err(|_| DownloadTaskError::WorkerPanicked)?;
+    let stdout_join = stdout_thread.join();
+    let stderr_join = stderr_thread.join();
+    stdout_join.map_err(|_| DownloadTaskError::WorkerPanicked)?;
+    stderr_join.map_err(|_| DownloadTaskError::WorkerPanicked)?;
     let mut drain_error = None;
     while let Ok(line) = line_receiver.try_recv() {
+        // 停止后丢弃队列中的旧输出；正常退出才补读最后一批进度。
+        if cancelled.load(Ordering::Acquire) || !matches!(termination, Termination::Exited(_)) {
+            continue;
+        }
         if drain_error.is_some() {
             if line.kind == PipeKind::Stderr {
                 if let Ok(value) = line.value {
@@ -391,6 +399,13 @@ fn ensure_executable(path: &std::path::Path) -> Result<(), DownloadTaskError> {
 }
 
 fn kill_child(child: &mut Child) {
+    // Windows 上同时结束 yt-dlp 派生的下载器，防止子进程继续写入续传文件或占用管道。
+    #[cfg(windows)]
+    if let Some(root) = std::env::var_os("SystemRoot") {
+        let _ = Command::new(std::path::PathBuf::from(root).join("System32").join("taskkill.exe"))
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .output();
+    }
     let _ = child.kill();
 }
 

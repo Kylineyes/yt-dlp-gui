@@ -3,6 +3,8 @@ mod model;
 mod parser;
 mod persistence;
 mod process;
+mod recovery;
+mod session;
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
@@ -13,13 +15,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub use error::DownloadTaskError;
 pub use model::{
-    DownloadMediaType, DownloadMessage, DownloadOptions, DownloadProgress, DownloadRequest, DownloadResult,
-    DownloadStage, DownloadStreamStatus, MediaFormat, MediaMessage, StreamProgress, VideoInfo, YtDlpVersion,
-    DEFAULT_METADATA_TIMEOUT, DEFAULT_PROGRESS_DELTA,
+    DownloadMediaType, DownloadMessage, DownloadOptions, DownloadOutcome, DownloadProgress, DownloadRequest,
+    DownloadResult, DownloadStage, DownloadStreamStatus, MediaFormat, MediaMessage, StreamProgress, VideoInfo,
+    YtDlpVersion, DEFAULT_METADATA_TIMEOUT, DEFAULT_PROGRESS_DELTA,
 };
 
 use model::ClientConfig;
 use persistence::PersistedDownload;
+use session::{Session, StopReason};
 
 pub fn parse_download_progress_line(
     line: &str,
@@ -128,49 +131,150 @@ impl DownloadTaskClient {
         })
     }
 
-    pub fn download<F>(&self, request: DownloadRequest, on_message: F) -> Result<DownloadHandle, DownloadTaskError>
+    pub fn download<F>(&self, mut request: DownloadRequest, on_message: F) -> Result<DownloadHandle, DownloadTaskError>
     where
         F: Fn(DownloadMessage) + Send + 'static,
     {
         request.validate().map_err(DownloadTaskError::InvalidDownloadRequest)?;
         let version = process::verify_executable(&self.config)?;
-        let now = unix_timestamp();
-        let persisted = PersistedDownload::create(&request, version.value, now)?;
-        let task_id = persisted.task_id();
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let shared = Arc::new(DownloadSharedState {
-            result: Mutex::new(None),
-            latest_progress: Mutex::new(Some(empty_progress(task_id, DownloadStage::Preparing, now))),
-            output_path: Mutex::new(None),
-            completion: Condvar::new(),
-        });
-        let worker_cancelled = Arc::clone(&cancelled);
-        let worker_shared = Arc::clone(&shared);
-        let config = self.config.clone();
-        let worker = thread::spawn(move || {
-            let panic_shared = Arc::clone(&worker_shared);
+        recovery::prepare_directories(&mut request)?;
+        let persisted = PersistedDownload::create(&request, version.value, unix_timestamp())?;
+        let session = Session::reserve(persisted.task_id())?;
+        spawn_download(self.config.clone(), request, persisted, session, on_message)
+    }
+
+    /// 同步停止指定任务，返回成功时旧进程、读取线程和回调均已退出。
+    /// 不要在 GUI 线程调用；下载回调内使用 request_pause_download。
+    pub fn pause_download(&self, task_id: i64) -> Result<(), DownloadTaskError> {
+        Session::find(task_id)?
+            .ok_or_else(|| DownloadTaskError::InvalidDownloadRequest("任务没有运行中的会话".to_owned()))?
+            .pause_and_wait()
+    }
+
+    pub fn request_pause_download(&self, task_id: i64) -> Result<(), DownloadTaskError> {
+        Session::find(task_id)?
+            .ok_or_else(|| DownloadTaskError::InvalidDownloadRequest("任务没有运行中的会话".to_owned()))?
+            .request_stop(StopReason::Pause)
+    }
+
+    /// 只从不可变快照恢复请求；工具路径、代理和超时使用本客户端的环境配置。
+    /// 应由装配层重新调用 from_storage 创建客户端以采用已保存的最新环境配置。
+    pub fn resume_download<F>(&self, task_id: i64, on_message: F) -> Result<DownloadHandle, DownloadTaskError>
+    where
+        F: Fn(DownloadMessage) + Send + 'static,
+    {
+        let session = Session::reserve(task_id)?;
+        let prepared = (|| {
+            let request = recovery::load_request(task_id)?;
+            process::verify_executable(&self.config)?;
+            let mut persisted = PersistedDownload::attach(task_id)?;
+            crate::storage::Storage::instance()
+                .map_err(|error| DownloadTaskError::Storage(error.to_string()))?
+                .prepare_resumed_download(task_id, unix_timestamp())
+                .map_err(|error| DownloadTaskError::Storage(error.to_string()))?;
+            // 专用恢复接口已将暂停流切换为 Preparing，重新读取原流 ID 和状态。
+            match PersistedDownload::attach(task_id) {
+                Ok(resumed) => Ok((request, resumed)),
+                Err(error) => {
+                    let _ = persisted.fail(&error, unix_timestamp());
+                    Err(error)
+                }
+            }
+        })();
+        match prepared {
+            Ok((request, persisted)) => spawn_download(self.config.clone(), request, persisted, session, on_message),
+            Err(error) => {
+                session.finish(Err(error.clone()));
+                Err(error)
+            }
+        }
+    }
+}
+
+fn spawn_download<F>(
+    config: ClientConfig,
+    request: DownloadRequest,
+    mut persisted: PersistedDownload,
+    session: Arc<Session>,
+    on_message: F,
+) -> Result<DownloadHandle, DownloadTaskError>
+where
+    F: Fn(DownloadMessage) + Send + 'static,
+{
+    let task_id = persisted.task_id();
+    let (initial, streams) = match recovery::progress(task_id, DownloadStage::Preparing) {
+        Ok(progress) => progress,
+        Err(error) => {
+            let _ = persisted.fail(&error, unix_timestamp());
+            session.finish(Err(error.clone()));
+            return Err(error);
+        }
+    };
+    let shared = Arc::new(DownloadSharedState {
+        result: Mutex::new(None),
+        latest_progress: Mutex::new(Some(initial)),
+        output_path: Mutex::new(None),
+        completion: Condvar::new(),
+    });
+    let worker_shared = Arc::clone(&shared);
+    let worker_session = Arc::clone(&session);
+    let worker = thread::Builder::new()
+        .name(format!("download-{task_id}"))
+        .spawn(move || {
+            worker_session.set_worker();
             let result = catch_unwind(AssertUnwindSafe(|| {
-                run_download_worker(config, request, persisted, worker_cancelled, worker_shared, on_message);
+                run_download_worker(
+                    config,
+                    request,
+                    &mut persisted,
+                    &worker_session,
+                    &worker_shared,
+                    streams,
+                    on_message,
+                );
             }));
             if result.is_err() {
-                set_download_completion(&panic_shared, Err(DownloadTaskError::WorkerPanicked));
+                let _ = worker_session.begin_finishing();
+                let completed = worker_shared.result.lock().ok().is_some_and(|result| result.is_some());
+                if !completed {
+                    let error = DownloadTaskError::WorkerPanicked;
+                    let final_error = persisted.fail(&error, unix_timestamp()).err().unwrap_or(error);
+                    set_download_completion(&worker_shared, Err(final_error));
+                }
             }
+            let outcome = worker_shared
+                .result
+                .lock()
+                .map_err(|_| DownloadTaskError::Poisoned)
+                .and_then(|result| result.clone().unwrap_or(Err(DownloadTaskError::WorkerPanicked)))
+                .map(|_| ());
+            worker_session.finish(outcome);
         });
-        Ok(DownloadHandle {
+    match worker {
+        Ok(worker) => Ok(DownloadHandle {
             task_id,
-            cancelled,
+            session,
             shared,
             worker: Mutex::new(Some(worker)),
-        })
+        }),
+        Err(error) => {
+            let error = DownloadTaskError::Spawn(error);
+            if let Ok(mut persisted) = PersistedDownload::attach(task_id) {
+                let _ = persisted.fail(&error, unix_timestamp());
+            }
+            session.finish(Err(error.clone()));
+            Err(error)
+        }
     }
 }
 
 fn run_download_worker<F>(
     config: ClientConfig,
     request: DownloadRequest,
-    mut persisted: PersistedDownload,
-    cancelled: Arc<AtomicBool>,
-    shared: Arc<DownloadSharedState>,
+    persisted: &mut PersistedDownload,
+    session: &Session,
+    shared: &DownloadSharedState,
+    mut streams: Vec<StreamProgress>,
     on_message: F,
 ) where
     F: Fn(DownloadMessage),
@@ -182,20 +286,34 @@ fn run_download_worker<F>(
     }
     let now = unix_timestamp();
     if let Err(error) = persisted.mark_downloading(now) {
-        finish_failed_download(&shared, &mut persisted, error, &on_message);
+        finish_failed_download(shared, persisted, error, &on_message);
         return;
     }
-    let initial = empty_progress(task_id, DownloadStage::Downloading, now);
+    let initial = stage_progress(shared, task_id, DownloadStage::Downloading, now);
     set_latest_progress(&shared, initial.clone());
     on_message(DownloadMessage::Progress(initial));
 
-    let mut streams: Vec<StreamProgress> = Vec::new();
-    let result = process::run_download(config, request, Arc::clone(&cancelled), |output| {
+    let result = process::run_download(config, request, Arc::clone(&session.stopped), |output| {
+        if session.stopped.load(Ordering::Acquire) {
+            return Err(DownloadTaskError::Cancelled);
+        }
         match output {
             parser::DownloadOutput::Progress(mut progress) => {
+                if persisted.stream_completed(&progress.stream_key) {
+                    if progress.status == DownloadStreamStatus::Finished {
+                        return Ok(());
+                    }
+                    return Err(DownloadTaskError::InvalidDownloadRequest(
+                        "已完成媒体无法复用，拒绝覆盖原流记录".to_owned(),
+                    ));
+                }
                 let now = unix_timestamp();
                 update_stream_timestamps(&mut streams, &mut progress, now);
                 if let Some(existing) = streams.iter_mut().find(|item| item.stream_key == progress.stream_key) {
+                    progress.downloaded_bytes = progress.downloaded_bytes.max(existing.downloaded_bytes);
+                    progress.total_bytes = progress.total_bytes.or(existing.total_bytes);
+                    progress.total_bytes_estimate = progress.total_bytes_estimate.or(existing.total_bytes_estimate);
+                    progress.percent = progress.percent.max(existing.percent);
                     *existing = progress.clone();
                 } else {
                     streams.push(progress.clone());
@@ -211,6 +329,7 @@ fn run_download_worker<F>(
                 on_message(DownloadMessage::Progress(task_progress));
             }
             parser::DownloadOutput::Merging => {
+                session.begin_merging()?;
                 let now = unix_timestamp();
                 if persisted.mark_merging(now)? {
                     let progress = stage_progress(&shared, task_id, DownloadStage::Merging, now);
@@ -224,6 +343,38 @@ fn run_download_worker<F>(
         Ok(())
     });
 
+    let stop = match session.begin_finishing() {
+        Ok(stop) => stop,
+        Err(error) => {
+            finish_failed_download(shared, persisted, error, &on_message);
+            return;
+        }
+    };
+    if stop == Some(StopReason::Pause) {
+        let now = unix_timestamp();
+        let progress = stage_progress(shared, task_id, DownloadStage::Paused, now);
+        let paused = persisted
+            .write_final_progress(&progress, &streams)
+            .and_then(|_| persisted.pause(now));
+        match paused {
+            Ok(()) => {
+                let mut progress = progress;
+                progress.speed_bytes_per_second = None;
+                progress.elapsed_seconds = None;
+                progress.eta_seconds = None;
+                set_latest_progress(shared, progress.clone());
+                on_message(DownloadMessage::Progress(progress));
+                set_download_completion(shared, Ok(DownloadOutcome::Paused { task_id }));
+            }
+            Err(error) => finish_failed_download(shared, persisted, error, &on_message),
+        }
+        return;
+    }
+    let result = if stop == Some(StopReason::Cancel) {
+        Err(DownloadTaskError::Cancelled)
+    } else {
+        result
+    };
     match result {
         Ok(output_path) => {
             let output_path = output_path
@@ -235,9 +386,11 @@ fn run_download_worker<F>(
                     let mut progress = stage_progress(&shared, task_id, DownloadStage::Completed, now);
                     progress.percent = Some(100);
                     progress.active_stream = None;
-                    persisted.write_final_progress(&progress, &streams);
-                    if let Err(error) = persisted.complete(output_path.clone(), now) {
-                        finish_failed_download(&shared, &mut persisted, error, &on_message);
+                    if let Err(error) = persisted
+                        .write_final_progress(&progress, &streams)
+                        .and_then(|_| persisted.complete(output_path.clone(), now))
+                    {
+                        finish_failed_download(shared, persisted, error, &on_message);
                         return;
                     }
                     set_latest_progress(&shared, progress.clone());
@@ -246,10 +399,10 @@ fn run_download_worker<F>(
                         task_id,
                         output_path: Some(output_path.into()),
                     };
-                    set_download_completion(&shared, Ok(result.clone()));
+                    set_download_completion(&shared, Ok(DownloadOutcome::Completed(result.clone())));
                     on_message(DownloadMessage::Completed(result));
                 }
-                Err(error) => finish_failed_download(&shared, &mut persisted, error, &on_message),
+                Err(error) => finish_failed_download(shared, persisted, error, &on_message),
             }
         }
         Err(DownloadTaskError::Cancelled) => {
@@ -259,10 +412,10 @@ fn run_download_worker<F>(
                     set_download_completion(&shared, Err(DownloadTaskError::Cancelled));
                     on_message(DownloadMessage::Cancelled);
                 }
-                Err(error) => finish_failed_download(&shared, &mut persisted, error, &on_message),
+                Err(error) => finish_failed_download(shared, persisted, error, &on_message),
             }
         }
-        Err(error) => finish_failed_download(&shared, &mut persisted, error, &on_message),
+        Err(error) => finish_failed_download(shared, persisted, error, &on_message),
     }
 }
 
@@ -383,13 +536,13 @@ impl Drop for SearchHandle {
 }
 
 struct DownloadSharedState {
-    result: Mutex<Option<Result<DownloadResult, DownloadTaskError>>>,
+    result: Mutex<Option<Result<DownloadOutcome, DownloadTaskError>>>,
     latest_progress: Mutex<Option<DownloadProgress>>,
     output_path: Mutex<Option<String>>,
     completion: Condvar,
 }
 
-fn set_download_completion(shared: &DownloadSharedState, result: Result<DownloadResult, DownloadTaskError>) {
+fn set_download_completion(shared: &DownloadSharedState, result: Result<DownloadOutcome, DownloadTaskError>) {
     if let Ok(mut stored) = shared.result.lock() {
         *stored = Some(result);
         shared.completion.notify_all();
@@ -414,7 +567,7 @@ fn latest_output_path(shared: &DownloadSharedState) -> Option<String> {
 
 pub struct DownloadHandle {
     task_id: i64,
-    cancelled: Arc<AtomicBool>,
+    session: Arc<Session>,
     shared: Arc<DownloadSharedState>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
@@ -425,11 +578,19 @@ impl DownloadHandle {
     }
 
     pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::Release);
+        let _ = self.session.request_stop(StopReason::Cancel);
+    }
+
+    pub fn request_pause(&self) -> Result<(), DownloadTaskError> {
+        self.session.request_stop(StopReason::Pause)
+    }
+
+    pub fn pause(&self) -> Result<(), DownloadTaskError> {
+        self.session.pause_and_wait()
     }
 
     pub fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Acquire)
+        self.session.is_cancelled()
     }
 
     pub fn latest_progress(&self) -> Option<DownloadProgress> {
@@ -440,8 +601,28 @@ impl DownloadHandle {
             .and_then(|progress| progress.clone())
     }
 
+    /// 兼容只处理完整下载的调用方；支持暂停的装配层应改用 wait_outcome。
     pub fn wait(self) -> Result<DownloadResult, DownloadTaskError> {
-        let result = wait_for_result(&self.shared.result, &self.shared.completion);
+        match self.wait_outcome()? {
+            DownloadOutcome::Completed(result) => Ok(result),
+            DownloadOutcome::Paused { .. } => Err(DownloadTaskError::InvalidDownloadRequest(
+                "任务已暂停，请使用 wait_outcome 处理会话结果".to_owned(),
+            )),
+        }
+    }
+
+    pub fn wait_outcome(self) -> Result<DownloadOutcome, DownloadTaskError> {
+        let result = {
+            let mut stored = self.shared.result.lock().map_err(|_| DownloadTaskError::Poisoned)?;
+            while stored.is_none() {
+                stored = self
+                    .shared
+                    .completion
+                    .wait(stored)
+                    .map_err(|_| DownloadTaskError::Poisoned)?;
+            }
+            stored.clone().ok_or(DownloadTaskError::WorkerPanicked)?
+        };
         join_worker(&self.worker)?;
         result
     }
