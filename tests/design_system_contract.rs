@@ -191,6 +191,7 @@ fn i18n_catalog_has_non_empty_bilingual_fallbacks() {
         TextKey::TasksDelete,
         TextKey::TasksRedownload,
         TextKey::TasksOpenVideoUrl,
+        TextKey::TasksCopyYtDlpCommand,
         TextKey::TasksSelectAll,
         TextKey::TasksStatusPending,
         TextKey::TasksStatusPreparing,
@@ -255,6 +256,11 @@ fn tasks_action_copy_matches_the_stable_bilingual_contract() {
         (TextKey::TasksDelete, "删除此条任务", "Delete this task"),
         (TextKey::TasksRedownload, "重新下载", "Redownload"),
         (TextKey::TasksOpenVideoUrl, "打开视频链接", "Open video URL"),
+        (
+            TextKey::TasksCopyYtDlpCommand,
+            "复制 yt-dlp 下载命令",
+            "Copy yt-dlp download command",
+        ),
         (TextKey::TasksSelectAll, "全选所有视频", "Select all videos"),
     ];
     for (key, zh_cn, en_us) in actions {

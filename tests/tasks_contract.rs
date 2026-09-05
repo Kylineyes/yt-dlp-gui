@@ -129,6 +129,7 @@ fn status_text_has_the_stable_bilingual_mapping() {
         (DownloadTaskStatus::Pending, "待开始", "Pending"),
         (DownloadTaskStatus::Preparing, "准备中", "Preparing"),
         (DownloadTaskStatus::Downloading, "下载中", "Downloading"),
+        (DownloadTaskStatus::Paused, "已暂停", "Paused"),
         (DownloadTaskStatus::Merging, "合并中", "Merging"),
         (DownloadTaskStatus::Completed, "已完成", "Completed"),
         (DownloadTaskStatus::Cancelled, "已取消", "Cancelled"),
@@ -139,6 +140,92 @@ fn status_text_has_the_stable_bilingual_mapping() {
         assert_eq!(task_status_text(Locale::ZhCn, status), zh_cn);
         assert_eq!(task_status_text(Locale::EnUs, status), en_us);
     }
+}
+
+#[test]
+fn paused_task_rows_keep_progress_and_use_bilingual_status_text() {
+    let paused = task(
+        7,
+        Some("paused video"),
+        DownloadTaskStatus::Paused,
+        Some(50),
+        Some(2 * 1024 * 1024),
+        None,
+        None,
+        1_700_000_000,
+        "target",
+    );
+    for (locale, label) in [(Locale::ZhCn, "已暂停"), (Locale::EnUs, "Paused")] {
+        let row = task_row(&paused, locale);
+        assert_eq!(row.cells.len(), 8);
+        assert_eq!(row.cells[1], label);
+        assert_eq!(row.cells[2], "50%");
+        assert_eq!(row.cells[3], "1.0 MiB");
+        assert!(row.cells[4].is_empty());
+        assert!(row.cells[5].is_empty());
+    }
+}
+
+#[test]
+fn status_sort_places_paused_between_downloading_and_merging() {
+    let statuses = [
+        DownloadTaskStatus::Failed,
+        DownloadTaskStatus::Cancelled,
+        DownloadTaskStatus::Completed,
+        DownloadTaskStatus::Merging,
+        DownloadTaskStatus::Paused,
+        DownloadTaskStatus::Downloading,
+        DownloadTaskStatus::Preparing,
+        DownloadTaskStatus::Pending,
+    ];
+    let tasks = statuses
+        .into_iter()
+        .enumerate()
+        .map(|(id, status)| task(id as i64, None, status, None, None, None, None, 0, "target"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        sorted_task_indices(&tasks, Some(TaskSortColumn::Status), TaskSortDirection::Ascending),
+        vec![7, 6, 5, 4, 3, 2, 1, 0]
+    );
+    assert_eq!(
+        sorted_task_indices(&tasks, Some(TaskSortColumn::Status), TaskSortDirection::Descending),
+        vec![0, 1, 2, 3, 4, 5, 6, 7]
+    );
+}
+
+#[test]
+fn paused_tasks_do_not_trigger_polling_but_resumed_tasks_do() {
+    let mut tasks = vec![task(
+        1,
+        None,
+        DownloadTaskStatus::Paused,
+        Some(50),
+        None,
+        None,
+        None,
+        0,
+        "target",
+    )];
+    assert!(!tasks[0].status.is_terminal());
+    assert!(!has_active_tasks(&tasks));
+    tasks.push(task(
+        2,
+        None,
+        DownloadTaskStatus::Completed,
+        Some(100),
+        None,
+        None,
+        None,
+        0,
+        "target",
+    ));
+    assert!(!has_active_tasks(&tasks));
+    tasks[0].status = DownloadTaskStatus::Preparing;
+    assert!(has_active_tasks(&tasks));
+    tasks[0].status = DownloadTaskStatus::Downloading;
+    assert!(has_active_tasks(&tasks));
+    tasks[0].status = DownloadTaskStatus::Paused;
+    assert!(!has_active_tasks(&tasks));
 }
 
 #[test]
@@ -278,6 +365,7 @@ fn formatting_handles_epoch_and_invalid_values() {
     assert!(source.contains("I18n.tasks-delete"));
     assert!(source.contains("I18n.tasks-redownload"));
     assert!(source.contains("I18n.tasks-open-video-url"));
+    assert!(source.contains("I18n.tasks-copy-ytdlp-command"));
     assert!(source.contains("I18n.tasks-select-all"));
     assert!(source.contains("row-context-menu-action(source-row, action)"));
     assert!(source.contains("rows-selectable: true"));
@@ -301,6 +389,8 @@ fn task_selection_callbacks_forward_check_all_and_keep_source_indices() {
     assert!(app_window_source.contains("tasks-selected-source-row: -1;"));
     assert!(app_window_source.contains("callback tasks-row-selected(int);"));
     assert!(app_window_source.contains("root.tasks-row-selected(source-row);"));
+    let window_source = include_str!("../src/app/window.rs");
+    assert!(window_source.contains("i18n.set_tasks_copy_ytdlp_command(snapshot.tasks_copy_ytdlp_command.into());"));
 
     let window_source = include_str!("../src/app/tasks_window.rs");
     assert!(window_source.contains("ui.on_tasks_check_all_toggled(move |checked|"));
@@ -368,7 +458,7 @@ fn task_size_formatter_uses_downloaded_value() {
 }
 
 #[test]
-fn has_active_tasks_returns_true_when_any_task_is_not_terminal() {
+fn has_active_tasks_returns_true_for_pending_or_running_tasks() {
     let active = [
         DownloadTaskStatus::Pending,
         DownloadTaskStatus::Preparing,

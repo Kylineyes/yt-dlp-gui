@@ -139,6 +139,7 @@ impl I18nCatalog {
             | TextKey::TasksDelete
             | TextKey::TasksRedownload
             | TextKey::TasksOpenVideoUrl
+            | TextKey::TasksCopyYtDlpCommand
             | TextKey::TasksSelectAll
             | TextKey::TasksStatusPending
             | TextKey::TasksStatusPreparing

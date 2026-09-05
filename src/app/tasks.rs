@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
+use std::path::Path;
 
 use crate::design_system::i18n::{I18nCatalog, Locale, TextKey};
+use crate::download_task::DownloadRequest;
 use crate::storage::{DownloadTask, DownloadTaskStatus};
 use crate::table::{compare_lexicographic, TableRow};
 
@@ -110,11 +112,64 @@ pub fn task_title(task: &DownloadTask) -> &str {
         .unwrap_or(&task.source_url)
 }
 
+pub fn format_yt_dlp_download_command(
+    request: &DownloadRequest,
+    ffmpeg_path: Option<&Path>,
+    proxy: Option<&str>,
+) -> String {
+    let mut arguments = vec![
+        "-f".to_owned(),
+        format!(
+            "{}+{}",
+            request.selected_video_format_id, request.selected_audio_format_id
+        ),
+        "--merge-output-format".to_owned(),
+        request.merge_output_format.clone(),
+        "--no-overwrites".to_owned(),
+        "-P".to_owned(),
+        format!("home:{}", request.target_directory.display()),
+        "-P".to_owned(),
+        format!("temp:{}", request.temporary_directory.display()),
+        "-o".to_owned(),
+        request.output_template.clone(),
+    ];
+    if let Some(proxy) = proxy.filter(|value| !value.trim().is_empty()) {
+        arguments.extend(["--proxy".to_owned(), proxy.to_owned()]);
+    }
+    if let Some(ffmpeg_path) = ffmpeg_path.filter(|path| !path.as_os_str().is_empty()) {
+        arguments.extend(["--ffmpeg-location".to_owned(), ffmpeg_path.display().to_string()]);
+    }
+    if let Some(rate_limit) = &request.options.rate_limit {
+        arguments.extend(["--limit-rate".to_owned(), rate_limit.clone()]);
+    }
+    for (name, value) in [
+        ("--retries", request.options.retries),
+        ("--fragment-retries", request.options.fragment_retries),
+        ("--file-access-retries", request.options.file_access_retries),
+        ("--concurrent-fragments", request.options.concurrent_fragments),
+    ] {
+        if let Some(value) = value {
+            arguments.extend([name.to_owned(), value.to_string()]);
+        }
+    }
+    arguments.push(request.source_url.clone());
+
+    std::iter::once("yt-dlp".to_owned())
+        .chain(arguments.into_iter().map(|argument| powershell_argument(&argument)))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn powershell_argument(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
 pub const fn task_status_key(status: DownloadTaskStatus) -> TextKey {
     match status {
         DownloadTaskStatus::Pending => TextKey::TasksStatusPending,
         DownloadTaskStatus::Preparing => TextKey::TasksStatusPreparing,
         DownloadTaskStatus::Downloading => TextKey::TasksStatusDownloading,
+        DownloadTaskStatus::Paused => TextKey::TasksStatusPaused,
         DownloadTaskStatus::Merging => TextKey::TasksStatusMerging,
         DownloadTaskStatus::Completed => TextKey::TasksStatusCompleted,
         DownloadTaskStatus::Cancelled => TextKey::TasksStatusCancelled,
@@ -127,7 +182,9 @@ pub fn task_status_text(locale: Locale, status: DownloadTaskStatus) -> &'static 
 }
 
 pub fn has_active_tasks(tasks: &[DownloadTask]) -> bool {
-    tasks.iter().any(|task| !task.status.is_terminal())
+    tasks
+        .iter()
+        .any(|task| !task.status.is_terminal() && task.status != DownloadTaskStatus::Paused)
 }
 
 pub fn format_progress(progress_percent: Option<u8>) -> String {
@@ -226,10 +283,11 @@ const fn status_rank(status: DownloadTaskStatus) -> u8 {
         DownloadTaskStatus::Pending => 0,
         DownloadTaskStatus::Preparing => 1,
         DownloadTaskStatus::Downloading => 2,
-        DownloadTaskStatus::Merging => 3,
-        DownloadTaskStatus::Completed => 4,
-        DownloadTaskStatus::Cancelled => 5,
-        DownloadTaskStatus::Failed => 6,
+        DownloadTaskStatus::Paused => 3,
+        DownloadTaskStatus::Merging => 4,
+        DownloadTaskStatus::Completed => 5,
+        DownloadTaskStatus::Cancelled => 6,
+        DownloadTaskStatus::Failed => 7,
     }
 }
 

@@ -279,6 +279,7 @@ fn apply_i18n_snapshot(i18n: &I18n<'_>, snapshot: I18nSnapshot) {
     i18n.set_tasks_delete(snapshot.tasks_delete.into());
     i18n.set_tasks_redownload(snapshot.tasks_redownload.into());
     i18n.set_tasks_open_video_url(snapshot.tasks_open_video_url.into());
+    i18n.set_tasks_copy_ytdlp_command(snapshot.tasks_copy_ytdlp_command.into());
     i18n.set_tasks_select_all(snapshot.tasks_select_all.into());
     i18n.set_tasks_status_pending(snapshot.tasks_status_pending.into());
     i18n.set_tasks_status_preparing(snapshot.tasks_status_preparing.into());

@@ -136,6 +136,7 @@ impl I18nCatalog {
             tasks_delete: Self::text(locale, TextKey::TasksDelete),
             tasks_redownload: Self::text(locale, TextKey::TasksRedownload),
             tasks_open_video_url: Self::text(locale, TextKey::TasksOpenVideoUrl),
+            tasks_copy_ytdlp_command: Self::text(locale, TextKey::TasksCopyYtDlpCommand),
             tasks_select_all: Self::text(locale, TextKey::TasksSelectAll),
             tasks_status_pending: Self::text(locale, TextKey::TasksStatusPending),
             tasks_status_preparing: Self::text(locale, TextKey::TasksStatusPreparing),

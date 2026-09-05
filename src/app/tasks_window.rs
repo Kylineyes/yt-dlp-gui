@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::rc::Rc;
 use std::time::Duration;
@@ -17,7 +17,8 @@ const TASK_ACTION_OPEN_PATH: i32 = 0;
 const TASK_ACTION_DELETE: i32 = 1;
 const TASK_ACTION_REDOWNLOAD: i32 = 2;
 const TASK_ACTION_OPEN_URL: i32 = 3;
-const TASK_ACTION_SELECT_ALL: i32 = 4;
+const TASK_ACTION_COPY_YTDLP_COMMAND: i32 = 4;
+const TASK_ACTION_SELECT_ALL: i32 = 5;
 
 struct TasksState {
     tasks: Vec<DownloadTask>,
@@ -175,6 +176,11 @@ pub(super) fn install(ui: &AppWindow, storage: &'static Storage, locale: Rc<Cell
                     eprintln!("打开视频链接失败：{error}");
                 }
             }
+            TASK_ACTION_COPY_YTDLP_COMMAND => {
+                if let Err(error) = copy_task_yt_dlp_command(storage, &task) {
+                    eprintln!("复制 yt-dlp 下载命令失败：{error}");
+                }
+            }
             _ => {}
         }
     });
@@ -283,6 +289,73 @@ fn open_task_video_path(task: &DownloadTask) {
             eprintln!("打开视频存放路径失败：{error}");
         }
     }
+}
+
+fn copy_task_yt_dlp_command(storage: &'static Storage, task: &DownloadTask) -> Result<(), String> {
+    let stored = storage
+        .get_download_task(task.id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "下载任务不存在".to_owned())?;
+    let request = download_request_from_task(&stored.task, &stored.streams)?;
+    let configuration = storage.configuration().map_err(|error| error.to_string())?;
+    let command = tasks::format_yt_dlp_download_command(
+        &request,
+        configuration.as_ref().and_then(|configuration| {
+            (!configuration.ffmpeg_path.trim().is_empty()).then(|| Path::new(&configuration.ffmpeg_path))
+        }),
+        configuration.as_ref().map(|configuration| configuration.proxy.as_str()),
+    );
+    copy_to_clipboard(&command)
+}
+
+#[cfg(windows)]
+fn copy_to_clipboard(value: &str) -> Result<(), String> {
+    use windows_sys::Win32::Foundation::GlobalFree;
+    use windows_sys::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData};
+    use windows_sys::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+    use windows_sys::Win32::System::Ole::CF_UNICODETEXT;
+
+    let value = value.encode_utf16().chain(std::iter::once(0)).collect::<Vec<_>>();
+    let byte_length = value
+        .len()
+        .checked_mul(std::mem::size_of::<u16>())
+        .ok_or_else(|| "复制内容过长".to_owned())?;
+
+    unsafe {
+        if OpenClipboard(std::ptr::null_mut()) == 0 {
+            return Err("无法打开系统剪贴板".to_owned());
+        }
+        let memory = GlobalAlloc(GMEM_MOVEABLE, byte_length);
+        if memory.is_null() {
+            let _ = CloseClipboard();
+            return Err("无法分配剪贴板内存".to_owned());
+        }
+        let destination = GlobalLock(memory);
+        if destination.is_null() {
+            let _ = GlobalFree(memory);
+            let _ = CloseClipboard();
+            return Err("无法写入剪贴板内存".to_owned());
+        }
+        std::ptr::copy_nonoverlapping(value.as_ptr().cast::<u8>(), destination.cast::<u8>(), byte_length);
+        let _ = GlobalUnlock(memory);
+        if EmptyClipboard() == 0 {
+            let _ = GlobalFree(memory);
+            let _ = CloseClipboard();
+            return Err("无法清空系统剪贴板".to_owned());
+        }
+        if SetClipboardData(u32::from(CF_UNICODETEXT), memory).is_null() {
+            let _ = GlobalFree(memory);
+            let _ = CloseClipboard();
+            return Err("无法设置系统剪贴板内容".to_owned());
+        }
+        let _ = CloseClipboard();
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn copy_to_clipboard(_: &str) -> Result<(), String> {
+    Err("当前平台不支持复制到剪贴板".to_owned())
 }
 
 fn redownload_task(storage: &'static Storage, task: &DownloadTask) -> Result<(), String> {
